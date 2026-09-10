@@ -1,342 +1,95 @@
-# **JuanFiV2**
-> Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2). Based on the original **JuanFi** project by **Ivan Julius Alayan** — see [Acknowledgments](#acknowledgments).
+# JuanFiV2
 
+> Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2).
+> Fork of the original **JuanFi** by Ivan Julius Alayan —
+> full [original README here](https://github.com/ivanalayan15/JuanFi#readme).
 
-JuanFiV2 is an innovative open-source system designed for seamless coinslot integration with MikroTik Hotspot. It provides a comprehensive solution for managing and monetizing internet access through the integration of a coinslot mechanism. With JuanFiV2, hotspot owners can effortlessly incorporate a coinslot system into their network infrastructure, enabling them to offer paid internet access in an efficient and user-friendly manner.
-
-
-
-## **Acknowledgments**
-
-This project is a community-maintained fork of **JuanFi** by **Ivan Julius Alayan** ([original repo](https://github.com/ivanalayan15/JuanFi)).
-Original website, app, diagrams, and scripts remain his work:
-- Official Website: [juanfi.juansystems.com](https://juanfi.juansystems.com/)
-- Android App: [JuanFi Manager](https://play.google.com/store/apps/details?id=com.juanfi.mobile.admin)
-- Diagram updates by [Tee Ay](https://www.facebook.com/ajr.lauren)
-- Sales script contributions by kristoff
-
-# **Community Group**
-
-Join our vibrant community group to connect with other users and contributors. Share your experiences, exchange ideas, hotspot portals, and stay up to date with the latest developments and enhancements of JuanFiV2.
-
-- Facebook Group (original): [JuanFi Community](https://www.facebook.com/groups/1172413279934139)
-
-# **Features**
-
- ### Hardware Option
-
-- Wireless based
-- Lan based
-
-### Coinslot System
-
-- Mikrotik integration
-- Pause expiration
-- Codeless generation
-- Anti Coinslot abuse system
-- Code generation in vendo without device needed (insert-coin button)
-- Multi vendo system
-
-### Admin System
-
-- Initial setup of the system
-- Mikrotik connection setup, SSID setup, coinslot settings
-- Promo Rates configuration ( Rates, expiration)
-- Dashboard, Sales report
-- Custom pin configuration
-- coinslot abuse system config
+Coinslot vendo system for MikroTik Hotspot (ESP8266 wireless / ESP32 wireless+LAN).
+Vouchers look like `1FI` + 5 chars, work from any AP on the same router.
 
 ## Requirements
 
-1.) NodeMCU(ESP8266) for wireless/lan or NodeMCU(ESP32) for wireless/lan
+- NodeMCU ESP8266 (wireless) or ESP32 (wireless/LAN) + baseboard
+- Coinslot, MikroTik router, access point
+- 12V supply for NodeMCU and MikroTik, W5500 module for LAN builds
 
-2.) Coinslot
+## 1. Flash the firmware
 
-3.) Mikrotik Router
+Get the bins from `/release` (WirelessBase or LanBased, ESP8266 or ESP32).
 
-4.) Access Point
+ESP8266 with NodeMCU-PyFlasher, flash in this order:
 
-5.) Node MCU baseboard( Optional for wireless)
+```text
+File 1: JuanFi-FlashFile1.bin at offset 0x000000
+File 2: JuanFi-FlashFile2.bin at offset 0x200000
+```
 
-6.) Power Supply (12v for nodeMCU, another 12v for Mikrotik)
+ESP32: copy the whole ESP32 release folder to Windows, plug in USB, run:
 
-7.) W5500 for Lan based
+```text
+start_flash.bat  -> pick the COM port -> hold FLASH 3-5s until it starts
+```
 
-8.) LM2596 or any DC to DC buck that can convert to 5v for (Lan based only since no available baseboard for ESP32)
+Wiring diagrams are in `/docs` (esp32/esp8266, wireless/LAN, power-cut variants).
 
+## 2. First-time vendo setup
 
----
-> # **Architecture** 
+1. Power on, connect to WiFi SSID `JuanFiV2 Setup` (no password).
+2. Open `http://172.217.28.1/login` (LAN builds: plug into PC NIC with static `172.217.28.10` first).
+3. Log in with the defaults, then fill in your system config + promo rates:
 
+```text
+Admin user : admin
+Admin pass : admin
+MikroTik API: pisonet / abc123  (create the same user on the router, step 4)
+Vendo IP   : 10.0.0.254   Mask: 255.255.0.0   Gateway/DNS: 10.0.0.1
+```
 
-![alt text](docs/JuanFi-Architecture.PNG?raw=true)
+Save and let it restart. Change the admin password after first login.
 
----
+## 3. MikroTik setup
 
-## ESP32 LAN Based Connection Diagram
+Set up a hotspot server first, then paste each block into the MikroTik terminal
+(New Terminal). Order matters.
 
-![alt text](/docs/esp32-lan-diagram.jpg)
-
-## ESP32 Wireless Based Connection Diagram
-
-![alt text](/docs/esp32-wireless-diagram.jpg)
-
-## ESP8622 Wireless Based Connection Diagram
-
-![alt text](/docs/esp8622-wireles-diagram.jpg)
-
-## ESP8622 LAN Based Connection Diagram
-
-![alt text](/docs/esp8622-lan-diagram.jpg)
-
-# **Updated Connection diagram**
-
-<details>
-<summary> Expand for more images</summary>
-
-
-### *Credits to [Tee Ay](https://www.facebook.com/ajr.lauren) for the updated diagram*
-
-## ESP8266 Simple Wireless
-![alt text](/docs/ESP8266_Simple_Wireless.jpg)
-
-## ESP8266 Simple Lan based
-![alt text](/docs/ESP8266_Simple_LanBased.jpg)
-
-## ESP8266 Wireless With Power Cut
-![alt text](/docs/ESP8266_PowerCut_Wireless.jpg)
-
-## ESP8266 Lan Based with Power Cut
-![alt text](/docs/ESP8266_PowerCut_LanBased.jpg)
-
-</details>
-
-<br>
-
-> # **Flashing the hardware**
-
-# ESP8622 Flashing Instructions
-
-<details>
-<summary>Expand for Instructions</summary>
-
-Here are the instructions to flash the ESP8622 using the custom pyflasher. Follow these steps to successfully flash the ESP8622 module with the required firmware.
-
-## Step 1: Download the Flashing Files
-
-Download the necessary ESP8622 flashing files for your setup:
-
-- [**ESP8622 Wireless Base folder**](/release/WirelessBase/ES8622) - For wireless setup.
-- [**ESP8622 Lan Base folder**](/release/LanBased/ESP8622/) - For LAN-based setup.
-
-## Step 2: Open the NodeMCU-PyFlasher
-
-1. Connect your ESP8622 to your PC.
-2. Open the `NodeMCU-PyFlasher.exe` application.
-
-## Step 3: Flashing JuanFi-FlashFile1.bin
-
-1. In the PyFlasher interface:
-   - Select the file `JuanFi-FlashFile1.bin`.
-   - Make sure the offset is set to `0x000000`.
-   - Click the `Flash Nodemcu` button and wait for the flashing process to complete.
-
-![Flash File 1](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-FlashFile1.PNG?raw=true)
-
-## Step 4: Flashing JuanFi-FlashFile2.bin
-
-1. In the PyFlasher interface:
-   - Select the file `JuanFi-FlashFile2.bin`.
-   - Set the offset to `0x200000`.
-   - Click the `Flash Nodemcu` button and wait for the flashing process to complete.
-
-![Flash File 2](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-FlashFile2.PNG?raw=true)
-
-## Step 5: Completing the Flashing Process
-
-After flashing both files, your ESP8622 is now ready. Restart the NodeMCU to begin the setup.
-
-Congratulations! You've successfully flashed your ESP8622 hardware and are ready to proceed with the JuanFiV2 Setup.
-
-</details>
-
-<br>
-
-
-# ESP32 Flashing Instructions
-
-<details>
-<summary>Expand for Instructions</summary>
-
-Follow these instructions to flash the ESP32 hardware using `esptool.exe`. This process will load the necessary firmware onto the ESP32 module.
-
-## Step 1: Download Flashing Files
-
-Download the required flashing files based on your setup:
-
-- [**ESP32 Wireless Base folder**](/release/WirelessBase/ESP32/) - For wireless setup.
-- [**ESP32 Lan Base folder**](/release/LanBased/ESP32/) - For LAN-based setup.
-
-## Step 2: Run the Flashing Script
-
-1. Double-click `start_flash.bat`.
-2. Connect your ESP32 to your PC using a USB cable.
-
-![Connect ESP32](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile1.PNG?raw=true)
-
-3. A command prompt will appear, prompting you to select an available COM port for your ESP32.
-
-![Select COM Port](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile2.PNG?raw=true)
-
-## Step 3: Select COM Port
-
-1. Choose the appropriate COM port for your ESP32 (e.g., COM9).
-2. Press "Enter."
-
-![Select COM Port](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile3.PNG?raw=true)
-
-3. A connecting message will appear, indicating the tool is attempting to connect to the ESP32.
-
-![Connecting](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile4.PNG?raw=true)
-
-## Step 4: Initiate Flashing
-
-1. Press and hold the flash button on the ESP32 for 3-5 seconds.
-2. The flashing process will start.
-
-![Initiate Flashing](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile5.PNG?raw=true)
-
-## Step 5: Wait for Completion
-
-Wait for the flashing process to complete.
-
-## Step 6: Finish
-
-After the flashing process is finished, you can disconnect the ESP32 from your PC. The device is now ready for the JuanFiV2 Setup.
-
-Congratulations! You've successfully flashed your ESP32 hardware and are ready to proceed with the JuanFiV2 Setup.
-
-
-</details>
-
-<br>
-
-> # Setting up the Vendo
-
-## 1. Connect to JuanFiV2 Setup
-
-### For Esp32/Esp8622 Wireless Based
-
-1. Look for the **"JuanFiV2 Setup"** SSID on your device.
-2. connect to the SSID
-3. Access the admin panel in your browser at [http://172.217.28.1/login](http://172.217.28.1/login).
-
-![Wireless Setup](/docs/JuanFi-Step01.PNG)
-
-### For Esp32/Esp8622 LanBase
-
-1. Plug your vendo into your PC/Laptop's ethernet port.
-2. Set your PC/Laptop's IP address as static to **172.217.28.10**:
-   - IP address: 172.217.28.10
-   - Subnet Mask: 255.255.255.0
-   - Gateway: 172.217.28.10
-   - DNS: 172.217.28.10
-3. Access the admin panel in your browser at [http://172.217.28.1/login](http://172.217.28.1/login).
-
-## 2. Login to Admin Panel
-
-Use the following default credentials:
-
-- Username: admin
-- Password: admin
-
-![Admin Panel Login](/docs/JuanFi-Step02.PNG)
-
-## 8. Configure System
-
-Configure the necessary fields according to your preferences, or upload a custom configuration file. The system will restart to apply the changes. The default Mikrotik API username and password are **pisonet** and **abc123**.
-
-> **Note:** Change the password of the **operator** account to prevent unauthorized access to the vendo.
-
-![Configure System](/docs/JuanFi-Step03.PNG)
-
-### Configure Promo Rates
-
-![Configure Promo Rates](/docs/JuanFi-Step04.PNG)
-
-> # Mikrotik Setup
-
-## 1. Setup Mikrotik Hotspot
-
-Set up the Mikrotik hotspot server according to your configuration. You can find tutorials online for setting up a hotspot server in Mikrotik.
-
-## 2. Add this initial script in your terminal
-
-Execute on mikrotik terminal
+Daily/monthly income reset:
 
 ```bash
 /system scheduler add interval=1d name="Reset Daily Income" on-event="/system script set source=\"0\" todayincome " policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=00:00:00;
 /system scheduler add interval=30d name="Reset Monthly Income" on-event="/system script set source=\"0\" monthlyincome " policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=00:00:00;
 ```
 
+Income tracker scripts:
+
 ```bash
 /system script add dont-require-permissions=no name=todayincome owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="0";
-/system script add dont-require-permissions=no name= monthlyincome owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="0";
+/system script add dont-require-permissions=no name=monthlyincome owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="0";
 ```
+
+Let the vendo talk to the router (replace `JuanfiVendo` list usage as-is):
 
 ```bash
 /ip hotspot walled-garden ip add action=accept disabled=no dst-address-list=JuanfiVendo
 /ip firewall filter add action=accept chain=input place-before=0 comment=JuanfiVendo src-address-list=JuanfiVendo
 ```
 
-## 3. Make NodeMCU IP Address Static
+Give the vendo a static lease: IP -> DHCP Server -> Leases, find `10.0.0.254`,
+Make Static, set Address-List to `JuanfiVendo`. Then Hotspot -> IP Bindings:
+add the vendo MAC/IP as Bypassed (Server: all).
 
-Set the IP address of your vendo (NodeMCU) to static to prevent it from changing addresses.
-
-![Static IP Address](/docs/JuanFI-Mikrotik-Step1.PNG)
-
-Copy the mac-address and ip-address of your vendo
-and set the address-list to JuanfiVendo
-
-![Static IP Address](/docs/JuanFi-Mikrotik-Step1.2.PNG)
-
-## 4. Add IP Bindings Exception on Hotspot
-
-Ensure the vendo's MAC address and IP address are added to IP bindings exceptions to prevent unauthorized usage.
-
-![IP Bindings Exception](/docs/JuanFi-Mikrotik-Step2.PNG)
-
-
-## 5. Modify vendoIpAddress in config.js
-
-Modify the `vendoIpAddress` in the [config.js](/mikrotik-template/assets/js/config.js) file to match your setup.
-
-![Modify vendoIpAddress](/docs/JuanFi-Mikrotik-Step5.PNG)
-
-## 6. Upload HTML Portal to Mikrotik
-
-Upload the [HTML portal](/mikrotik-template/) to your Mikrotik files. You can find different portal designs in our [Facebook Group Community](https://www.facebook.com/groups/1172413279934139).
-
-## 7. Create User for NodeMCU API Access
-
-Create a user for NodeMCU API access. The default user for NodeMCU is **pisonet** with password **abc123**. You can change it as needed.
-
-![NodeMCU API User](/docs/JuanFi-Mikrotik-Step3.PNG)
-
----
-
-## **8.) Please add this script in the hotspot user profile on login event** (credits to kristoff for adding sales)
-
-Execute on mikrotik terminal
-Put on the on login script (with telegram support) please change accordingly with your hotspot folder(hex or haplite)
+Create the API user the vendo logs in with (must match step 2):
 
 ```bash
-### enable telegram notification, change from 0 to 1 if you want to enable telegram
-:local isTelegram 0;
-###replace telegram token
-:local iTBotToken "xxxxxxxxxx:xxxxxxxxxxxxx-xxxxxxxxxxxxxxx-xxxxx";
-###replace telegram chat id / group id
-:local iTGrChatID "xxxxxxxxxxxxxx";
+/user add name=pisonet password=abc123 group=full disabled=no
+```
+
+## 4. Hotspot login script (On Login)
+
+Hotspot -> Server Profiles -> your profile -> Login tab -> On Login.
+Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
+`hotspot` on hAP lite). No cloud tracking, no random-MAC sync in this version.
+
+```bash
 ### hotspot folder for HEX put flash/hotspot for haplite put hotspot only
 :local HSFilePath "hotspot";
 
@@ -402,36 +155,10 @@ Put on the on login script (with telegram support) please change accordingly wit
   :local iSaveAmt [:tonum [/system script get monthlyincome source]];
   :local iMonthSales ( $iSaleAmt + $iSaveAmt );
   /system script set monthlyincome source="$iMonthSales";
-# Telegram
-  :if ($isTelegram=1) do={
-    :local xVendo;
-    :for i from=0 to=([:len $iVdoName] - 1) do={
-      :local chr [:pick $iVdoName $i]
-      :if ($chr = " ") do={ :set $chr "%20" }
-      :set xVendo ($xVendo . $chr)
-    }
-    :local iUActive [/ip hotspot active print count-only];
-    :local iMessage ("<<======New Sales======>>%0A".\
-                     "Vendo: $xVendo %0A".\
-                     "Voucher: $user %0A".\
-                     "IP: $address %0A".\
-                     "MAC: $mac %0A".\
-                     "Amount: $iSaleAmt %0A".\
-                     "Extended: $iExtCode %0A".\
-                     "Total Time: $iTimeMin %0A %0A".\
-                     "Today Sales: $iDailySales %0A".\
-                     "Monthly Sales: $iMonthSales %0A".\
-                     "Active Users: $iUActive %0A".\
-                     "Valid Until: $iValidUntil %0A".\
-                     "<<=====================>>");
-    /tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage\?chat_id=$iTGrChatID&text=$iMessage" keep-result=no;
-  }
 };
-
-
 ```
 
-Put on the on logout script
+On Logout script (same profile):
 
 ```bash
 :if ($cause="session timeout") do={
@@ -439,53 +166,34 @@ Put on the on logout script
 }
 ```
 
-![alt text](/docs/JuanFi-Mikrotik-Step4.PNG?raw=true)
+Optional telegram sales alerts: set `isTelegram` to 1 and fill `iTBotToken` /
+`iTGrChatID` at the top of the login script. (Token block omitted here to keep
+the paste clean; see the original README for the telegram snippet.)
 
-> ## **Miscellaneous Scripts**
+## 5. Portal files
 
-You can create a scheduler to restart (System - > Scheduler) add your desired schedule and put this script or modify the existing template scripts below in your desired settings
+1. In `mikrotik-template/4.3/assets/js/config.js` set `vendoIpAddress` to your
+   vendo IP (`10.0.0.254` by default).
+2. Upload the `mikrotik-template/4.3` folder contents to the router's
+   `hotspot` directory (Files window, drag and drop).
 
-- **38vz2rb6nk** - this is the API KEY you generate in admin panel
-- **10.10.10.251** - this is your ESP IP Address
+## 6. Nightly reboot (optional)
 
-Replace those value with your own setting
-
-### **Restart vendo scheduler**
-
-Sample Script that run at 3am (the endpoint replies `{"status":"busy"}` and skips the restart while a customer session or coin wait is active):
-
-```bash
-  /system scheduler add interval=1d name="Restart Vendo" on-event="/tool fetch http-method=post http-header-field=\"X-TOKEN: 38vz2rb6nk\" url=\"http://10.10.10.251/admin/api/restartSystem\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=03:00:00;
-```
-
-### **Night Light schedulers**
-
-Sample Script that turn on nightlight at 6 pm:
+Reboots the vendo at 3am. It answers `{"status":"busy"}` and skips the reboot
+while a customer session or coin wait is active. Put your admin password in.
 
 ```bash
- /system scheduler add interval=1d name="Turn ON Night Light" on-event="/tool fetch http-method=post http-header-field=\"X-TOKEN: 38vz2rb6nk\" url=\"http://10.10.10.251/admin/api/toggerNightLight\?toggle=1\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=18:00:00;
+/system scheduler add interval=1d name="Restart Vendo" on-event="/tool fetch http-method=post url=\"http://10.0.0.254/admin/api/restartSystem\" user=\"admin\" password=\"YOUR_ADMIN_PASSWORD\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=03:00:00;
 ```
 
-### **Sample Script that turn off nightlight at 6 am:**
+## Acknowledgments
 
-```bash
- /system scheduler add interval=1d name="Turn OFF Night Light" on-event="/tool fetch http-method=post http-header-field=\"X-TOKEN: 38vz2rb6nk\" url=\"http://10.10.10.251/admin/api/toggerNightLight\?toggle=0\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=06:00:00;
-```
-
-
-# **Mikrotik Hotspot Portal**
-
-![alt text](/docs/Mikrotik-hotspot.PNG?raw=true)
-
-# **Admin Panel Dashboard**
-
-![alt text](/docs/JuanFi-Step05.PNG?raw=true)
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-Please make sure to update tests as appropriate.
+Fork of **JuanFi** by **Ivan Julius Alayan** — original repo, website, app,
+diagrams and scripts remain his work:
+[original README](https://github.com/ivanalayan15/JuanFi#readme) ·
+[juanfi.juansystems.com](https://juanfi.juansystems.com/) ·
+[JuanFi Manager app](https://play.google.com/store/apps/details?id=com.juanfi.mobile.admin).
+Diagram updates by Tee Ay, sales script contributions by kristoff.
 
 ## License
 
