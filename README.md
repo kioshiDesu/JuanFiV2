@@ -339,13 +339,6 @@ Put on the on login script (with telegram support) please change accordingly wit
 :local iTGrChatID "xxxxxxxxxxxxxx";
 ### hotspot folder for HEX put flash/hotspot for haplite put hotspot only
 :local HSFilePath "hotspot";
-### enable Random MAC synchronizer
-:local isRandomMacSyncFix 0;
-
-### enable JuanFiV2 online monitoring 0 = DoNotSend,  1=send data to api
-:local apiSend 0;
-### derive from the JuanFiV2 online monitoring, create account in genman.projectdorsu.com
-:local URLvendoID 5;
 
 # Get User Data
 :local aUsrNote [/ip hotspot user get $user comment];
@@ -367,24 +360,6 @@ Put on the on login script (with telegram support) please change accordingly wit
     :if ($chr = ":") do={ :set $chr "" }
     :set iFileMac ($iFileMac . $chr)
   }
-# api tracking
-  { /do {
-  :local URLamount "$amt";
-  :local URLcomment "ScriptOnLoginFINAL";
-  :local URLip [:put [:tostr $address]];
-  :local URLusr [$user];
-  :local URLmac [$"mac-address"];
-  :local URLipmac "$URLusr_$URLip_$URLmac";
-  :local URLactive [/ip hotspot active print count-only];
-  :if ($apiSend!=0)  do={
-  /do {
-  :local fixUrl [("https://juanfiapi.projectdorsu.com/serve.js\?s=stats&i=OE-IBX-12345&m=direct&payload=$URLvendoID")];
-  :local apiUrl "$fixUrl_$URLamount_$URLipmac_$URLactive_$URLcomment";
-  :log debug "API SendInfo: $apiUrl ";
-  /tool fetch mode=https http-method=get url=$apiUrl keep-result=no
-  :delay 1s;
-  } on-error={:log error "API Vendo ERROR: $apiUrl ";} }
-  } on-error={:log error "APIvendoRoutineError";} }
 # Extend User
   :if (($iUserReg!="") and ($iExtCode=1)) do={
     :local iTimeInt [/system scheduler get $user interval];
@@ -452,14 +427,6 @@ Put on the on login script (with telegram support) please change accordingly wit
     /tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage\?chat_id=$iTGrChatID&text=$iMessage" keep-result=no;
   }
 };
-# Random Mac
-:if ($isRandomMacSyncFix=1) do={
-  :local cmac $"mac-address";
-  :foreach AU in=[/ip hotspot active find user="$user"] do={
-    :local amac [/ip hotspot active get $AU mac-address];
-    :if ($cmac!=$amac) do={  /ip hotspot active remove [/ip hotspot active find mac-address="$amac"]; }
-  }
-}
 
 
 ```
