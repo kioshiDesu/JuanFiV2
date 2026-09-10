@@ -138,11 +138,11 @@ String password = "";
 String adminAuth = "";
 String vendorName = "";
 
-// static address setting
-IPAddress local_IP(192, 168, 10, 15);
-IPAddress gateway(192, 168, 10, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(192, 168, 10, 1); // this is optional
+// static address setting (defaults: vendo .254/16, hotspot/router .1)
+IPAddress local_IP(10, 0, 0, 254);
+IPAddress gateway(10, 0, 0, 1);
+IPAddress subnet(255, 255, 0, 0);
+IPAddress primaryDNS(10, 0, 0, 1); // hotspot router
 
 IPAddress apIP(172, 217, 28, 1);
 
@@ -196,7 +196,7 @@ void setup () {
     if(IP_ADDRESS_MODE == 1){
       Serial.print("using static ip address");
       Serial.println(local_IP);
-      WiFi.config(local_IP, primaryDNS, gateway, subnet);  
+      WiFi.config(local_IP, gateway, subnet, primaryDNS);  
     }
     
     WiFi.begin(ssid.c_str(), password.c_str());
@@ -1337,7 +1337,7 @@ void populateSystemConfiguration(){
     gateway[3] = gatewayIpAddress[3].toInt();
 
     String subnetAddress[4];
-    split(gatewayIpAddress, rows[28], '.');
+    split(subnetAddress, rows[28], '.');
    
     subnet[0] = subnetAddress[0].toInt();
     subnet[1] = subnetAddress[1].toInt();
