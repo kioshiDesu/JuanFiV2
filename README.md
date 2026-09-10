@@ -485,7 +485,7 @@ Replace those value with your own setting
 
 ### **Restart vendo scheduler**
 
-Sample Script that run at 3am:
+Sample Script that run at 3am (the endpoint replies `{"status":"busy"}` and skips the restart while a customer session or coin wait is active):
 
 ```bash
   /system scheduler add interval=1d name="Restart Vendo" on-event="/tool fetch http-method=post http-header-field=\"X-TOKEN: 38vz2rb6nk\" url=\"http://10.10.10.251/admin/api/restartSystem\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=03:00:00;

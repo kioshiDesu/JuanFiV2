@@ -289,6 +289,7 @@ void setup () {
   server.on("/admin/api/saveRates", handleAdminSaveRates);
   server.on("/admin/api/logout", handleLogout);
   server.on("/admin/api/generateVouchers", handleGenerateVouchers);
+  server.on("/admin/api/restartSystem", handleAdminRestart);
   server.on("/admin", handleAdminPage);
   server.on("/admin/viewGeneratedVouchers", handleAdminGeneratedVoucherPage);
   server.on("/admin/updateMainBin", HTTP_POST, handleFileUploadRequest, handleFileUploadStream);
@@ -962,7 +963,9 @@ void useVoucher(){
   if(timeToAdd > 0 ){
     clearAttemptToCoinSlot();
     //if(isNewVoucher){
+    if(!isExtendTime){
       registerNewVoucher(voucher);
+    }
     //}
     updateStatistic();
     addTimeToVoucher(voucher, timeToAdd);
@@ -1007,6 +1010,8 @@ bool validateVoucher(String voucher){
       return true;
   }
 }
+
+bool isExtendTime = false; // true when portal extends an existing online voucher
 
 void topUp() {
   manualVoucher = false;
@@ -1062,6 +1067,9 @@ void topUp() {
     activateCoinSlot();
     currentActiveVoucher = voucher;
   }
+  //extend-time flow: portal sends extendTime=1 with an existing online voucher;
+  //skip hotspot-user creation later, only add time to the existing user
+  isExtendTime = (server.arg("extendTime") == "1" && server.arg("voucher") != "");
   setupCORSPolicy();
   server.send(200, "application/json", toJson(keys, values, 2));
 }
@@ -1205,6 +1213,7 @@ void sendCommand(String script){
 
 void resetGlobalVariables(){
   currentActiveVoucher = "";
+  isExtendTime = false;
   timeToAdd = 0;
   totalCoin = 0;
   currentDataLimit = 0;
@@ -1572,6 +1581,26 @@ bool activateManualVoucherPurchase(){
   //show 30 sec the voucher code
   thankyou_cooldown = 30000;
   return true;
+}
+
+void handleAdminRestart(){
+  if(!isAuthorized()){
+     handleNotAuthorize();
+     return;
+  }
+  setupCORSPolicy();
+  //do not restart while the vendo is busy serving a customer
+  if(acceptCoin || coinSlotActive || manualVoucher || currentActiveVoucher != ""){
+    char * keys[] = {"status", "detail"};
+    char * values[] = {"busy", "vendo is busy, try again later"};
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
+  }
+  char * keys[] = {"status", "detail"};
+  char * values[] = {"restarting", "system will restart now"};
+  server.send(200, "application/json", toJson(keys, values, 2));
+  delay(500);
+  ESP.restart();
 }
 
 void handleGenerateVouchers(){
