@@ -455,18 +455,6 @@ function myFunction() {
 	</select>
 	</div>
 	
-	<div class="panel">
-	<span class="title">LCD Setting</span>
-	<label for="lcdScreen"><b>LCD Screen</b></label><br>
-    <select name="lcdScreen" id="lcdScreen">
-	  <option value="0" selected>None</option>
-	  <option value="1">16x2</option>
-	  <option value="2">20x4</option>
-	</select><br>
-	
-	<label for="welcomeLCDMarquee"><b>Welcome LCD Marquee(only for 20x4)</b></label><br>
-    <input type="text" placeholder="Welcome LCD Marquee" id="welcomeLCDMarquee" maxlength="20" required>
-	</div>
 	
 	<div class="panel">
 	<span class="title">Voucher Setting</span>
@@ -665,11 +653,11 @@ function saveSystemConfig(){
 				coinSlotSetPin,
 				systemReadyLEDPin,
 				insertCoinLEDPin,
-				$('#lcdScreen').val(),
+				"0", // LCD removed: slot kept as 0
 				insertCoinBtnPin,
 				$('#checkInternetStatus').val(),
 				$('#voucherPrefix').val(),
-				$('#welcomeLCDMarquee').val(),
+				"", // LCD removed: slot kept empty
 				$('#setupDoneFlag').val(),
 				$('#voucherLoginOption').val(),
 				$('#voucherProfile').val(),
@@ -869,11 +857,9 @@ function populateSystemConfigFields(data){
 	$('#coinSlotSetPin').val(configData[12]);
 	$('#systemReadyLEDPin').val(configData[13]);
 	$('#insertCoinLEDPin').val(configData[14]);
-	$('#lcdScreen').val(configData[15]);
 	$('#insertCoinBtnPin').val(configData[16]);
 	$('#checkInternetStatus').val(configData[17]);
 	$('#voucherPrefix').val(configData[18]);
-	$('#welcomeLCDMarquee').val(configData[19]);
 	$('#setupDoneFlag').val(configData[20]);
 	$('#voucherLoginOption').val(configData[21]);
 	$('#voucherProfile').val(configData[22]);

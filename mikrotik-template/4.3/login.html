@@ -211,12 +211,6 @@
 					<button type="button" id="promoRateBtn" onclick="promoBtnAction(); return false" class="btn btn-warning" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">PROMO RATES</button>
 					<div style="margin-top: 18px"></div>
 					
-					<button type="button" id="chargingBtn" onclick="chargingBtnAction(); return false" class="btn btn-success" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">CHARGING STATION</button>
-					<div style="margin-top: 18px"></div>
-					
-					<button type="button" id="eloadBtn" onclick="eloadBtnAction(); return false" class="btn btn-info" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">E-LOAD</button>
-					<div style="margin-top: 18px"></div>
-					
 					<button type="button" id="memberLoginBtn" class="btn btn-secondary" data-toggle="modal" data-target="#memberModal" style="display: block; width: 100%; text-shadow: 0px 1px 3px #000;">MEMBER LOGIN</button>
 					<div style="margin-bottom:-5px"></div>
 					<br>
@@ -309,13 +303,6 @@
 						  </div>
 						  <div class="modal-body">
 							<center>
-								<div id="rateTypeDiv">
-								<label for="rateType" class="rate-title"><b>Rate Type</b></label>
-								<select name="rateType" class="form-control" id="rateType" onChange="onRateTypeChange(this)">
-								  <option value="1">Internet</option>
-								  <option value="2">Charging</option>
-								</select>
-								</div>
 							</center>
 							<br/>
 							<center>	
@@ -330,72 +317,6 @@
 					  </div>
 					</div>
 					
-					<div class="modal fade" id="chargingModal" tabindex="1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-					  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
-						<div class="modal-content">
-						  <div class="modal-header">
-							<h5 class="modal-title" id="exampleModalLabel">Charging Station</h5>
-							<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-							  <span aria-hidden="true" style="color: #fff">&times;</span>
-							</button>
-						  </div>
-						  <div class="modal-body">
-							<center>	
-							<div id="chargingBody"></div>
-							</center>
-						  </div>
-						  <div class="modal-footer">
-							<button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
-						  </div>
-						</div>
-					  </div>
-					</div>
-					<div class="modal fade" id="eloadModal" tabindex="1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false" >
-					  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
-						<div class="modal-content">
-						  <div class="modal-header">
-							<h5 class="modal-title" id="exampleModalLabel">E-LOAD</h5>
-							<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-							  <span aria-hidden="true" style="color: #fff">&times;</span>
-							</button>
-						  </div>
-						  <div class="modal-body">
-							<center>	
-							<div id="eloadingBody">
-								<h4 id="eloadConfirm" style="display: none"><span style="color: #2e86de; text-shadow: 1px 2px 3px #000">CONFIRM YOUR SELECTED DETAILS</span></h4>
-								<div id="mobileNumDiv" class="input-bottom-space-20px">
-									<label for="exampleFormControlSelect2">Mobile #</label>
-									<input type="number" class="form-control" id="mobileNo" aria-describedby="mobileNo"  pattern="\d*" maxlength="11" placeholder="Enter mobile number (Ex: 09182392234)" required>
-								</div>
-								<div id="loadTypeDiv" style="display: none;" class="input-bottom-space-20px">
-									<label for="exampleFormControlSelect2" >Select Load Type</label>
-									<select class="form-control" name="loadType" onChange="loadTypeChanged(this)" id="loadTypeSelected" >
-									</select>
-								</div>
-								<div id="productTypeDiv" style="display: none;" class="input-bottom-space-20px">
-									<label for="exampleFormControlSelect2">Select Product</label>
-									<select class="form-control input-bottom-space-20px" name="productType" id="productTypeSelected" onChange="productTypeChanged(this)">
-									</select>
-									<label for="exampleFormControlSelect2">Price (PHP)</label>
-									<input type="text" class="form-control" id="price" aria-describedby="mobileNo" disabled>
-								</div>
-								<br/>
-								<h5 id="eloadConfirm2" style="display: none;" class="input-bottom-space-20px"><span style="color: #2e86de; text-shadow: 1px 2px 3px #000">Please make sure to insert the exact amount <ul style="
-									font-size: medium;
-									color: white;
-									text-align: left;
-								"><li>In case theres an excess amount or amount is insufficient, it will be converted to a voucher code and you can use it for your next e-Loading or you can use it on internet service.</li></ul></span></h5>
-							</div>
-							</center>
-						  </div>
-						  <div class="modal-footer">
-							<button type="button" id="buyEloadPrevBtn" class="btn btn-danger" onclick="buyEloadPrevAction(); return false">Close</button>
-						    <button type="button" id="buyEloadBtn" onclick="buyEloadAction(); return false" class="btn btn-success">Next</button>
-						  </div>
-						</div>
-					  </div>
-					</div>
-
 					<div class="modal fade" id="scanQrModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
 						<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
 						  <div class="modal-content">
@@ -472,7 +393,6 @@
 			<script src="assets/js/bootstrap.min.js"></script>
 			<script src="assets/js/toast.min.js"></script>
 			<script src="assets/js/core.js"></script>
-			<script src="assets/js/eload.js"></script>
 			<script>
 				var reLogin = getStorageValue('reLogin');
 				var hotspotAddress = "$(server-address)"; 

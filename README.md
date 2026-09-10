@@ -34,8 +34,7 @@ Join our vibrant community group to connect with other users and contributors. S
 - Pause expiration
 - Codeless generation
 - Anti Coinslot abuse system
-- LCD Display
-- Code generation in vendo using LCD without device needed
+- Code generation in vendo without device needed (insert-coin button)
 - Multi vendo system
 
 ### Admin System

@@ -12,10 +12,8 @@ insertcoinbg.loop = true;
 var coinCount = new Audio('assets/coin-received.mp3');
 var voucher = getStorageValue('activeVoucher');
 var insertingCoin = false;
-var TOPUP_CHARGER = "CHARGER";
 var TOPUP_INTERNET = "INTERNET";
 var topupMode = TOPUP_INTERNET;
-var chargerTimer = null;
 var rateType = "1";
 
 
@@ -75,7 +73,6 @@ $(document).ready(function(){
 	  $("#vendoSelected").change(function(){
 		vendorIpAddress = $("#vendoSelected").val();
 		setStorageValue('selectedVendo', vendorIpAddress);
-		evaluateChargingButton();
 	  });
 	  
 	  $("#vendoSelected").trigger("change");
@@ -106,15 +103,6 @@ $(document).ready(function(){
   
   if(disableVoucherInput){
 	$("#voucherInput").attr("disabled", "disabled");
-  }
-    
-  if(!chargingEnable){
-	  if(isMultiVendo){
-		evaluateChargingButton();
-	  }else{
-		$("#chargingBtn").attr("style", "display: none");
-		$("#rateTypeDiv").attr("style", "display: none");
-	  }
   }
   
   var isPaused = getStorageValue("isPaused");
@@ -182,20 +170,6 @@ if(voucher != ""){
 	$('#voucherInput').val(voucher);
 }
 
-function evaluateChargingButton(){
-	var style = $("#chargingBtn").attr("style");
-	$("#chargingBtn").attr("style", style+"; display: block"); 
-	$("#rateTypeDiv").attr("style", "display: block");
-	for(var i=0;i<multiVendoAddresses.length;i++){
-	  if(multiVendoAddresses[i].vendoIp == vendorIpAddress && (!multiVendoAddresses[i].chargingEnable)){
-		  style = $("#chargingBtn").attr("style");
-		  $("#chargingBtn").attr("style", style+"; display: none");
-		  $("#rateTypeDiv").attr("style", "display: none");
-		  break;
-	  }
-	}
-}
-
 function cancelPause(){
 	var r = confirm("Are you sure you want to cancel the session?");
 	if(r){
@@ -208,11 +182,6 @@ function cancelPause(){
 
 function promoBtnAction(){
 	$('#promoRatesModal').modal('show');
-	return false;
-}
-
-function chargingBtnAction(){
-	$('#chargingModal').modal('show');
 	return false;
 }
 
@@ -283,123 +252,6 @@ function populatePromoRates(retryCount){
 		  setTimeout(function() {
 			if(retryCount < 2){
 				populatePromoRates(retryCount+1);
-			}
-		  }, 1000 );
-	  }
-	});
-}
-
-$('#chargingModal').on('shown.bs.modal', function (e) {
-	populateChargingStations(0);
-})
-
-function populateChargingStations(retryCount){
-	clearInterval(chargerTimer);
-	chargerTimer = setInterval(refreshChargerTimer, 1000);
-	$.ajax({
-	  type: "GET",
-	  url: "http://"+vendorIpAddress+"/getChargingStation?date="+(new Date().getTime()),
-	  crossOrigin: true,
-	  contentType: 'text/plain',
-	  success: function(data){
-		var rows = data.split("|");
-		var chargingStation = "";
-		for(r in rows){
-			var columns = rows[r].split("#");
-			var curDate = new Date();
-			var targetTimestamp  = 0;
-			var pinSetting = columns[1];
-			var targetTime = parseInt(columns[3]);
-			if(targetTime > 0){
-				var targetTimeDate = new Date(targetTime * 1000);
-				if(targetTimeDate.getTime() > curDate.getTime()){
-					targetTimestamp  = targetTimeDate.getTime();
-				}
-			}
-			var style = "";
-			if(pinSetting == "-1"){
-				style = "display: none";
-			}
-			chargingStation = chargingStation + "<div class='rholder' style='"+style+"' row-type='charger-port' target-time='"+targetTimestamp+"'>";
-			chargingStation = chargingStation + "<div class='rdata'><span>Name: </span>";
-			chargingStation = chargingStation + columns[0];
-			chargingStation = chargingStation + "</div>";
-			chargingStation = chargingStation + "<div class='rdata'><span style='color: #a3a7ad'>Status: <span name='portStatus'>-";
-			chargingStation = chargingStation + "</span></span></div>";
-			chargingStation = chargingStation + "<div class='rdata'><span style='color: #a3a7ad'>Remaining: <span name='remainTime'>-";
-			chargingStation = chargingStation + "</span></span></div>";
-			chargingStation = chargingStation + "<div class='rdata'><span style='color: #a3a7ad'>";
-			chargingStation = chargingStation + "<button class='btn btn-success' style='display: none' name='useBtn' onClick=\"addChargerTime("+r+", \'"+columns[0]+"\',0)\">Avail</button>";
-			chargingStation = chargingStation + "</span></div>";
-			chargingStation = chargingStation + "</div>";
-		}
-		
-		$("#chargingBody").html(chargingStation);
-	  },error: function (jqXHR, exception) {
-		  setTimeout(function() {
-			if(retryCount < 2){
-				populateChargingStations(retryCount+1);
-			}
-		  }, 1000 );
-	  }
-	});
-}
-
-function refreshChargerTimer(){
-	$("[row-type='charger-port']").each(function () {
-       var targetTime = parseInt($(this).attr('target-time'));	
-	   var curDate = new Date();
-	   var portStatus = "Available";
-	   if(targetTime > 0){
-			if(targetTime > curDate.getTime()){
-				difference = (targetTime- curDate.getTime()) / 1000;
-				$(this).find("[name='remainTime']").html(secondsToDhms(difference));
-				portStatus = "In Use";
-			}else{
-				portStatus = "Available";
-				$(this).find("[name='useBtn']").attr('style','display: block');
-			}
-	   }else{
-		   $(this).find("[name='useBtn']").attr('style','display: block');
-	   }
-	   $(this).find("[name='portStatus']").html(portStatus);
-  });
-}
-
-function onRateTypeChange(evt){
-	rateType = $(evt).val();
-	populatePromoRates(0);
-}
-
-function addChargerTime(port, portName, retryCount){
-	topupMode = TOPUP_CHARGER;
-	$.ajax({
-	  type: "POST",
-	  url: "http://"+vendorIpAddress+"/topUp",
-	  data: "voucher="+portName+"&topupType=CHARGER&chargerPort="+port+"&mac="+mac,
-	  success: function(data){
-		$("#loaderDiv").attr("class","spinner hidden");
-		if(data.status == "true"){
-			voucher = data.voucher;
-			$('#insertCoinModal').modal('show');
-			insertingCoin = true;
-			$('#codeGeneratedBlock').attr('style', 'display: none');
-			if(timer == null){
-				timer = setInterval(checkCoin, 1000);
-			}
-			if(isMultiVendo){
-				$("#insertCoinModalTitle").html("Please insert the coin on "+$("#vendoSelected option:selected").text());
-			}
-			insertcoinbg.play();
-		}else{
-			notifyCoinSlotError(data.errorCode);
-			clearInterval(timer);
-			timer = null;
-		}
-	  },error: function (jqXHR, exception) {
-		  setTimeout(function() {
-			if(retryCount < 2){
-				addChargerTime(port, portName, retryCount+1);
 			}
 		  }, 1000 );
 	  }
@@ -478,44 +330,34 @@ function saveVoucherBtnAction(){
 	
 			totalCoinReceived = 0;
 			$("#loaderDiv").attr("class","spinner hidden");
-			if(data.status == "true"){
-				if(topupMode == TOPUP_CHARGER){
-					populateChargingStations();
-					$.toast({
-						  title: 'Success',
-						  content: 'Thank you for the purchase!, you can now use the service',
-						  type: 'success',
-						  delay: 3000
-					});
-				}else{
-					setStorageValue(voucher+"tempValidity", data.validity);
-					
-					$.toast({
-					  title: 'Success',
-					  content: 'Thank you for the purchase!, will do auto login shortly',
-					  type: 'success',
-					  delay: 3000
-					});
-					
-					var type = $( "#saveVoucherButton" ).attr('data-save-type');
+		if(data.status == "true"){
+				setStorageValue(voucher+"tempValidity", data.validity);
+				
+				$.toast({
+				  title: 'Success',
+				  content: 'Thank you for the purchase!, will do auto login shortly',
+				  type: 'success',
+				  delay: 3000
+				});
+				
+				var type = $( "#saveVoucherButton" ).attr('data-save-type');
 
-					if(type == "extend"){
-							$.ajax({
-							  type: "POST",
-							  url: "/logout",
-							  data: "erase-cookie=true",
-							  success: function(data){
-								  setStorageValue('reLogin', '1');
-								  location.reload();
-							  }
-							 });
-					}else{
-						setTimeout(function (){
-							doLogin();
-						}, 3000);
-					}
+				if(type == "extend"){
+						$.ajax({
+						  type: "POST",
+						  url: "/logout",
+						  data: "erase-cookie=true",
+						  success: function(data){
+							  setStorageValue('reLogin', '1');
+							  location.reload();
+						  }
+						 });
+				}else{
+					setTimeout(function (){
+						doLogin();
+					}, 3000);
 				}
-			}else{
+		}else{
 				notifyCoinSlotError(data.errorCode);
 			}
 		

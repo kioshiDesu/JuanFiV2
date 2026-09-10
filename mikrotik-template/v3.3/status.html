@@ -137,8 +137,6 @@
 					<br>
 					<button type="button" id="pauseTimeBtn" onClick="pause(); return false" class="btn btn-danger btn-block" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">PAUSE TIME</button>
 					<br>
-					<button type="button" id="chargingBtn" onclick="chargingBtnAction(); return false" class="btn btn-secondary" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">CHARGING STATION</button>
-					<div style="margin-top: 18px"></div>
 			
 					<div class="modal fade" id="insertCoinModal" style="z-index: 1500" data-backdrop="static" data-keyboard="false" tabindex="-1" role="dialog" aria-labelledby="insertCoinModalTitle" aria-hidden="true">
 					  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
@@ -197,13 +195,6 @@
 						  </div>
 						  <div class="modal-body">
 							<center>
-								<div id="rateTypeDiv">
-								<label for="rateType" class="rate-title"><b>Rate Type</b></label>
-								<select name="rateType" class="form-control" id="rateType" onChange="onRateTypeChange(this)">
-								  <option value="1">Internet</option>
-								  <option value="2">Charging</option>
-								</select>
-								</div>
 							</center>
 							<br/>
 							<center>	
@@ -218,27 +209,6 @@
 					  </div>
 					</div>
 					
-					<div class="modal fade" id="chargingModal" tabindex="1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-					  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
-						<div class="modal-content">
-						  <div class="modal-header">
-							<h5 class="modal-title" id="exampleModalLabel">Charging Station</h5>
-							<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-							  <span aria-hidden="true" style="color: #fff">&times;</span>
-							</button>
-						  </div>
-						  <div class="modal-body">
-							<center>	
-							<div id="chargingBody"></div>
-							</center>
-						  </div>
-						  <div class="modal-footer">
-							<button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
-						  </div>
-						</div>
-					  </div>
-					</div>
-
                 </div>
 				
 			<div class="footer">

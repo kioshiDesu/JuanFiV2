@@ -197,9 +197,6 @@
 					<button type="button" id="promoRateBtn" onclick="promoBtnAction(); return false" class="btn btn-warning" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">PROMO RATES</button>
 					<div style="margin-top: 18px"></div>
 					
-					<button type="button" id="chargingBtn" onclick="chargingBtnAction(); return false" class="btn btn-success" style="display: block; width: 100%; color: #fff; text-shadow: 0px 1px 2px #000;">CHARGING STATION</button>
-					<div style="margin-top: 18px"></div>
-					
 				
 					
 					<button type="button" id="memberLoginBtn" class="btn btn-secondary" data-toggle="modal" data-target="#memberModal" style="display: block; width: 100%; text-shadow: 0px 1px 3px #000;">MEMBER LOGIN</button>
@@ -275,13 +272,6 @@
 						  </div>
 						  <div class="modal-body">
 							<center>
-								<div id="rateTypeDiv">
-								<label for="rateType" class="rate-title"><b>Rate Type</b></label>
-								<select name="rateType" class="form-control" id="rateType" onChange="onRateTypeChange(this)">
-								  <option value="1">Internet</option>
-								  <option value="2">Charging</option>
-								</select>
-								</div>
 							</center>
 							<br/>
 							<center>	
@@ -296,27 +286,6 @@
 					  </div>
 					</div>
 					
-					<div class="modal fade" id="chargingModal" tabindex="1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-					  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
-						<div class="modal-content">
-						  <div class="modal-header">
-							<h5 class="modal-title" id="exampleModalLabel">Charging Station</h5>
-							<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-							  <span aria-hidden="true" style="color: #fff">&times;</span>
-							</button>
-						  </div>
-						  <div class="modal-body">
-							<center>	
-							<div id="chargingBody"></div>
-							</center>
-						  </div>
-						  <div class="modal-footer">
-							<button type="button" class="btn btn-danger" data-dismiss="modal">Close</button>
-						  </div>
-						</div>
-					  </div>
-					</div>
-
 					<div class="modal fade" id="scanQrModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
 						<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
 						  <div class="modal-content">

@@ -44,18 +44,12 @@
   #include <flash_hal.h>
 #endif
 
-
 #include <EEPROM.h>
 #include "FS.h"
 #include <base64.h>
-#include <LiquidCrystal_I2C.h>
 
 int TURN_OFF = 0;
 int TURN_ON = 1;
-
-
-LiquidCrystal_I2C lcd(0x27, 16, 2);
-LiquidCrystal_I2C lcd20x4(0x27, 20, 4);
 
 volatile int coin = 0;
 volatile int processCoin = 0;
@@ -103,7 +97,6 @@ String currentRateProfile = "";
 String ADMIN_USER = "";
 String ADMIN_PW = "";
 
-
 const int LIFETIME_COIN_COUNT_ADDRESS = 0;
 const int COIN_COUNT_ADDRESS = 5;
 const int CUSTOMER_COUNT_ADDRESS = 10;
@@ -117,7 +110,6 @@ void ICACHE_RAM_ATTR coinInserted()
     coinsChange = 1;
   }
 }
-
 
 int COIN_SELECTOR_PIN = 0;
 int COIN_SET_PIN = 0;
@@ -135,9 +127,7 @@ String VOUCHER_PREFIX = "P";
 int MAX_WAIT_COIN_SEC = 30000;
 int COINSLOT_BAN_COUNT = 0;
 int COINSLOT_BAN_MINUTES = 0;
-int LCD_TYPE = 0;
 int SETUP_FINISH = 0;
-
 
 //put here your raspi ip address, and login details
 IPAddress mikrotikRouterIp (10, 0, 0, 1);
@@ -148,13 +138,11 @@ String password = "";
 String adminAuth = "";
 String vendorName = "";
 
-
 // static address setting
 IPAddress local_IP(192, 168, 10, 15);
 IPAddress gateway(192, 168, 10, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(192, 168, 10, 1); // this is optional
-
 
 IPAddress apIP(172, 217, 28, 1);
 
@@ -182,9 +170,6 @@ bool manualVoucher = false;
 
 int lastSaleTime = 0;
 int thankyou_cooldown = 5000;
-long lastPrinted = 0;
-
-String MARQUEE_MESSAGE = "This is marquee";
 
 void setup () { 
                                 
@@ -204,9 +189,7 @@ void setup () {
 
   #ifdef ESP32
     initializeLANSetup();
-    initializeLCD();
   #else
-    initializeLCD();
     // We start by connecting to a WiFi network
     WiFi.mode(WIFI_STA);
     //for static ip configuration
@@ -276,7 +259,6 @@ void setup () {
     server.on("/cancelTopUp", handleCancelTopUp);
     server.on("/testInsertCoin", testInsertCoin);
     server.onNotFound(handleNotFound);
-    printWelcome();
     welcomePrinted = true;
     
   }else{
@@ -296,39 +278,6 @@ void setup () {
       server.sendHeader("Location", String("/admin"), true);
       server.send ( 302, "text/plain", "");
     });
-    if(LCD_TYPE > 0){
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        if(cableNotConnected){
-          lcd.setCursor(0, 0);
-          lcd.print("Cable");
-          lcd.setCursor(0, 1);
-          lcd.print("Not connected");
-        }else{
-          lcd.setCursor(0, 0);
-          lcd.print("Initial Setup");
-          lcd.setCursor(0, 1);
-          lcd.print("IP: 172.217.28.1");
-        }
-      }else if(LCD_TYPE == 2){
-        lcd20x4.clear();
-        lcd20x4.setCursor(0, 0);
-        lcd20x4.print("JuanFiV2");
-        if(cableNotConnected){
-          lcd20x4.setCursor(0, 1);
-          lcd20x4.print("Cable not connected");
-          lcd20x4.setCursor(0, 2);
-          lcd20x4.print("Pls check");
-          lcd20x4.setCursor(0, 3);
-          lcd20x4.print("connections");
-        }else{
-          lcd20x4.setCursor(0, 1);
-          lcd20x4.print("Initial Setup");
-          lcd20x4.setCursor(0, 2);
-          lcd20x4.print("IP: 172.217.28.1");
-        }
-      }
-    }
   }
   
   server.on("/admin/api/dashboard", handleAdminDashboard);
@@ -353,7 +302,6 @@ void setup () {
   }
 
 }
-
 
 boolean hasUploadError = false;
 boolean isFileSystem = true;
@@ -510,20 +458,6 @@ void initializeLANSetup(){
   currentMacAddress = WiFi.macAddress();
 }
 #endif
-
-void initializeLCD(){
-  if(LCD_TYPE > 0){
-     if(LCD_TYPE == 1){
-       lcd.init();   // initializing the LCD
-       lcd.backlight(); // Enable or Turn On the backlight 
-       lcd.print("Initializing.."); 
-     }else if(LCD_TYPE == 2){
-       lcd20x4.init();   // initializing the LCD
-       lcd20x4.backlight(); // Enable or Turn On the backlight 
-       lcd20x4.print("Initializing.."); 
-     }
-  }
-}
 
 void handleNotFound()
 {
@@ -785,8 +719,6 @@ void handleAdminGeneratedVoucherPage(){
   handleFileRead("/admin/voucher-generate.html");
 }
 
-
-
 bool isAuthorized(){
   String auth = server.header("Authorization");
   String expectedAuth = "Basic "+adminAuth;
@@ -869,8 +801,6 @@ bool checkIfSystemIsAvailable(){
     return true;
   }
 }
-
-
 
 #ifdef ESP32
   char internetServerAddress[] = "ifconfig.me";  // server address
@@ -1047,7 +977,7 @@ void useVoucher(){
   char validityStr[16];
   itoa(currentValidity, validityStr, 10);
   char * values[] = {"true", totalCoinStr, timeToAddStr, validityStr};
-  printThankYou();
+  lastSaleTime = millis(); // LCD removed; keep thank-you cooldown timing
   resetGlobalVariables();
   setupCORSPolicy();
   acceptCoin = false;
@@ -1379,11 +1309,9 @@ void populateSystemConfiguration(){
   COIN_SET_PIN = rows[12].toInt();
   SYSTEM_READY_LED = rows[13].toInt();
   INSERT_COIN_LED = rows[14].toInt();
-  LCD_TYPE = rows[15].toInt();
   INSERT_COIN_BTN_PIN = rows[16].toInt();
   CHECK_INTERNET_CONNECTION = rows[17].toInt();
   VOUCHER_PREFIX = rows[18];
-  MARQUEE_MESSAGE = rows[19];
   SETUP_FINISH = rows[20].toInt();
   VOUCHER_LOGIN_OPTION = rows[21].toInt();
   VOUCHER_PROFILE = rows[22];
@@ -1428,7 +1356,6 @@ void populateSystemConfiguration(){
 
 }
 
-
 int split(String rows[], String data, char delimeter){
   int count = 0;
   String elementData = "";
@@ -1447,7 +1374,6 @@ int split(String rows[], String data, char delimeter){
   }
   return count;
 }
-
 
 void populateRates(){
 
@@ -1499,11 +1425,10 @@ void loop () {
       return;
    }
 
-    //insert button led will work only when have lcd
-    if( LCD_TYPE > 0 ){
+    //insert coin button: manual voucher purchase (LCD removed)
+    {
       int insertCoinButton = digitalRead(INSERT_COIN_BTN_PIN);
       if(insertCoinButton == LOW){
-          printPleaseWait();
           if(!manualVoucher){
             if(welcomePrinted){
               bool result = activateManualVoucherPurchase();
@@ -1535,7 +1460,7 @@ void loop () {
           coinExpired = false;
           //wait for the coin to insert
           if(coinsChange > 0){
-            //delay(1500); change delay to coin waiting logic to prevent hanging of LCD 
+            //coin debounce handled by coin-waiting logic below
             if(coinWaiting == 0){
               coinWaiting = currentMilis + 700;
             }
@@ -1560,11 +1485,7 @@ void loop () {
             }
           }
           printing:
-          if(timeToAdd > 0){
-            printTransactionDetail();
-          }else{
-            printInsertCoinNow();
-          }
+          ; // LCD removed: no status display; label kept for coin-debounce goto
       }else{
         disableCoinSlot();
         acceptCoin = false;
@@ -1581,7 +1502,7 @@ void loop () {
           }
           updateStatistic();
           addTimeToVoucher(currentActiveVoucher, timeToAdd);
-          printThankYou();
+          lastSaleTime = millis(); // LCD removed; keep thank-you cooldown timing
         }else{
           addAttemptToCoinslot();
         }
@@ -1592,7 +1513,6 @@ void loop () {
       //print welcome again after x seconds after thank you message
       if(targetMilis < currentMilis && currentMilis > (lastSaleTime + thankyou_cooldown)){
         welcomePrinted = true;
-        printWelcome();
       }
     }
   }else{
@@ -1622,176 +1542,11 @@ void loop () {
 void handleSystemAbnormal(){
     Serial.println("AP disconnected!!!!!!!!!!!!!!!");
     mikrotekConnectionSuccess = false;
-    printSystemNotAvailable();
     digitalWrite(INSERT_COIN_LED, evaluateTriggerOutput(TURN_OFF));
     digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_OFF));
     //Reconnect after 30 seconds
     delay(30000);
     ESP.restart();
-}
-
-void printInsertCoinNow(){
-  if(LCD_TYPE > 0 ){
-    long currentMilis = millis();
-    //print only after 1 second to avoid performance issue
-    if(currentMilis > (lastPrinted + 1000)){
-      long remain = targetMilis - currentMilis;
-      welcomePrinted = false;
-      
-     
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Pls insert");
-        lcd.setCursor(14, 0);
-        lcd.print(String(remain/1000));
-        lcd.setCursor(0, 1);
-        lcd.print("coin now, 1/5/10");
-      }else if(LCD_TYPE == 2){
-        lcd20x4.clear();
-        lcd20x4.setCursor(startCenterIndex(vendorName), 0);
-        lcd20x4.print(vendorName);
-        lcd20x4.setCursor(0, 1);
-        lcd20x4.print("Pls insert");
-        lcd20x4.setCursor(18, 1);
-        lcd20x4.print(String(remain/1000));
-        lcd20x4.setCursor(0, 2);
-        lcd20x4.print("coin now, 1/5/10");
-      }
-      lastPrinted = currentMilis;
-    }
-  }
-}
-
-void printTransactionDetail(){
-  if(LCD_TYPE > 0 ){
-    long currentMilis = millis();
-    //print only after 1 second to avoid performance issue
-    if(currentMilis > (lastPrinted + 1000)){
-      long remain = targetMilis - currentMilis;
-      int days = timeToAdd / (3600*24);
-      int hr =  timeToAdd % (3600*24) / 3600;
-      int min =  timeToAdd % 3600 / 60;
-  
-     
-     
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("PHP: "+String(totalCoin) + " ");
-        lcd.setCursor(14, 0);
-        lcd.print(String(remain/1000));
-        lcd.setCursor(0, 1);
-        String t = "T: ";
-        t += String(days);
-        t += "d ";
-        t += String(hr);
-        t += "h ";
-        t += String(min);
-        t += "m ";
-        lcd.print(t);
-      }else if(LCD_TYPE == 2){
-        lcd20x4.clear();
-        lcd20x4.setCursor(startCenterIndex(vendorName), 0);
-        lcd20x4.print(vendorName);
-        lcd20x4.setCursor(0, 1);
-        lcd20x4.print("PHP: "+String(totalCoin) + " ");
-        lcd20x4.setCursor(18, 1);
-        lcd20x4.print(String(remain/1000));
-        lcd20x4.setCursor(0, 2);
-        String t = "T: ";
-        t += String(days);
-        t += "day ";
-        t += String(hr);
-        t += "hr ";
-        t += String(min);
-        t += "min ";
-        lcd20x4.print(t);
-      }
-      lastPrinted = currentMilis;
-    }
-  }
-}
-
-void printThankYou(){
-  if(LCD_TYPE > 0 ){
-    welcomePrinted = false;
-    if(LCD_TYPE == 1){
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Code: "+currentActiveVoucher);
-      lcd.setCursor(0, 1);
-      lcd.print("Thank you!"); 
-    }else if(LCD_TYPE == 2){
-      lcd20x4.clear();
-      lcd20x4.setCursor(startCenterIndex(vendorName), 0);
-      lcd20x4.print(vendorName);
-      lcd20x4.setCursor(0, 1);
-      lcd20x4.print("Code: "+currentActiveVoucher);
-      String thankYouText = "Thank you!";
-      lcd20x4.setCursor(startCenterIndex(vendorName), 2);
-      lcd20x4.print(thankYouText); 
-    }
-   
-    lastSaleTime = millis();
-  }
-}
-
-long lastWelcome = 0;
-int welcomeBlinkState = 0;
-int currentIndex=0;
-void printWelcome(){
-  long currentMilis = millis();
-  if(LCD_TYPE > 0 && currentMilis > (lastWelcome + 500)){
-     
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Welcome to");
-        lcd.setCursor(0, 1);
-        if(welcomeBlinkState == 0){
-          lcd.print(vendorName);
-          welcomeBlinkState = 1;
-        }else if(welcomeBlinkState == 1){
-          lcd.print("");
-          welcomeBlinkState = 0;
-        }
-      }else if(LCD_TYPE ==2){
-        String text = "Welcome to";
-        lcd20x4.clear();
-        lcd20x4.setCursor(startCenterIndex(text), 0);
-        lcd20x4.print(text);
-        text = vendorName;
-        lcd20x4.setCursor(startCenterIndex(text), 1);
-        if(welcomeBlinkState == 0){
-          lcd20x4.print(text);
-          welcomeBlinkState = 1;
-        }else if(welcomeBlinkState == 1){
-          lcd20x4.print("");
-          welcomeBlinkState = 0;
-        }
-        lcd20x4.setCursor(0, 3);
-        String message = "                    ";
-        int l = 0;
-        for(int i=currentIndex;i<20;i++){
-          if(l < MARQUEE_MESSAGE.length()){
-            message[i] = MARQUEE_MESSAGE[l];
-            l++;
-          }
-        }
-        int a = l;
-        for(int i=0;i<(MARQUEE_MESSAGE.length()-l);i++){
-          message[i] = MARQUEE_MESSAGE[a];
-          a++;
-        }
-        lcd20x4.print(message);
-        currentIndex++;
-        if(currentIndex >= 20){
-          currentIndex = 0;
-        }
-      }
-      lastWelcome = currentMilis;
-  }  
 }
 
 bool activateManualVoucherPurchase(){
@@ -1800,12 +1555,10 @@ bool activateManualVoucherPurchase(){
         hasInternetConnection = hasInternetConnect();
   }
   if(!hasInternetConnection){
-    printInternetNotAvailable();
     return false;
   }
 
   if(!checkIfSystemIsAvailable()){
-      printSystemNotAvailable();
       return false;
   }
 
@@ -1832,7 +1585,6 @@ void handleGenerateVouchers(){
   int addToSales = server.arg("sales").toInt();
   String prefix = server.arg("pfx");
   String voucherGenerated = "";
-  printPleaseWait();
   for(int i=0;i<qty;i++){
     int randomNumber = random(1000, 9999);
     String voucher = prefix+String(randomNumber);
@@ -1851,80 +1603,6 @@ void handleGenerateVouchers(){
   String returnData = vendorName +"|"+amount+"|"+String(timeToAdd)+"|"+ voucherGenerated;
   server.send(200, "text/pain", returnData);
 }
-
-void printSystemNotAvailable(){
-  
-  if(LCD_TYPE > 0){
-    
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("System not");
-        lcd.setCursor(0, 1);
-        lcd.print("Available");
-      }else if(LCD_TYPE == 2){
-        String text = "System not";
-        lcd20x4.clear();
-        lcd20x4.setCursor(startCenterIndex(text), 1);
-        lcd20x4.print(text);
-        text = "Available";
-        lcd20x4.setCursor(startCenterIndex(text), 2);
-        lcd20x4.print(text);
-      }
-  }  
-}
-
-void printInternetNotAvailable(){
-  
-  if(LCD_TYPE > 0){
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Internet not");
-        lcd.setCursor(0, 1);
-        lcd.print("Available");
-      }else if(LCD_TYPE == 2){
-        String text = "Internet not";
-        lcd20x4.clear();
-        lcd20x4.setCursor(startCenterIndex(text), 1);
-        lcd20x4.print(text);
-        text = "Available";
-        lcd20x4.setCursor(startCenterIndex(text), 2);
-      }
-  }
-}
-
-void printPleaseWait(){
-  
-  if(LCD_TYPE > 0){
-      if(LCD_TYPE == 1){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Please wait...");
-        lcd.setCursor(0, 1);
-        lcd.print("");
-      }else if(LCD_TYPE == 2){
-        lcd20x4.clear();
-        lcd20x4.setCursor(startCenterIndex(vendorName), 0);
-        lcd20x4.print(vendorName);
-        String text = "Please wait...";
-        lcd20x4.setCursor(startCenterIndex(text), 1);
-        lcd20x4.print(text);
-      }
-  }
-}
-
-int startCenterIndex(String text){
-    int totalSize = 20;
-    int textLength = text.length();
-    int blankCharCount = totalSize - textLength;
-    int startCenterIndex = (blankCharCount / 2);
-    if(blankCharCount%2 != 0){
-        startCenterIndex--;
-    }
-    return startCenterIndex;
-}
-
 
 int evaluateTriggerOutput(int state){
   if(LED_TRIGGER_TYPE == 1){
