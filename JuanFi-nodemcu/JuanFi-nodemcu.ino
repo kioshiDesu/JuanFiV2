@@ -122,7 +122,7 @@ int IP_ADDRESS_MODE = 0;
 int VOUCHER_LOGIN_OPTION = 0;
 int VOUCHER_VALIDITY_OPTION = 0;
 String VOUCHER_PROFILE = "default";
-String VOUCHER_PREFIX = "P";
+String VOUCHER_PREFIX = "1FI";
 
 int MAX_WAIT_COIN_SEC = 30000;
 int COINSLOT_BAN_COUNT = 0;
@@ -174,6 +174,7 @@ int thankyou_cooldown = 5000;
 void setup () { 
                                 
   Serial.begin (115200);
+  randomSeed(analogRead(A0) + micros()); // seed voucher randomness
   EEPROM.begin(512);
   if(!SPIFFS.begin()){
     Serial.println("An Error has occurred while mounting SPIFFS");
@@ -1140,10 +1141,18 @@ String toJson(char * keys[],char * values[],int nField){
   return json;
 }
 
-String generateVoucher(){
-  int randomNumber = random(1000, 9999);
-  String voucher = VOUCHER_PREFIX+String(randomNumber);
+String generateVoucherWithPrefix(String prefix){
+  //no easily-confused chars (0/O, 1/I/L) so codes are easy to type
+  const char charset[] = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  String voucher = prefix;
+  for(int i = 0; i < 5; i++){
+    voucher += charset[random(sizeof(charset) - 1)];
+  }
   return voucher;
+}
+
+String generateVoucher(){
+  return generateVoucherWithPrefix(VOUCHER_PREFIX);
 }
 
 void registerNewVoucher(String voucher){
@@ -1615,8 +1624,7 @@ void handleGenerateVouchers(){
   String prefix = server.arg("pfx");
   String voucherGenerated = "";
   for(int i=0;i<qty;i++){
-    int randomNumber = random(1000, 9999);
-    String voucher = prefix+String(randomNumber);
+    String voucher = generateVoucherWithPrefix(prefix);
     totalCoin = amount;
     timeToAdd = calculateAddTime();
     registerNewVoucher(voucher);

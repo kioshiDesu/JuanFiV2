@@ -10,6 +10,14 @@ var totalCoinReceived = 0;
 var insertcoinbg = new Audio('assets/insertcoinbg.mp3');
 insertcoinbg.loop = true;
 var coinCount = new Audio('assets/coin-received.mp3');
+function safePlay(audio){
+//play() returns a promise in modern browsers; an unhandled rejection
+//(e.g. autoplay policy) used to break portal sound, so swallow it
+	try{
+		var p = audio.play();
+		if(p && typeof p.catch === 'function'){ p.catch(function(){}); }
+	}catch(e){}
+}
 var voucher = getStorageValue('activeVoucher');
 var insertingCoin = false;
 var TOPUP_INTERNET = "INTERNET";
@@ -290,7 +298,7 @@ function callTopupAPI(retryCount){
 			if(isMultiVendo){
 				$("#insertCoinModalTitle").html("Please insert the coin on "+$("#vendoSelected option:selected").text());
 			}
-			insertcoinbg.play();
+			safePlay(insertcoinbg);
 		}else{
 			notifyCoinSlotError(data.errorCode);
 			clearInterval(timer);
@@ -508,7 +516,7 @@ function notifyCoinSuccess(coin){
 	  type: 'success',
 	  delay: 2000
 	});
-	coinCount.play();
+	safePlay(coinCount);
 }
 
 function secondsToDhms(seconds) {
@@ -549,7 +557,9 @@ function pause(){
 }
 
 function resume(){
+	var vc = getStorageValue("activeVoucher");
 	removeStorageValue("isPaused");
+	if(vc){ removeStorageValue(vc+"remain"); }
 	removeStorageValue("activeVoucher");
 	location.reload();
 }
