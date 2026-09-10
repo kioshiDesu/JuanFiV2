@@ -2,7 +2,7 @@
 cls
 echo Welcome to
 echo.
-echo JuanFi Lan ESP32 Flasher
+echo JuanFiV2 Lan ESP32 Flasher
 echo.
 echo Please select available port below:
 reg query HKLM\HARDWARE\DEVICEMAP\SERIALCOMM

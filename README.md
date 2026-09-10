@@ -1,26 +1,25 @@
-# **JuanFi**
-- ## Official Website: [juanfi.juansystems.com](https://juanfi.juansystems.com/)
-
-- ## Android App: [JuanFi Manager](https://play.google.com/store/apps/details?id=com.juanfi.mobile.admin)
+# **JuanFiV2**
+> Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2). Based on the original **JuanFi** project by **Ivan Julius Alayan** — see [Acknowledgments](#acknowledgments).
 
 
-JuanFi is an innovative open-source system designed for seamless coinslot integration with MikroTik Hotspot. It provides a comprehensive solution for managing and monetizing internet access through the integration of a coinslot mechanism. With JuanFi, hotspot owners can effortlessly incorporate a coinslot system into their network infrastructure, enabling them to offer paid internet access in an efficient and user-friendly manner.
+JuanFiV2 is an innovative open-source system designed for seamless coinslot integration with MikroTik Hotspot. It provides a comprehensive solution for managing and monetizing internet access through the integration of a coinslot mechanism. With JuanFiV2, hotspot owners can effortlessly incorporate a coinslot system into their network infrastructure, enabling them to offer paid internet access in an efficient and user-friendly manner.
 
 
 
+## **Acknowledgments**
 
-## **Donation**
-
-We greatly appreciate donations as they help support the development and maintenance of JuanFi. If you wish to contribute and show your support, you can make a donation using the following methods:
-``
-- Gcash account: Ivan Julius Alayan - 09175425572
-- PayPal account: [paypal.me/ivanalayan](https://www.paypal.com/paypalme/ivanalayan)
+This project is a community-maintained fork of **JuanFi** by **Ivan Julius Alayan** ([original repo](https://github.com/ivanalayan15/JuanFi)).
+Original website, app, diagrams, and scripts remain his work:
+- Official Website: [juanfi.juansystems.com](https://juanfi.juansystems.com/)
+- Android App: [JuanFi Manager](https://play.google.com/store/apps/details?id=com.juanfi.mobile.admin)
+- Diagram updates by [Tee Ay](https://www.facebook.com/ajr.lauren)
+- Sales script contributions by kristoff
 
 # **Community Group**
 
-Join our vibrant community group to connect with other users and contributors. Share your experiences, exchange ideas, hotspot portals, and stay up to date with the latest developments and enhancements of JuanFi.
+Join our vibrant community group to connect with other users and contributors. Share your experiences, exchange ideas, hotspot portals, and stay up to date with the latest developments and enhancements of JuanFiV2.
 
-- Facebook Group: [JuanFi Community](https://www.facebook.com/groups/1172413279934139)
+- Facebook Group (original): [JuanFi Community](https://www.facebook.com/groups/1172413279934139)
 
 # **Features**
 
@@ -143,7 +142,7 @@ Download the necessary ESP8622 flashing files for your setup:
    - Make sure the offset is set to `0x000000`.
    - Click the `Flash Nodemcu` button and wait for the flashing process to complete.
 
-![Flash File 1](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-FlashFile1.PNG?raw=true)
+![Flash File 1](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-FlashFile1.PNG?raw=true)
 
 ## Step 4: Flashing JuanFi-FlashFile2.bin
 
@@ -152,13 +151,13 @@ Download the necessary ESP8622 flashing files for your setup:
    - Set the offset to `0x200000`.
    - Click the `Flash Nodemcu` button and wait for the flashing process to complete.
 
-![Flash File 2](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-FlashFile2.PNG?raw=true)
+![Flash File 2](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-FlashFile2.PNG?raw=true)
 
 ## Step 5: Completing the Flashing Process
 
 After flashing both files, your ESP8622 is now ready. Restart the NodeMCU to begin the setup.
 
-Congratulations! You've successfully flashed your ESP8622 hardware and are ready to proceed with the JuanFi Setup.
+Congratulations! You've successfully flashed your ESP8622 hardware and are ready to proceed with the JuanFiV2 Setup.
 
 </details>
 
@@ -184,29 +183,29 @@ Download the required flashing files based on your setup:
 1. Double-click `start_flash.bat`.
 2. Connect your ESP32 to your PC using a USB cable.
 
-![Connect ESP32](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-Lan-FlashFile1.PNG?raw=true)
+![Connect ESP32](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile1.PNG?raw=true)
 
 3. A command prompt will appear, prompting you to select an available COM port for your ESP32.
 
-![Select COM Port](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-Lan-FlashFile2.PNG?raw=true)
+![Select COM Port](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile2.PNG?raw=true)
 
 ## Step 3: Select COM Port
 
 1. Choose the appropriate COM port for your ESP32 (e.g., COM9).
 2. Press "Enter."
 
-![Select COM Port](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-Lan-FlashFile3.PNG?raw=true)
+![Select COM Port](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile3.PNG?raw=true)
 
 3. A connecting message will appear, indicating the tool is attempting to connect to the ESP32.
 
-![Connecting](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-Lan-FlashFile4.PNG?raw=true)
+![Connecting](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile4.PNG?raw=true)
 
 ## Step 4: Initiate Flashing
 
 1. Press and hold the flash button on the ESP32 for 3-5 seconds.
 2. The flashing process will start.
 
-![Initiate Flashing](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-Lan-FlashFile5.PNG?raw=true)
+![Initiate Flashing](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-Lan-FlashFile5.PNG?raw=true)
 
 ## Step 5: Wait for Completion
 
@@ -214,9 +213,9 @@ Wait for the flashing process to complete.
 
 ## Step 6: Finish
 
-After the flashing process is finished, you can disconnect the ESP32 from your PC. The device is now ready for the JuanFi Setup.
+After the flashing process is finished, you can disconnect the ESP32 from your PC. The device is now ready for the JuanFiV2 Setup.
 
-Congratulations! You've successfully flashed your ESP32 hardware and are ready to proceed with the JuanFi Setup.
+Congratulations! You've successfully flashed your ESP32 hardware and are ready to proceed with the JuanFiV2 Setup.
 
 
 </details>
@@ -225,11 +224,11 @@ Congratulations! You've successfully flashed your ESP32 hardware and are ready t
 
 > # Setting up the Vendo
 
-## 1. Connect to JuanFi Setup
+## 1. Connect to JuanFiV2 Setup
 
 ### For Esp32/Esp8622 Wireless Based
 
-1. Look for the **"JuanFi Setup"** SSID on your device.
+1. Look for the **"JuanFiV2 Setup"** SSID on your device.
 2. connect to the SSID
 3. Access the admin panel in your browser at [http://172.217.28.1/login](http://172.217.28.1/login).
 
@@ -344,9 +343,9 @@ Put on the on login script (with telegram support) please change accordingly wit
 ### enable Random MAC synchronizer
 :local isRandomMacSyncFix 0;
 
-### enable JuanFi online monitoring 0 = DoNotSend,  1=send data to api
+### enable JuanFiV2 online monitoring 0 = DoNotSend,  1=send data to api
 :local apiSend 0;
-### derive from the JuanFi online monitoring, create account in genman.projectdorsu.com
+### derive from the JuanFiV2 online monitoring, create account in genman.projectdorsu.com
 :local URLvendoID 5;
 
 # Get User Data

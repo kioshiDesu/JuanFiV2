@@ -1,6 +1,6 @@
 /*waitTime
  * 
- * JuanFi v2.1
+ * JuanFiV2
  * 
  * PisoWifi coinslot system with integration to Mikrotik Hotspot, 
  * Using
@@ -20,7 +20,7 @@
  * 
  * Supported ESP32 Lanbase and ESP8266 
  * 
- * Created by Ivan Julius Alayan
+ * Based on JuanFi by Ivan Julius Alayan, maintained as JuanFiV2 by kioshiDesu
  * 
 */
 
@@ -286,7 +286,7 @@ void setup () {
       //Soft AP setup
       WiFi.mode(WIFI_AP);
       WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-      WiFi.softAP("JuanFi Setup");
+      WiFi.softAP("JuanFiV2 Setup");
       //if DNSServer is started with "*" for domain name, it will reply with
       //provided IP to all DNS request
       dnsServer.start(DNS_PORT, "*", apIP);
@@ -313,7 +313,7 @@ void setup () {
       }else if(LCD_TYPE == 2){
         lcd20x4.clear();
         lcd20x4.setCursor(0, 0);
-        lcd20x4.print("JuanFi");
+        lcd20x4.print("JuanFiV2");
         if(cableNotConnected){
           lcd20x4.setCursor(0, 1);
           lcd20x4.print("Cable not connected");

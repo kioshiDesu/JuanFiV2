@@ -1,6 +1,6 @@
-# JuanFi
+# JuanFiV2
 
-JuanFi v4.3 Bin File Release
+JuanFiV2 v4.3 Bin File Release
 
 
 ## How to Flash Instruction
@@ -10,13 +10,13 @@ I had forked a the pyflasher repository https://github.com/marcelstoer/nodemcu-p
 
 Download here
 
-Custom flasher download link : https://github.com/ivanalayan15/JuanFi/blob/master/release/WirelessBase/NodeMCU-PyFlasher.exe?raw=true
+Custom flasher download link : https://github.com/kioshiDesu/JuanFiV2/blob/master/release/WirelessBase/NodeMCU-PyFlasher.exe?raw=true
 
 ### Flash the JuanFi-FlashFile1.bin
 
-Download JuanFi-FlashFile1.bin at https://github.com/ivanalayan15/JuanFi/blob/master/release/WirelessBase/JuanFi-FlashFile1.bin?raw=true 
+Download JuanFi-FlashFile1.bin at https://github.com/kioshiDesu/JuanFiV2/blob/master/release/WirelessBase/JuanFi-FlashFile1.bin?raw=true 
 
-![alt text](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-FlashFile1.PNG?raw=true)
+![alt text](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-FlashFile1.PNG?raw=true)
 
 * select the file JuanFi-FlashFile1.bin
 * make sure the offset is 0x000000 
@@ -24,9 +24,9 @@ Download JuanFi-FlashFile1.bin at https://github.com/ivanalayan15/JuanFi/blob/ma
 
 ### Flash the JuanFi-FlashFile2.bin
 
-Download JuanFi-FlashFile2.bin at https://github.com/ivanalayan15/JuanFi/blob/master/release/WirelessBase/JuanFi-FlashFile2.bin?raw=true 
+Download JuanFi-FlashFile2.bin at https://github.com/kioshiDesu/JuanFiV2/blob/master/release/WirelessBase/JuanFi-FlashFile2.bin?raw=true 
 
-![alt text](https://github.com/ivanalayan15/JuanFi/blob/master/docs/JuanFi-FlashFile2.PNG?raw=true)
+![alt text](https://github.com/kioshiDesu/JuanFiV2/blob/master/docs/JuanFi-FlashFile2.PNG?raw=true)
 
 * select the file JuanFi-FlashFile2.bin
 * make sure the offset is 0x200000 
