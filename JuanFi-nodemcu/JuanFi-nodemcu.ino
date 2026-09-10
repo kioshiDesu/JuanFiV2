@@ -127,6 +127,9 @@ String VOUCHER_PREFIX = "1FI";
 int MAX_WAIT_COIN_SEC = 30000;
 int COINSLOT_BAN_COUNT = 0;
 int COINSLOT_BAN_MINUTES = 0;
+int AUTO_RESTART_MINUTES = 0;
+unsigned long lastAutoRestartCheck = 0;
+unsigned long lastDhcpCheck = 0;
 int SETUP_FINISH = 0;
 
 //put here your raspi ip address, and login details
@@ -160,7 +163,7 @@ IPAddress apIP(172, 217, 28, 1);
   DNSServer dnsServer;
 #endif
 
-const int WIFI_CONNECT_TIMEOUT = 180000;
+const int WIFI_CONNECT_TIMEOUT = 360000;
 const int WIFI_CONNECT_DELAY = 500;
 
 bool networkConnected = false;
@@ -1041,6 +1044,14 @@ void topUp() {
     server.send(200, "application/json", toJson(keys, values, 2));
     return;
   }
+  //reject new coin sessions while the previous voucher is still displayed
+  if(lastSaleTime > 0 && (millis() - (unsigned long)lastSaleTime) < (unsigned long)thankyou_cooldown){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "coinslot.busy"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
+  }
   currentMacAttempt = macAdd;
   String voucher = server.arg("voucher");
    if(currentActiveVoucher != "" && !validateVoucher(voucher)){
@@ -1302,7 +1313,7 @@ void populateSystemConfiguration(){
   String data = readFile("/admin/config/system.data");
   Serial.print("Data: ");
   Serial.println(data);
-  int rowSize = 30;
+  int rowSize = 31;
   String rows[rowSize];
   split(rows, data, '|');
   String ip[4];
@@ -1370,7 +1381,8 @@ void populateSystemConfiguration(){
     primaryDNS[2] = primaryDNSAddress[2].toInt();
     primaryDNS[3] = primaryDNSAddress[3].toInt();
   }
- 
+  AUTO_RESTART_MINUTES = rows[30].toInt();
+
 
 }
 
@@ -1531,6 +1543,25 @@ void loop () {
       //print welcome again after x seconds after thank you message
       if(targetMilis < currentMilis && currentMilis > (lastSaleTime + thankyou_cooldown)){
         welcomePrinted = true;
+      }
+    }
+    //DHCP auto renewal: re-request/verify the lease instead of restarting
+    if(IP_ADDRESS_MODE == 0 && (millis() - lastDhcpCheck) >= 300000UL){
+      lastDhcpCheck = millis();
+      #ifdef ESP32
+        Ethernet.maintain();
+      #else
+        if(WiFi.status() != WL_CONNECTED){
+          Serial.println("WiFi lost, reconnecting without restart...");
+          WiFi.reconnect();
+        }
+      #endif
+    }
+    //auto restart after configured minutes, only when the vendo is idle
+    if(AUTO_RESTART_MINUTES > 0 && (millis() - lastAutoRestartCheck) >= (unsigned long)AUTO_RESTART_MINUTES * 60000UL){
+      lastAutoRestartCheck = millis();
+      if(!acceptCoin && !coinSlotActive && !manualVoucher && currentActiveVoucher == ""){
+        ESP.restart();
       }
     }
   }else{

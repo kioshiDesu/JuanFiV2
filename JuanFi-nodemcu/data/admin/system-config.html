@@ -345,7 +345,13 @@ function myFunction() {
     <input type="text" placeholder="DNS Server IP" id="dnsServer" required><br>
 	</div>
 	</div>
-	
+
+	<div class="panel">
+	<span class="title">Auto Restart Setting</span>
+	<label for="autoRestartMinutes"><b>Auto Restart (minutes, 0 = disabled)</b></label><br>
+    <input type="number" value="0" placeholder="0 = disabled" id="autoRestartMinutes" min="0" required><br>
+	</div>
+
 	<div class="panel">
 	<span class="title">MikroTik Setting</span>
 	<label for="email"><b>Mikrotik Router IP</b></label><br>
@@ -667,7 +673,8 @@ function saveSystemConfig(){
 				localIpAddress,
 				gatewayIp,
 				subnetMask,
-				dnsServer
+				dnsServer,
+				$('#autoRestartMinutes').val()
 			 ]);
 				 
 	$.ajax({
@@ -871,6 +878,7 @@ function populateSystemConfigFields(data){
 	$("#gatewayIp").val(configData[27]);
 	$("#subnetMask").val(configData[28]);
 	$("#dnsServer").val(configData[29]);
+	$("#autoRestartMinutes").val(configData[30]);
 }
 
 var rateCount = 0;
