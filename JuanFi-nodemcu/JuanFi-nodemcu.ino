@@ -293,6 +293,8 @@ void setup () {
   server.on("/admin/api/saveRates", handleAdminSaveRates);
   server.on("/admin/api/logout", handleLogout);
   server.on("/admin/api/generateVouchers", handleGenerateVouchers);
+  server.on("/admin/api/issuedUsers", handleAdminIssuedUsers);
+  server.on("/admin/api/kickUser", handleAdminKickUser);
   server.on("/admin/api/restartSystem", handleAdminRestart);
   server.on("/admin", handleAdminPage);
   server.on("/admin/viewGeneratedVouchers", handleAdminGeneratedVoucherPage);
@@ -1179,6 +1181,7 @@ void registerNewVoucher(String voucher){
     addCoinScript += VOUCHER_PROFILE;   
   }
   sendCommand(addCoinScript);
+  logIssuedVoucher(voucher);
 }
 
 void addTimeToVoucher(String voucher, int secondsToAdd){
@@ -1641,6 +1644,98 @@ void handleAdminRestart(){
   server.send(200, "application/json", toJson(keys, values, 2));
   delay(500);
   ESP.restart();
+}
+
+bool isValidKickTarget(String name){
+  if(name.length() == 0 || name.length() > 32) return false;
+  for(int i = 0; i < name.length(); i++){
+    char c = name.charAt(i);
+    if(!(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '-' && c != '_') return false;
+  }
+  return true;
+}
+
+void logIssuedVoucher(String voucher){
+  //latest 20 vendo-issued vouchers; live online status is not readable via telnet
+  String data = readFile("/issued.data");
+  String users[21];
+  int count = 0;
+  int start = 0;
+  for(int i = 0; i <= data.length() && count < 21; i++){
+    if(i == data.length() || data.charAt(i) == '#'){
+      String item = data.substring(start, i);
+      if(item != "" && item != voucher){
+        users[count] = item;
+        count++;
+      }
+      start = i + 1;
+    }
+  }
+  String out = voucher;
+  for(int i = 0; i < count && i < 19; i++){
+    out += "#" + users[i];
+  }
+  File file = SPIFFS.open("/issued.data", "w");
+  if(file){
+    file.print(out);
+    file.close();
+  }
+}
+
+void removeIssuedVoucher(String voucher){
+  String data = readFile("/issued.data");
+  String out = "";
+  int start = 0;
+  for(int i = 0; i <= data.length(); i++){
+    if(i == data.length() || data.charAt(i) == '#'){
+      String item = data.substring(start, i);
+      if(item != "" && item != voucher){
+        if(out != "") out += "#";
+        out += item;
+      }
+      start = i + 1;
+    }
+  }
+  File file = SPIFFS.open("/issued.data", "w");
+  if(file){
+    file.print(out);
+    file.close();
+  }
+}
+
+void handleAdminIssuedUsers(){
+  if(!isAuthorized()){
+     handleNotAuthorize();
+     return;
+  }
+  //readFile returns "" when the file does not exist yet (no hang)
+  server.send(200, "text/plain", readFile("/issued.data"));
+}
+
+void handleAdminKickUser(){
+  if(!isAuthorized()){
+     handleNotAuthorize();
+     return;
+  }
+  String target = server.arg("user");
+  if(!isValidKickTarget(target)){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "invalid.user"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
+  }
+  sendCommand(String("/ip hotspot user remove [find name=") + target + "]");
+  sendCommand(String("/ip hotspot active remove [find user=") + target + "]");
+  sendCommand(String("/ip hotspot cookie remove [find user=") + target + "]");
+  sendCommand(String("/system scheduler remove [find name=") + target + "]");
+  removeIssuedVoucher(target);
+  char targetChar[33];
+  target.toCharArray(targetChar, sizeof(targetChar));
+  char * keys[] = {"status", "user"};
+  char * values[] = {"true", targetChar};
+  setupCORSPolicy();
+  server.send(200, "application/json", toJson(keys, values, 2));
 }
 
 void handleGenerateVouchers(){

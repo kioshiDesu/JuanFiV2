@@ -83,6 +83,12 @@ Create the API user the vendo logs in with (must match step 2):
 /user add name=pisonet password=abc123 group=full disabled=no
 ```
 
+### Router clock (fixes 1970-time voucher issues)
+
+```bash
+/system ntp client set enabled=yes servers=time.google.com,time.cloudflare.com
+```
+
 ## 4. Hotspot login script (On Login)
 
 Hotspot -> Server Profiles -> your profile -> Login tab -> On Login.

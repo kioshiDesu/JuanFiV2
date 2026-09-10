@@ -231,6 +231,7 @@ h2 {
 	<button class="tablinks" onclick="openSystemConfig(event)">System Configuration</button>
 	<button class="tablinks" onclick="openPromoRates(event)">Promo Rates</button>
 	<button class="tablinks" onclick="openVoucherGenerate(event)">Voucher Generation</button>
+	<button class="tablinks" onclick="openActiveUsers(event)">Active Users</button>
 	<button class="tablinks" onclick="openTab(event, 'FirmwareUpdate')">Firmware Update</button>
 	<button class="tablinks" onclick="openTab(event, 'About')">About</button>
 	<button class="tablinks" onclick="logout()">Logout</button>
@@ -561,6 +562,21 @@ function myFunction() {
 	</div>
 </div>
 
+<div id="ActiveUsers" class="tabcontent">
+	<div class="panel">
+	<span class="title">Active Users</span>
+	<p>Vouchers issued by this vendo (latest 20). Live online status is not readable from the device, check WinBox for live sessions.</p>
+	<label for="kickUserInput"><b>Voucher / Username</b></label><br>
+    <input type="text" placeholder="e.g. 1FIX7K2P" id="kickUserInput" maxlength="32">
+	<center>
+	<button onClick="kickUser(document.getElementById('kickUserInput').value)" type="button" class="registerbtn">KICK & DELETE</button>
+	<button onClick="openActiveUsers(null)" type="button" class="registerbtn">REFRESH</button>
+	</center>
+	<div id="issuedUsersBody">
+	</div>
+	</div>
+</div>
+
 <div id="FirmwareUpdate" class="tabcontent">
 	<div class="container">
 	<div class="panel">
@@ -832,6 +848,56 @@ function openDashboard(evt){
 	  }
 	});
 	openTab(evt, 'Dashboard');
+}
+
+function openActiveUsers(evt){
+	$.ajax({
+	  type: "GET",
+	  url: "admin/api/issuedUsers?query="+new Date().getTime(),
+	  success: function(data){
+		renderIssuedUsers(data);
+	  }
+	});
+	openTab(evt, 'ActiveUsers');
+}
+
+function escHtml(s){
+	return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function renderIssuedUsers(data){
+	var html = "";
+	if(data != null && data != ""){
+		var users = data.split("#");
+		for(var i = 0; i < users.length; i++){
+			if(users[i] != ""){
+				html += "<div class='rdata'><span>" + escHtml(users[i]) + "</span> " +
+					"<button class='btn default' onClick=\"kickUser('" + escHtml(users[i]) + "')\">KICK</button></div>";
+			}
+		}
+	}else{
+		html = "<p>No issued vouchers yet.</p>";
+	}
+	$("#issuedUsersBody").html(html);
+}
+
+function kickUser(name){
+	if(name == null || name == ""){ alert("Enter a voucher/username first."); return; }
+	if(!confirm("Kick and delete user '"+name+"'?")){ return; }
+	$.ajax({
+	  type: "POST",
+	  url: "admin/api/kickUser",
+	  data: "user="+encodeURIComponent(name),
+	  success: function(data){
+		try{
+			var res = JSON.parse(data);
+			if(res.status == "true"){ alert("User kicked: "+name); }
+			else{ alert("Kick failed: "+(res.errorCode || "unknown")); }
+		}catch(e){ alert("Kick request sent."); }
+		openActiveUsers(null);
+	  },
+	  error: function(xhr, status, err){ alert("Error: "+err); }
+	});
 }
 
 function openSystemConfig(evt){
