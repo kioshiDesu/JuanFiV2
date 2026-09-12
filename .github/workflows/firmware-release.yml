@@ -80,6 +80,19 @@ jobs:
           grep -q '#include "ESP8266TelnetClient.h"' "$CPP"
           grep -rn 'telnetClient\.h' "$LIBS/ESP8266-Telnet-Client/src/" || true
           test -f "$LIBS/ESP8266-Telnet-Client/src/ESP8266TelnetClient.h"
+          # Upstream sendCommand() never returns on the "exit" path, which
+          # newer cores reject (-Werror=return-type). Our tree never sends
+          # "exit", but the library must still compile.
+          python3 - "$CPP" <<'EOF'
+          import sys
+          p = sys.argv[1]
+          t = open(p).read()
+          old = "\telse{\n\t\tthis->disconnect();\n\t}"
+          assert t.count(old) == 1, "sendCommand tail not found"
+          t = t.replace(old, "\telse{\n\t\tthis->disconnect();\n\t\treturn true;\n\t}")
+          open(p, "w").write(t)
+          print("sendCommand return patched")
+          EOF
 
       - name: Compile ESP8266 (wireless)
         run: >
