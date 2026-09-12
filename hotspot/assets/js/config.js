@@ -32,8 +32,3 @@ var showExtendTimeButton = true;
 
 //disable voucher input
 var disableVoucherInput = false;
-
-//enable mac address as voucher code
-var macAsVoucherCode = false;
-
-var qrCodeVoucherPurchase = false;

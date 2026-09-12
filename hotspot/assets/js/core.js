@@ -24,20 +24,94 @@ var STATE = (typeof PAGE !== 'undefined') ? (PAGE === 'logout' ? 'paused' : PAGE
 var insertingCoin = false;
 var totalCoinReceived = 0;
 var timer = null;
-var qrCodeTimer = null;
 var bootDone = false;
 
-var insertcoinbg = new Audio('assets/insertcoinbg.mp3');
-insertcoinbg.loop = true;
-var coinCount = new Audio('assets/coin-received.mp3');
-
-function safePlay(audio) {
-	// play() rejects under autoplay policies; swallow it so the portal keeps working
+// Built-in sounds: WebAudio synth + vibration, no MP3 files needed.
+// Works offline; degrades silently where unsupported (e.g. iOS vibration).
+var sfxCtx = null;
+var sfxLoopTimer = null;
+function sfxEnsure() {
 	try {
-		var p = audio.play();
-		if (p && typeof p.catch === 'function') { p.catch(function () { }); }
+		if (sfxCtx == null) {
+			var AC = window.AudioContext || window.webkitAudioContext;
+			if (!AC) { return null; }
+			sfxCtx = new AC();
+		}
+		if (sfxCtx.state == "suspended") { sfxCtx.resume(); }
+		return sfxCtx;
+	} catch (e) { return null; }
+}
+function sfxTone(freq, durMs, type, vol, delayMs) {
+	var ctx = sfxEnsure();
+	if (!ctx) { return; }
+	try {
+		var t = ctx.currentTime + (delayMs || 0) / 1000;
+		var o = ctx.createOscillator();
+		var g = ctx.createGain();
+		o.type = type || "sine";
+		o.frequency.value = freq;
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.02);
+		g.gain.exponentialRampToValueAtTime(0.0001, t + durMs / 1000);
+		o.connect(g);
+		g.connect(ctx.destination);
+		o.start(t);
+		o.stop(t + durMs / 1000 + 0.05);
 	} catch (e) { }
 }
+function sfxVibrate(pattern) {
+	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
+}
+// Gentle waiting chime while the customer inserts coins.
+function sfxChime() {
+	sfxTone(990, 90, "sine", 0.24);
+}
+function sfxStartLoop() {
+	sfxStopLoop();
+	sfxChime();
+	sfxLoopTimer = setInterval(sfxChime, 500);
+}
+// Per-coin blip + haptic tick.
+function coinBlip() {
+	sfxTone(1568, 120, "square", 0.16);
+	sfxTone(2093, 150, "square", 0.12, 90);
+	sfxVibrate(40);
+}
+function sfxStopLoop() {
+	if (sfxLoopTimer != null) { clearInterval(sfxLoopTimer); sfxLoopTimer = null; }
+	sfxVibrate(0);
+}
+
+// Dependency-free toast: drop-in for $.toast({title, content, type, delay}).
+// Replaces bootstrap.js + toast.min.js (~63KB of router flash).
+(function ($) {
+	if (!$ || $.toast) { return; }
+	var COLORS = { success: "#067647", error: "#d92d20", info: "#175cd3", warning: "#b7791f" };
+	$.toast = function (o) {
+		o = o || {};
+		var box = document.getElementById("juanfi-toasts");
+		if (!box) {
+			box = document.createElement("div");
+			box.id = "juanfi-toasts";
+			document.body.appendChild(box);
+		}
+		var el = document.createElement("div");
+		el.className = "jtoast";
+		el.style.borderLeftColor = COLORS[o.type] || COLORS.info;
+		var b = document.createElement("b");
+		b.textContent = o.title || "";
+		var s = document.createElement("span");
+		s.textContent = o.content || "";
+		el.appendChild(b);
+		el.appendChild(s);
+		box.appendChild(el);
+		setTimeout(function () { el.classList.add("show"); }, 10);
+		setTimeout(function () {
+			el.classList.remove("show");
+			setTimeout(function () { if (el.parentNode) { el.parentNode.removeChild(el); } }, 300);
+		}, o.delay || 3000);
+	};
+})(window.jQuery);
 
 // ---------- storage ----------
 
@@ -111,6 +185,10 @@ function boot() {
 	// Runs here — not in the shell — because doLogin only exists after injection.
 	if (getStorageValue('reLogin') == '1') {
 		removeStorageValue('reLogin');
+		// A logout/reload wipes the page but not storage: restore the
+		// voucher into the input or doLogin has nothing to submit.
+		var sv = getStorageValue('activeVoucher');
+		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
 		doLogin();
 		return;
 	}
@@ -198,9 +276,6 @@ function render(state) {
 	if (state == "login") {
 		pill = '<span class="status-disconnected">Status: <span class="blinking1">Disconnected</span></span>';
 		$("#connPill").html(pill);
-		if (typeof qrCodeVoucherPurchase !== 'undefined' && qrCodeVoucherPurchase) {
-			startQrPoll();
-		}
 		return;
 	}
 	if (state == "status") {
@@ -219,10 +294,12 @@ function render(state) {
 	if (state == "paused") {
 		$("#pausedVoucher").html(voucher);
 		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
+		fitCountdown("#pauseRemainTime");
 	}
 }
 
-// Compact countdown: biggest units only, never wraps ("2d 03h", "3h 05m 09s").
+// Compact countdown, biggest units first; seconds always shown.
+// fitCountdown() shrinks long values to fit instead of clipping them.
 function compactDhms(seconds) {
 	seconds = Math.max(0, Number(seconds) || 0);
 	var d = Math.floor(seconds / 86400);
@@ -230,9 +307,33 @@ function compactDhms(seconds) {
 	var m = Math.floor(seconds % 3600 / 60);
 	var s = Math.floor(seconds % 60);
 	function p(n) { return (n < 10 ? "0" : "") + n; }
-	if (d > 0) { return d + "d " + p(h) + "h " + p(m) + "m"; }
+	if (d > 0) { return d + "d " + p(h) + "h " + p(m) + "m " + p(s) + "s"; }
 	if (h > 0) { return h + "h " + p(m) + "m " + p(s) + "s"; }
 	return p(m) + "m " + p(s) + "s";
+}
+
+// Shrink a hero countdown until it fits (long hour counts clip the
+// trailing "s" on 320px phones). Resets to the stylesheet size first
+// so shorter values grow back; re-runs on rotate/resize.
+function fitCountdown(sel) {
+	var el = $(sel);
+	if (el.length == 0) { return; }
+	if (!window.__countdownFitBound) {
+		window.__countdownFitBound = true;
+		$(window).on("resize orientationchange", function () {
+			fitCountdown("#remainTime");
+			fitCountdown("#pauseRemainTime");
+		});
+	}
+	el.css("font-size", "");
+	var node = el.get(0);
+	var size = parseFloat(el.css("font-size")) || 30;
+	var guard = 0;
+	while (size > 20 && node.scrollWidth > node.clientWidth + 1 && guard < 20) {
+		size -= 1;
+		el.css("font-size", size + "px");
+		guard++;
+	}
 }
 
 function startCountdown() {
@@ -244,10 +345,12 @@ function startCountdown() {
 	}
 	time = parseInt(time);
 	$("#remainTime").html(compactDhms(time));
+	fitCountdown("#remainTime");
 	if (window.remainingTimer != null) { clearInterval(window.remainingTimer); }
 	window.remainingTimer = setInterval(function () {
 		time--;
 		$("#remainTime").html(compactDhms(time));
+		fitCountdown("#remainTime");
 		if (time <= 0) {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
 			clearInterval(window.remainingTimer);
@@ -309,15 +412,8 @@ function applyFlags() {
 	if (!showExtendTimeButton) {
 		$("#extendBtn").attr("style", "display: none");
 	}
-	if (macAsVoucherCode) {
-		voucher = macNoColon();
-		$("#voucherInput").val(voucher);
-	}
 	if (typeof disableVoucherInput !== 'undefined' && disableVoucherInput) {
 		$("#voucherBlock").attr("style", "display: none");
-	}
-	if (qrCodeVoucherPurchase) {
-		$("#qrSection").attr("style", "display: block");
 	}
 }
 
@@ -326,7 +422,6 @@ function applyFlags() {
 // Collapse/expand a section body; headers with class "toggle" call this.
 function toggleBlock(id) {
 	if (id == "memberSectionBody" && (typeof showMemberLogin === 'undefined' || !showMemberLogin)) { return; }
-	if (id == "qrSectionBody" && (typeof qrCodeVoucherPurchase === 'undefined' || !qrCodeVoucherPurchase)) { return; }
 	var el = document.getElementById(id);
 	if (!el) { return; }
 	var hidden = el.style.display == "none";
@@ -345,7 +440,7 @@ function toggleBlock(id) {
 function showCoinPanel() {
 	// In-place swap: the coin panel takes the pressed button's spot.
 	// The rest of the UI darkens under a veil (rates stay lit);
-	// voucher + member + QR are hidden until the panel closes.
+	// voucher + member are hidden until the panel closes.
 	var slot = (STATE == "status") ? "#coinSlot-status" : "#coinSlot-login";
 	var panel = document.getElementById("coinPanel");
 	var dest = document.querySelector(slot);
@@ -364,7 +459,6 @@ function showCoinPanel() {
 	}
 	$("#voucherBlock").attr("style", "display: none");
 	$("#memberSection").attr("style", "display: none");
-	$("#qrSection").attr("style", "display: none");
 	document.body.classList.add("coin-focus");
 	$("#coinPanel").attr("style", "display: block");
 	var el = document.getElementById("coinPanel");
@@ -387,19 +481,13 @@ function restoreCoinChrome() {
 	} else {
 		$("#memberSection").attr("style", "display: none");
 	}
-	if (typeof qrCodeVoucherPurchase !== 'undefined' && qrCodeVoucherPurchase) {
-		$("#qrSection").attr("style", "");
-	} else {
-		$("#qrSection").attr("style", "display: none");
-	}
 }
 
 function cancelCoin() {
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
-	insertcoinbg.pause();
-	insertcoinbg.currentTime = 0.0;
+	sfxStopLoop();
 	if (totalCoinReceived == 0) {
 		$.ajax({
 			type: "POST",
@@ -410,23 +498,6 @@ function cancelCoin() {
 		});
 	}
 	render(STATE);
-}
-
-function startQrPoll() {
-	if (qrCodeTimer != null) { return; }
-	qrCodeTimer = setInterval(function () {
-		$.ajax({
-			type: "GET",
-			url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(),
-			success: function () {
-				clearInterval(qrCodeTimer);
-				qrCodeTimer = null;
-				$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
-				setTimeout(newLogin, 3000);
-			},
-			error: function () { }
-		});
-	}, 1000);
 }
 
 // Shows one of "login" | "status" | "paused" (single-file portal).
@@ -511,13 +582,25 @@ function resumeSession() {
 	var isPaused = getStorageValue("isPaused");
 	if (isPaused == "1") {
 		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
+		fitCountdown("#pauseRemainTime");
 	}
 	var ignoreSaveCode = getStorageValue("ignoreSaveCode") || "0";
 	var insertCoinTrigger = getStorageValue("insertCoinRefreshed");
 	if (ignoreSaveCode != "1" && insertCoinTrigger != "1" && $("#voucherInput").length > 0) {
 		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime() })
 			.done(function (data) {
-				voucher = String(data).split("#")[0];
+				var parts = String(data).split("#");
+				var fileVoucher = (parts[0] || "").trim();
+				var validUntil = parts.length > 1 ? parseValidity(parts[1]) : null;
+				// Stale session file (empty or expired voucher): never
+				// auto-connect it, or a dead test code keeps logging
+				// itself in on every visit to the login page.
+				if (fileVoucher == "" || (validUntil != null && validUntil.getTime() < new Date().getTime())) {
+					removeStorageValue("activeVoucher");
+					d.resolve();
+					return;
+				}
+				voucher = fileVoucher;
 				$('#voucherInput').val(voucher);
 				$("#connectBtn").click();
 			})
@@ -628,7 +711,7 @@ function callTopupAPI(retryCount) {
 	$("#vcCodeDiv").attr('style', 'display: block');
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
 
-	if (!isExtend && totalCoinReceived == 0 && !macAsVoucherCode) {
+	if (!isExtend && totalCoinReceived == 0) {
 		var storedVoucher = getStorageValue('activeVoucher');
 		if (storedVoucher != null) {
 			voucher = "";
@@ -655,7 +738,7 @@ function callTopupAPI(retryCount) {
 				if (isMultiVendo) {
 					$("#coinPanelTitle").html("Please insert the coin on " + $("#vendoSelected option:selected").text());
 				}
-				safePlay(insertcoinbg);
+				sfxStartLoop();
 			} else {
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
@@ -684,8 +767,7 @@ function saveVoucherBtnAction() {
 
 	clearInterval(timer);
 	timer = null;
-	insertcoinbg.pause();
-	insertcoinbg.currentTime = 0.0;
+	sfxStopLoop();
 	$.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
@@ -698,7 +780,15 @@ function saveVoucherBtnAction() {
 				setStorageValue(voucher + "tempValidity", data.validity);
 				$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 				if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
-					refreshExtend();
+					// A reload alone keeps the same router session, whose
+					// time-left never picks up the extended limit. End the
+					// session like pause/resume does; boot auto-logs back
+					// in with the extended voucher for a fresh countdown.
+					setStorageValue('reLogin', '1');
+					setTimeout(function () {
+						try { document.logout.submit(); }
+						catch (e) { location.reload(); }
+					}, 3000);
 				} else {
 					setTimeout(newLogin, 3000);
 				}
@@ -781,8 +871,7 @@ function checkCoin() {
 }
 
 function closeCoinModal() {
-	insertcoinbg.pause();
-	insertcoinbg.currentTime = 0.0;
+	sfxStopLoop();
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
@@ -796,25 +885,6 @@ function autoLoginAfterCoin() {
 	} else {
 		newLogin();
 	}
-}
-
-// Extend done: the live session picks up the added time by itself, so stay
-// on the status view and just re-read the fresh remaining time. Only if the
-// session actually died do we fall back to a full re-login.
-function refreshExtend() {
-	hideCoinPanel();
-	setBootText("Updating session...");
-	$("#loaderDiv").attr("class", "spinner");
-	detectState().done(function (state) {
-		$("#loaderDiv").attr("class", "spinner hidden");
-		if (state == "status") {
-			render(state);
-			showValidity();
-		} else {
-			setStorageValue('reLogin', '1');
-			location.reload();
-		}
-	});
 }
 
 function newLogin() {
@@ -859,7 +929,7 @@ function notifyCoinSlotError(errorCode) {
 
 function notifyCoinSuccess(coin) {
 	$.toast({ title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 });
-	safePlay(coinCount);
+	coinBlip();
 }
 
 function secondsToDhms(seconds) {

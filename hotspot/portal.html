@@ -7,8 +7,7 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/toast.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=26">
+	<link rel="stylesheet" href="assets/css/core.css?v=28">
 	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=26">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -16,7 +15,6 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<script src="assets/js/config.js?v=26"></script>
 	<script src="assets/js/md5.js?v=26"></script>
-	<script src="assets/js/qrcode.min.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
 		// standalone (preview) falls back to the samples below.
@@ -27,7 +25,7 @@
 		window.hotspotAddress = window.hotspotAddress || "10.0.0.1";
 		window.interfaceName = window.interfaceName || "bridge-hotspot";
 		window.sessiontime = window.sessiontime || "3600";
-		window.currentVoucher = window.currentVoucher || "1FITEST1";
+		window.currentVoucher = window.currentVoucher || "";
 		window.remainingTimer = window.remainingTimer || null;
 		window.bytesInNice = window.bytesInNice || "";
 		window.bytesOutNice = window.bytesOutNice || "";
@@ -83,18 +81,6 @@
 			<small id="voucherHelp" class="form-text text-muted" style="padding: 5px">Please enter voucher code if have existing</small>
 		</div>
 
-		<div id="qrSection" style="display: none">
-			<span class="panelTitle toggle" id="qrSectionBodyHead" onclick="toggleBlock('qrSectionBody'); return false;">Purchase Voucher using QR Code &#9656;</span>
-			<div id="qrSectionBody" style="display: none">
-			<center>
-				<p>Present this QR code to the vendo owner</p>
-				<div id="qrcode" class="qrcode-wrapper"></div>
-				<br/>
-				<p>Once your request has been approved you will be automatically logged in.</p>
-			</center>
-			</div>
-		</div>
-
 		<div id="memberSection">
 			<span class="panelTitle toggle" id="memberSectionBodyHead" onclick="toggleBlock('memberSectionBody'); return false;">Member Login &#9656;</span>
 			<div id="memberSectionBody" style="display: none">
@@ -117,11 +103,11 @@
 		<div class="hero" id="statusHero">
 			<div class="sub">Remaining Time</div>
 			<div class="big odometer" id="remainTime"></div>
-			<div class="vouchline">Voucher <span id="statusVoucher">1FITEST1</span></div>
+			<div class="vouchline">Voucher <span id="statusVoucher"></span></div>
 		</div>
 		<ul class="stat-list">
-			<li id="expireRow"><span class="k"><img src="assets/img/timeexpired.png" width="16px" height="16px" /> Expiration Time</span><span class="v" id="expirationTime"></span></li>
-			<li id="dataUsedRow"><span class="k"><img src="assets/img/data.png" width="16px" height="16px" /> Data Used</span><span class="v"><img src="assets/img/upload.png" width="14px" height="14px" /> <span id="upBytes"></span> &nbsp;<img src="assets/img/download.png" width="14px" height="14px" /> <span id="downBytes"></span></span></li>
+			<li id="expireRow"><span class="k">Expiration Time</span><span class="v" id="expirationTime"></span></li>
+			<li id="dataUsedRow"><span class="k">Data Used</span><span class="v"><span id="upBytes"></span> &nbsp;<span id="downBytes"></span></span></li>
 			<li id="dataRemainRow"><span class="k">Remaining Data</span><span class="v" id="totalDataInfo"></span></li>
 		</ul>
 
@@ -136,12 +122,14 @@
 		<div class="hero">
 			<div class="sub">Paused</div>
 			<div class="big" id="pauseRemainTime"></div>
-			<div class="vouchline">Voucher <span id="pausedVoucher">1FITEST1</span> &bull; Expires <span id="expirationTimePaused"></span></div>
+			<div class="vouchline">Voucher <span id="pausedVoucher"></span> &bull; Expires <span id="expirationTimePaused"></span></div>
 		</div>
 
 		<div class="btnrow">
 			<button type="button" id="resumeBtn" onClick="resume(); return false" class="btn btn-info btn-block" style="display: block; width: 100%;">RESUME SESSION</button>
 		</div>
+
+		<div class="pausenote">Time is <b>paused</b> — feel free to turn off your Wi-Fi and close this browser. Connecting to the Wi-Fi again will log you in automatically — or tap <b>RESUME</b>.</div>
 	</div>
 
 	<div id="ratesSection">
@@ -188,10 +176,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/popper.min.js?v=26"></script>
-		<script src="assets/js/bootstrap.min.js?v=26"></script>
-		<script src="assets/js/toast.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=26"></script>
+		<script src="assets/js/core.js?v=35"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -201,9 +186,9 @@
 
 			function doLogin() {
 				var vc = $("#voucherInput").val() || window.currentVoucher || "";
-				if (window.macAsVoucherCode && vc == "") {
-					vc = String(window.mac).split(":").join("");
-					$("#voucherInput").val(vc);
+				if (vc == "") {
+					$.toast({ title: 'Error', content: 'Please enter your voucher code first', type: 'error', delay: 3000 });
+					return false;
 				}
 				setStorageValue("activeVoucher", vc);
 				mergeTempValidity(vc);
@@ -246,7 +231,6 @@
 			$("#clientIp").html(window.uIp);
 			$("#clientMac").html(window.mac);
 			boot();
-			new QRCode(document.getElementById("qrcode"), JSON.stringify("juanfi://purchasevoucher?mac=" + window.mac + "&ip=" + window.uIp));
 		</script>
 
 		<div id="loaderDiv" class="spinner hidden">
