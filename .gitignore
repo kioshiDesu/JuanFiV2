@@ -1,2 +1,6 @@
 
 .vscode/settings.json
+
+# Agent skills (local-only, not part of the project)
+.agents/
+skills-lock.json

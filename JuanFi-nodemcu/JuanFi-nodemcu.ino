@@ -55,7 +55,7 @@ volatile int coin = 0;
 volatile int processCoin = 0;
 volatile int totalCoin = 0;
 boolean isNewVoucher = false;
-int coinsChange = 0;
+volatile int coinsChange = 0;
 String currentActiveVoucher = "";
 String currentMacAttempt = "";
 int timeToAdd = 0;
@@ -115,7 +115,6 @@ int COIN_SELECTOR_PIN = 0;
 int COIN_SET_PIN = 0;
 int INSERT_COIN_LED = 0;
 int SYSTEM_READY_LED = 0;
-int INSERT_COIN_BTN_PIN = 0;
 int CHECK_INTERNET_CONNECTION = 0;
 int LED_TRIGGER_TYPE = 1;
 int IP_ADDRESS_MODE = 0;
@@ -168,8 +167,6 @@ const int WIFI_CONNECT_DELAY = 500;
 
 bool networkConnected = false;
 bool cableNotConnected = false;
-bool welcomePrinted = false;
-bool manualVoucher = false;
 
 int lastSaleTime = 0;
 int thankyou_cooldown = 5000;
@@ -189,7 +186,6 @@ void setup () {
   pinMode(INSERT_COIN_LED, OUTPUT);
   pinMode(SYSTEM_READY_LED, OUTPUT);
   pinMode(COIN_SET_PIN, OUTPUT);
-  pinMode(INSERT_COIN_BTN_PIN, INPUT_PULLUP);
 
   #ifdef ESP32
     initializeLANSetup();
@@ -263,7 +259,6 @@ void setup () {
     server.on("/cancelTopUp", handleCancelTopUp);
     server.on("/testInsertCoin", testInsertCoin);
     server.onNotFound(handleNotFound);
-    welcomePrinted = true;
     
   }else{
     #ifdef ESP32
@@ -314,6 +309,10 @@ boolean hasUploadError = false;
 boolean isFileSystem = true;
 
 void handleFileUploadRequest(){
+    if(!isAuthorized()){
+       handleNotAuthorize();
+       return;
+    }
     if (Update.hasError()) {
       //when esp32 has sometimes error of not enough space, but actually its uploaded some part succesfully so we will just return success
       if(isFileSystem && HARDWARE_TYPE == "ESP32"){
@@ -504,21 +503,14 @@ void loginMirotik(){
     //since it could be a problem to attach the serial monitor while negotiating with the server (it cause the board reset)
     //remove it or replace it with a delay/wait of a digital input in case you're not using the serial monitors
     Serial.print("Logging in to mikrotik ");
-    Serial.print(mikrotikRouterIp);
-    Serial.print(" using ");
-    Serial.print(user);
-    Serial.print(" / ");
-    Serial.println(pwd);
+    Serial.println(mikrotikRouterIp);
     delay(3000);
   
-    //PUT HERE YOUR USERNAME/PASSWORD
     mikrotekConnectionSuccess = tc.login(mikrotikRouterIp, user.c_str(), pwd.c_str());
     if(mikrotekConnectionSuccess){
       Serial.println("Login to mikrotek router success");
     }else{
-      //Temporary fix for those cannot connect to mikrotik
-      mikrotekConnectionSuccess = true;
-      Serial.println("Warning, Failed to login in mikrotek router, please check mikrotik log");
+      Serial.println("Warning, failed to login to mikrotek router, coins will not be accepted until login succeeds");
     }
 }
 
@@ -543,6 +535,13 @@ void handleCancelTopUp(){
   String voucher = server.arg("voucher");
   if(!validateVoucher(voucher)){
       return;
+  }
+  if(!isSessionIpAllowed()){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "coinslot.busy"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
   }
   targetMilis = millis();
   char * keys[] = {"status"};
@@ -727,15 +726,26 @@ void handleAdminGeneratedVoucherPage(){
 }
 
 bool isAuthorized(){
+  if(authLockoutUntil != 0 && (long)(millis() - authLockoutUntil) < 0){
+    return false;
+  }
   String auth = server.header("Authorization");
   String expectedAuth = "Basic "+adminAuth;
-  if(auth != expectedAuth){
-    Serial.print("Admin incorrect: ");
-    Serial.print(auth);
-    Serial.print(" vs ");
-    Serial.println(expectedAuth);
+  if(auth == expectedAuth){
+    authFailCount = 0;
+    return true;
   }
-  return auth == expectedAuth;
+  authFailCount++;
+  if(authFailCount >= 5){
+    authFailCount = 0;
+    authLockoutUntil = millis() + 60000;
+  }
+  return false;
+}
+
+bool isSessionIpAllowed(){
+  if(sessionIp == "") return true;
+  return server.client().remoteIP().toString() == sessionIp;
 }
 
 void handleNotAuthorize(){
@@ -745,6 +755,10 @@ void handleNotAuthorize(){
 
 bool handleFileRead(String path){  // send the right file to the client (if it exists)
   Serial.println("handleFileRead: " + path);
+  if(path.indexOf("..") >= 0){
+    Serial.println("\tBlocked path traversal attempt");
+    return false;
+  }
   if(path.endsWith("/")) path += "index.html";           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
   String pathWithGz = path + ".gz";
@@ -852,7 +866,7 @@ bool hasInternetConnect(){
 }
 
 void addAttemptToCoinslot(){
-  if(COINSLOT_BAN_COUNT > 0 && (!manualVoucher)){
+  if(COINSLOT_BAN_COUNT > 0){
     int currentMacIndex = -1;
     int availableIndex = -1;
     for(int i=0;i<attemptedMaxCount;i++){
@@ -906,6 +920,13 @@ void checkCoin(){
   String voucher = server.arg("voucher");
   if(!validateVoucher(voucher)){
       return;
+  }
+  if(!isSessionIpAllowed()){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "coinslot.busy"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
   }
 
   if(coinExpired){
@@ -965,6 +986,13 @@ void useVoucher(){
   if(!validateVoucher(voucher)){
       return;
   }
+  if(!isSessionIpAllowed()){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "coinslot.busy"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
+  }
   disableCoinSlot();
   if(timeToAdd > 0 ){
     clearAttemptToCoinSlot();
@@ -1018,9 +1046,11 @@ bool validateVoucher(String voucher){
 }
 
 bool isExtendTime = false; // true when portal extends an existing online voucher
+String sessionIp = ""; // client IP bound at topUp, enforced on coin endpoints
+int authFailCount = 0;
+unsigned long authLockoutUntil = 0;
 
 void topUp() {
-  manualVoucher = false;
   thankyou_cooldown = 5000;
   bool hasInternetConnection = true;
   if(CHECK_INTERNET_CONNECTION == 1){
@@ -1056,6 +1086,13 @@ void topUp() {
   }
   currentMacAttempt = macAdd;
   String voucher = server.arg("voucher");
+  if(voucher != "" && !isValidVoucherCode(voucher)){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "invalid.voucher"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
+  }
    if(currentActiveVoucher != "" && !validateVoucher(voucher)){
       return;
   }
@@ -1072,9 +1109,8 @@ void topUp() {
     }
   }
   char * keys[] = {"status", "voucher"};
-  int voucherLength = voucher.length() + 1;
-  char voucherChar [voucherLength];
-  voucher.toCharArray(voucherChar, voucherLength);
+  char voucherChar[32];
+  voucher.toCharArray(voucherChar, sizeof(voucherChar));
   char * values[] = {"true", voucherChar};
   if(voucher != currentActiveVoucher){
     resetGlobalVariables();
@@ -1084,6 +1120,7 @@ void topUp() {
   //extend-time flow: portal sends extendTime=1 with an existing online voucher;
   //skip hotspot-user creation later, only add time to the existing user
   isExtendTime = (server.arg("extendTime") == "1" && server.arg("voucher") != "");
+  sessionIp = server.client().remoteIP().toString();
   setupCORSPolicy();
   server.send(200, "application/json", toJson(keys, values, 2));
 }
@@ -1136,19 +1173,25 @@ void activateCoinSlot(){
   digitalWrite(INSERT_COIN_LED, evaluateTriggerOutput(TURN_ON));
 }
 
+String escapeJson(String val){
+  val.replace("\\", "\\\\");
+  val.replace("\"", "\\\"");
+  return val;
+}
+
 String toJson(char * keys[],char * values[],int nField){
   String json = "{";
 
-  for (int i = 0; i < nField; i++) {
-   if(i > 0){
-    json += ",";
-   }
-   json += " \"";
-   json += String(keys[i]);  
-   json += "\": \"";
-   json += String(values[i]);
-   json += "\" ";
-  
+   for (int i = 0; i < nField; i++) {
+    if(i > 0){
+     json += ",";
+    }
+    json += " \"";
+    json += String(keys[i]);  
+    json += "\": \"";
+    json += escapeJson(String(values[i]));
+    json += "\" ";
+   
   }
   json += "}";
   return json;
@@ -1158,8 +1201,14 @@ String generateVoucherWithPrefix(String prefix){
   //no easily-confused chars (0/O, 1/I/L) so codes are easy to type
   const char charset[] = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   String voucher = prefix;
-  for(int i = 0; i < 5; i++){
-    voucher += charset[random(sizeof(charset) - 1)];
+  for(int attempt = 0; attempt < 5; attempt++){
+    voucher = prefix;
+    for(int i = 0; i < 5; i++){
+      voucher += charset[random(sizeof(charset) - 1)];
+    }
+    if(readFile("/issued.data").indexOf(voucher) < 0){
+      break;
+    }
   }
   return voucher;
 }
@@ -1228,14 +1277,18 @@ void addTimeToVoucher(String voucher, int secondsToAdd){
 
 void sendCommand(String script){
    Serial.println(script);
-   int scriptLength = script.length() + 1;
-   char command [scriptLength];
-   script.toCharArray(command, scriptLength);
+   if(script.length() > 400){
+     Serial.println("Command too long, refused");
+     return;
+   }
+   char command[401];
+   script.toCharArray(command, sizeof(command));
    tc.sendCommand(command);
 }
 
 void resetGlobalVariables(){
   currentActiveVoucher = "";
+  sessionIp = "";
   isExtendTime = false;
   timeToAdd = 0;
   totalCoin = 0;
@@ -1314,13 +1367,14 @@ void populateSystemConfiguration(){
 
   Serial.println("Loading system configuration");
   String data = readFile("/admin/config/system.data");
-  Serial.print("Data: ");
-  Serial.println(data);
   int rowSize = 31;
   String rows[rowSize];
-  split(rows, data, '|');
+  int fieldCount = split(rows, rowSize, data, '|');
+  if(fieldCount != rowSize){
+    Serial.println("Warning, system.data field count mismatch, missing fields use defaults");
+  }
   String ip[4];
-  split(ip, rows[3], '.');
+  split(ip, 4, rows[3], '.');
  
   mikrotikRouterIp[0] = ip[0].toInt();
   mikrotikRouterIp[1] = ip[1].toInt();
@@ -1341,7 +1395,6 @@ void populateSystemConfiguration(){
   COIN_SET_PIN = rows[12].toInt();
   SYSTEM_READY_LED = rows[13].toInt();
   INSERT_COIN_LED = rows[14].toInt();
-  INSERT_COIN_BTN_PIN = rows[16].toInt();
   CHECK_INTERNET_CONNECTION = rows[17].toInt();
   VOUCHER_PREFIX = rows[18];
   SETUP_FINISH = rows[20].toInt();
@@ -1353,7 +1406,7 @@ void populateSystemConfiguration(){
   
   if(IP_ADDRESS_MODE == 1){
     String localIpAddress[4];
-    split(localIpAddress, rows[26], '.');
+    split(localIpAddress, 4, rows[26], '.');
    
     local_IP[0] = localIpAddress[0].toInt();
     local_IP[1] = localIpAddress[1].toInt();
@@ -1361,7 +1414,7 @@ void populateSystemConfiguration(){
     local_IP[3] = localIpAddress[3].toInt();
 
     String gatewayIpAddress[4];
-    split(gatewayIpAddress, rows[27], '.');
+    split(gatewayIpAddress, 4, rows[27], '.');
    
     gateway[0] = gatewayIpAddress[0].toInt();
     gateway[1] = gatewayIpAddress[1].toInt();
@@ -1369,7 +1422,7 @@ void populateSystemConfiguration(){
     gateway[3] = gatewayIpAddress[3].toInt();
 
     String subnetAddress[4];
-    split(subnetAddress, rows[28], '.');
+    split(subnetAddress, 4, rows[28], '.');
    
     subnet[0] = subnetAddress[0].toInt();
     subnet[1] = subnetAddress[1].toInt();
@@ -1377,7 +1430,7 @@ void populateSystemConfiguration(){
     subnet[3] = subnetAddress[3].toInt();
 
     String primaryDNSAddress[4];
-    split(primaryDNSAddress, rows[29], '.');
+    split(primaryDNSAddress, 4, rows[29], '.');
    
     primaryDNS[0] = primaryDNSAddress[0].toInt();
     primaryDNS[1] = primaryDNSAddress[1].toInt();
@@ -1389,19 +1442,22 @@ void populateSystemConfiguration(){
 
 }
 
-int split(String rows[], String data, char delimeter){
+int split(String rows[], int cap, String data, char delimeter){
   int count = 0;
   String elementData = "";
   for(int i=0;i<data.length();i++){
       if(data.charAt(i) != delimeter){
         elementData.concat(data.charAt(i));
       }else{
-        rows[count] = elementData;  
+        if(count >= cap){
+          break;
+        }
+        rows[count] = elementData;
         elementData = "";
         count++;
       }
   }
-  if(elementData != ""){
+  if(elementData != "" && count < cap){
      rows[count] = elementData;
      count++;
   }
@@ -1414,16 +1470,14 @@ void populateRates(){
   String data = readFile("/admin/config/rates.data");
   Serial.print("Data: ");
   Serial.println(data);
-  int dataLength = data.length() + 1;
-  char dataChar [dataLength];
   String rows[100];
-  ratesCount = split(rows, data, '|' );
+  ratesCount = split(rows, 100, data, '|' );
 
   for(int i=0;i<ratesCount;i++){
     Serial.print("Data: ");
     Serial.println(rows[i]);
     String column[6];
-    split(column, rows[i], '#' );
+    split(column, 6, rows[i], '#' );
     rates[i].rateName = column[0];
     rates[i].price = column[1].toInt();
     rates[i].minutes = (column[2]).toInt();
@@ -1458,35 +1512,6 @@ void loop () {
       return;
    }
 
-    //insert coin button: manual voucher purchase (LCD removed)
-    {
-      int insertCoinButton = digitalRead(INSERT_COIN_BTN_PIN);
-      if(insertCoinButton == LOW){
-          if(!manualVoucher){
-            if(welcomePrinted){
-              bool result = activateManualVoucherPurchase();
-              if(!result){
-                //when no internet available, return back to normal to try later
-                lastSaleTime = millis();
-                thankyou_cooldown = 5000;
-                welcomePrinted = false;
-                return;  
-              }
-            }else{
-              if(timeToAdd == 0){
-                //clear thank you message after button press
-                thankyou_cooldown = 0;
-                targetMilis = currentMilis;
-                delay(1000);
-              }
-            }
-          }else{
-            //make coinslot expired when button is pressed
-            targetMilis = currentMilis;
-          }
-      }
-    }
-       
     //insert coin logic
     if(acceptCoin){
       if((targetMilis > currentMilis)){
@@ -1503,19 +1528,14 @@ void loop () {
             }
 
             coinWaiting = 0;
+            noInterrupts();
             processCoin = coin;
-            coin -= processCoin;
+            coin = 0;
+            interrupts();
             Serial.print("Coin inserted: ");
             Serial.println(processCoin);
             coinsChange = 0;
             acceptCoin = false;
-
-            //if manual voucher mode
-            if(manualVoucher){
-              totalCoin += processCoin;
-              timeToAdd = calculateAddTime();
-              activateCoinSlot();
-            }
           }
           printing:
           ; // LCD removed: no status display; label kept for coin-debounce goto
@@ -1523,7 +1543,6 @@ void loop () {
         disableCoinSlot();
         acceptCoin = false;
         coinExpired = true;
-        manualVoucher = false;
         timeToAdd = calculateAddTime();
         //Auto add time no need to use voucher
         if(timeToAdd > 0 ) {
@@ -1541,12 +1560,6 @@ void loop () {
         }
         resetGlobalVariables();
       }
-    }else{
-      //if coinslot is disable
-      //print welcome again after x seconds after thank you message
-      if(targetMilis < currentMilis && currentMilis > (lastSaleTime + thankyou_cooldown)){
-        welcomePrinted = true;
-      }
     }
     //DHCP auto renewal: re-request/verify the lease instead of restarting
     if(IP_ADDRESS_MODE == 0 && (millis() - lastDhcpCheck) >= 300000UL){
@@ -1563,7 +1576,7 @@ void loop () {
     //auto restart after configured minutes, only when the vendo is idle
     if(AUTO_RESTART_MINUTES > 0 && (millis() - lastAutoRestartCheck) >= (unsigned long)AUTO_RESTART_MINUTES * 60000UL){
       lastAutoRestartCheck = millis();
-      if(!acceptCoin && !coinSlotActive && !manualVoucher && currentActiveVoucher == ""){
+      if(!acceptCoin && !coinSlotActive && currentActiveVoucher == ""){
         ESP.restart();
       }
     }
@@ -1601,31 +1614,6 @@ void handleSystemAbnormal(){
     ESP.restart();
 }
 
-bool activateManualVoucherPurchase(){
-  bool hasInternetConnection = true;
-  if(CHECK_INTERNET_CONNECTION == 1){
-        hasInternetConnection = hasInternetConnect();
-  }
-  if(!hasInternetConnection){
-    return false;
-  }
-
-  if(!checkIfSystemIsAvailable()){
-      return false;
-  }
-
-  currentMacAttempt = currentMacAddress;
-  currentValidity = 0;
-  isNewVoucher = true;
-  resetGlobalVariables();
-  activateCoinSlot();
-  currentActiveVoucher = generateVoucher();
-  manualVoucher = true;
-  //show 30 sec the voucher code
-  thankyou_cooldown = 30000;
-  return true;
-}
-
 void handleAdminRestart(){
   if(!isAuthorized()){
      handleNotAuthorize();
@@ -1633,7 +1621,7 @@ void handleAdminRestart(){
   }
   setupCORSPolicy();
   //do not restart while the vendo is busy serving a customer
-  if(acceptCoin || coinSlotActive || manualVoucher || currentActiveVoucher != ""){
+  if(acceptCoin || coinSlotActive || currentActiveVoucher != ""){
     char * keys[] = {"status", "detail"};
     char * values[] = {"busy", "vendo is busy, try again later"};
     server.send(200, "application/json", toJson(keys, values, 2));
@@ -1644,6 +1632,15 @@ void handleAdminRestart(){
   server.send(200, "application/json", toJson(keys, values, 2));
   delay(500);
   ESP.restart();
+}
+
+bool isValidVoucherCode(String code){
+  if(code.length() == 0 || code.length() > 24) return false;
+  for(int i = 0; i < code.length(); i++){
+    char c = code.charAt(i);
+    if(!(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '-' && c != '_') return false;
+  }
+  return true;
 }
 
 bool isValidKickTarget(String name){
@@ -1748,6 +1745,18 @@ void handleGenerateVouchers(){
   int qty = server.arg("qty").toInt();
   int addToSales = server.arg("sales").toInt();
   String prefix = server.arg("pfx");
+  bool prefixOk = prefix.length() > 0 && prefix.length() <= 5;
+  for(int i = 0; prefixOk && i < prefix.length(); i++){
+    char c = prefix.charAt(i);
+    if(!(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9')) prefixOk = false;
+  }
+  if(!prefixOk || qty <= 0 || qty > 20){
+    char * keys[] = {"status", "errorCode"};
+    char * values[] = {"false", "invalid.request"};
+    setupCORSPolicy();
+    server.send(200, "application/json", toJson(keys, values, 2));
+    return;
+  }
   String voucherGenerated = "";
   for(int i=0;i<qty;i++){
     String voucher = generateVoucherWithPrefix(prefix);

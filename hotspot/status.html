@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
+	<link rel="stylesheet" href="assets/css/toast.min.css?v=26">
+	<link rel="stylesheet" href="assets/css/core.css?v=26">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=26">
+	<title>JuanFiV2 - Status</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<script src="assets/js/config.js?v=26"></script>
+	<script>
+		// Client facts for the single-file portal (portal.html renders the UI).
+		window.PAGE = "status";
+		window.loginError = "";
+		window.mac = "$(mac)";
+		window.uIp = "$(ip)";
+		window.hotspotAddress = "$(server-address)";
+		window.interfaceName = "$(interface-name)";
+		window.sessiontime = "$(session-time-left-secs)";
+		window.currentVoucher = "$(username)";
+		window.bytesInNice = "$(bytes-in-nice)";
+		window.bytesOutNice = "$(bytes-out-nice)";
+		window.remainBytesNice = "$(remain-bytes-total-nice)";
+		window.loginAction = "$(link-login-only)";
+		window.logoutAction = "$(link-logout)";
+		window.name = "hotspot_status";
+	</script>
+	<script src="assets/js/boot.js?v=26"></script>
+</head>
+
+<body id="loginBody">
+
+<div id="bootLoader">
+	<div class="spinner-ring"></div>
+	<div><b>JuanFiV2</b></div>
+	<div id="bootText">Starting...</div>
+</div>
+
+<div id="app" style="display: none"></div>
+
+<script>
+	$(if refresh-timeout)
+		// Router session refresh; waits for the injected app (jQuery) first.
+		window.refreshSecs = $(refresh-timeout-secs);
+		var refreshWait = setInterval(function () {
+			if (typeof window.jQuery === 'undefined') { return; }
+			clearInterval(refreshWait);
+			setInterval(function () {
+				if (typeof insertingCoin === 'undefined' || !insertingCoin) {
+					location.reload();
+				}
+			}, window.refreshSecs * 1000);
+		}, 500);
+	$(endif)
+</script>
+
+</body>
+
+</html>

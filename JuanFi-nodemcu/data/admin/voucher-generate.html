@@ -4,52 +4,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  padding: 10px
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,Helvetica,sans-serif;
+  padding: 10px;
+  background-color: #eef2f5;
+  color: #101418;
+  margin: 0;
+}
+button {
+  border: none;
+  padding: 10px 16px;
+  border-radius: 9px;
+  margin: 4px 8px 12px 0;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 44px;
+  background-color: #067647;
+}
+button:last-of-type { background-color: #d92d20; }
+#theBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .voucher-box {
-	margin-top: 5px;
-	margin-left: 5px;
-	padding: 10px;
-	border-radius: 5px;
-	border: 2px solid #485460;
-	width: 200px;
-	height: 100px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed #067647;
+  background-color: #fff;
+  box-shadow: 0 1px 2px rgba(16,24,40,.08);
+  flex: 1 1 220px;
+  max-width: 320px;
+  min-width: 0;
 }
-
 .panel p {
-	font-size: 12px;
-	font-weight: bold;
-	color: #fff
+  font-size: 12px;
+  font-weight: bold;
+  color: #101418;
 }
-
 .title {
-	display: block;
-	text-align: center;
-	padding: 5px;
-	color: #ff7f50;
-	border-bottom: 1px solid #485460
+  display: block;
+  text-align: center;
+  padding: 0 0 6px 0;
+  margin-bottom: 8px;
+  color: #101418;
+  font-weight: 800;
+  border-bottom: 2px solid #101418;
 }
-
 /* Create three equal columns that floats next to each other */
 .column {
-  float: left;
-  width: 20.1%;
-  padding: 1	0px;
+  float: none;
 }
-
-/* Clear floats after the columns */
-.row:after {
-  content: "";
-  display: table;
-  clear: both;
+.info {
+  font-size: 14px;
+  color: #5b6570;
+  display: block;
+  margin: 2px 0;
 }
-
-.info{
-	font-size: 13px;
+.voucher-code {
+  display: inline-block;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: #101418;
+  font-variant-numeric: tabular-nums;
+  -webkit-user-select: all;
+  user-select: all;
 }
 </style>
 <script>
+
+	function escHtml(s){
+		return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+	}
 
 	function printMe(){
 		window.print();
@@ -63,7 +93,7 @@ body {
 	var ticketTemplate = " <div class='voucher-box column'>";
 		ticketTemplate += "<span class='title'>REPLACE_VENDO_NAME</span>";
 		ticketTemplate += "<br/>";
-		ticketTemplate += "<label class='info'><b>Code: REPLACE_VOUCHER_CODE</b></label><br>";
+		ticketTemplate += "<label class='info'>Code: <span class='voucher-code'>REPLACE_VOUCHER_CODE</span></label>";
 		ticketTemplate += "<label class='info'><b>Duration: REPLACE_DURATION</b></label><br>";
 		ticketTemplate += "<label class='info'><b>Amount: REPLACE_AMOUNT</b></label><br>";
 		ticketTemplate += "</div>";
@@ -79,11 +109,11 @@ body {
 			var voucherData = localData[k].split("|");
 			var voucherRows = voucherData[3].split("#");
 			for(var i=0;i<voucherRows.length;i++){
-				var rowScript = ticketTemplate;
-				rowScript = rowScript.replaceAll("REPLACE_VENDO_NAME",voucherData[0]);
-				rowScript = rowScript.replaceAll("REPLACE_VOUCHER_CODE",voucherRows[i]);
-				rowScript = rowScript.replaceAll("REPLACE_DURATION",secondsToDhms(voucherData[2]));
-				rowScript = rowScript.replaceAll("REPLACE_AMOUNT",voucherData[1]);
+			var rowScript = ticketTemplate;
+			rowScript = rowScript.replaceAll("REPLACE_VENDO_NAME",escHtml(voucherData[0]));
+			rowScript = rowScript.replaceAll("REPLACE_VOUCHER_CODE",escHtml(voucherRows[i]));
+			rowScript = rowScript.replaceAll("REPLACE_DURATION",escHtml(secondsToDhms(voucherData[2])));
+			rowScript = rowScript.replaceAll("REPLACE_AMOUNT",escHtml(voucherData[1]));
 				html += rowScript;
 			}
 		}

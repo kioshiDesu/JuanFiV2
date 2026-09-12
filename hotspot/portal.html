@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<!-- JuanFiV2 single-file portal: probes the client status on load and renders
+     the matching view (login / status / paused) document.write-style.
+     Rates inline in the body. Preview: /portal/ (?state=login|status|paused).
+     Router files (login/status/logout.html) are thin shells over this app. -->
+<html lang="en">
+
+<head>
+	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
+	<link rel="stylesheet" href="assets/css/toast.min.css?v=26">
+	<link rel="stylesheet" href="assets/css/core.css?v=26">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=26">
+	<title>JuanFiV2 Portal</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<script src="assets/js/config.js?v=26"></script>
+	<script src="assets/js/md5.js?v=26"></script>
+	<script src="assets/js/qrcode.min.js?v=26"></script>
+	<script>
+		// Shared globals: router shells set these BEFORE this file loads;
+		// standalone (preview) falls back to the samples below.
+		window.PAGE = window.PAGE || "login";
+		window.mac = window.mac || "AA:BB:CC:DD:EE:FF";
+		window.uIp = window.uIp || "10.0.0.50";
+		window.loginError = window.loginError || "";
+		window.hotspotAddress = window.hotspotAddress || "10.0.0.1";
+		window.interfaceName = window.interfaceName || "bridge-hotspot";
+		window.sessiontime = window.sessiontime || "3600";
+		window.currentVoucher = window.currentVoucher || "1FITEST1";
+		window.remainingTimer = window.remainingTimer || null;
+		window.bytesInNice = window.bytesInNice || "";
+		window.bytesOutNice = window.bytesOutNice || "";
+		window.remainBytesNice = window.remainBytesNice || "";
+		window.chapId = window.chapId || "";
+		window.chapChallenge = window.chapChallenge || "";
+		window.loginAction = window.loginAction || "/portal/done";
+		window.logoutAction = window.logoutAction || "/portal/logout";
+		var PAGE = window.PAGE, mac = window.mac, uIp = window.uIp,
+			loginError = window.loginError, hotspotAddress = window.hotspotAddress,
+			interfaceName = window.interfaceName, sessiontime = window.sessiontime,
+			currentVoucher = window.currentVoucher, remainingTimer = window.remainingTimer;
+	</script>
+
+</head>
+
+<body id="loginBody">
+
+<div id="bootLoader">
+	<div class="spinner-ring"></div>
+	<div><b>JuanFiV2</b></div>
+	<div id="bootText">Starting...</div>
+</div>
+
+<div id="app" style="display: none">
+<div id="coinDim"></div>
+<div class="portal">
+	<header class="topbar">
+		<div class="brandmark">
+			<span class="brand-big">JuanFi<em>V2</em></span>
+		</div>
+		<span id="connPill"></span>
+	</header>
+	<div class="clientline"><span id="clientIp">10.0.0.50</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
+
+	<div id="vendoSelectDiv" style="margin-top: 8px">
+		<select class="form-control" name="vendoSelected" id="vendoSelected">
+		</select>
+	</div>
+
+	<div id="view-login">
+		<div class="hero">
+			<button type="button" id="insertBtn" onclick="insertBtnAction(); return false"><span class="coin-peso">₱</span><span class="coin-label">INSERT COIN</span></button>
+			<div id="coinSlot-login"></div>
+		</div>
+
+					<div id="voucherBlock">
+			<span class="form-text text-muted" style="padding: 5px">VOUCHER</span>
+			<div class="voucher-pill">
+				<input type="voucher" class="form-control" id="voucherInput" aria-describedby="voucherHelp" placeholder="Voucher here.." autocomplete="off">
+				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
+			</div>
+			<small id="voucherHelp" class="form-text text-muted" style="padding: 5px">Please enter voucher code if have existing</small>
+		</div>
+
+		<div id="qrSection" style="display: none">
+			<span class="panelTitle toggle" id="qrSectionBodyHead" onclick="toggleBlock('qrSectionBody'); return false;">Purchase Voucher using QR Code &#9656;</span>
+			<div id="qrSectionBody" style="display: none">
+			<center>
+				<p>Present this QR code to the vendo owner</p>
+				<div id="qrcode" class="qrcode-wrapper"></div>
+				<br/>
+				<p>Once your request has been approved you will be automatically logged in.</p>
+			</center>
+			</div>
+		</div>
+
+		<div id="memberSection">
+			<span class="panelTitle toggle" id="memberSectionBodyHead" onclick="toggleBlock('memberSectionBody'); return false;">Member Login &#9656;</span>
+			<div id="memberSectionBody" style="display: none">
+			<div class="memdiv">
+			<center>
+			<form name="login" action="/portal/done" method="post">
+				<span style="float: left; color: #a4b0be">Username</span><br>
+				<input name="username" type="text" /><br>
+				<span style="float: left; color: #a4b0be">Password</span><br>
+				<input name="password" type="password" /><br>
+				<button class="btn btn-primary" type="submit" value="Connect" style="width: 50%">Login</button>
+			</form>
+			</center>
+			</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="view-status" style="display: none">
+		<div class="hero" id="statusHero">
+			<div class="sub">Remaining Time</div>
+			<div class="big odometer" id="remainTime"></div>
+			<div class="vouchline">Voucher <span id="statusVoucher">1FITEST1</span></div>
+		</div>
+		<ul class="stat-list">
+			<li id="expireRow"><span class="k"><img src="assets/img/timeexpired.png" width="16px" height="16px" /> Expiration Time</span><span class="v" id="expirationTime"></span></li>
+			<li id="dataUsedRow"><span class="k"><img src="assets/img/data.png" width="16px" height="16px" /> Data Used</span><span class="v"><img src="assets/img/upload.png" width="14px" height="14px" /> <span id="upBytes"></span> &nbsp;<img src="assets/img/download.png" width="14px" height="14px" /> <span id="downBytes"></span></span></li>
+			<li id="dataRemainRow"><span class="k">Remaining Data</span><span class="v" id="totalDataInfo"></span></li>
+		</ul>
+
+		<div class="btnrow">
+			<button type="button" id="extendBtn" onclick="insertBtnAction(); return false" class="btn btn-success">EXTEND TIME</button>
+			<button type="button" id="pauseTimeBtn" onClick="pause(); return false" class="btn btn-danger">PAUSE TIME</button>
+		</div>
+		<div id="coinSlot-status"></div>
+	</div>
+
+	<div id="view-paused" style="display: none">
+		<div class="hero">
+			<div class="sub">Paused</div>
+			<div class="big" id="pauseRemainTime"></div>
+			<div class="vouchline">Voucher <span id="pausedVoucher">1FITEST1</span> &bull; Expires <span id="expirationTimePaused"></span></div>
+		</div>
+
+		<div class="btnrow">
+			<button type="button" id="resumeBtn" onClick="resume(); return false" class="btn btn-info btn-block" style="display: block; width: 100%;">RESUME SESSION</button>
+		</div>
+	</div>
+
+	<div id="ratesSection">
+		<span class="panelTitle">Promo Rates</span>
+		<div id="ratesBody"></div>
+	</div>
+
+	<hr class="foot-hr">
+
+	<div id="coinPanel" style="display: none">
+		<div class="hero">
+			<div class="sub" id="coinPanelTitle">Please insert the coin</div>
+			<div class="big"><span id="totalCoin">0</span><span class="cur">.00 Php</span></div>
+			<div class="vouchline">Time <span id="totalTime"></span></div>
+			<div class="vouchline">Your code is <span id="codeGenerated" style="color: #4cd137">*****</span></div>
+		</div>
+		<div class="progress" style="margin: 10px 0">
+			<div id="progressDiv" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+		</div>
+
+		<div id="noticeDiv" style="display: none">
+			<center>
+				<h4 id="noticeText">Reading coin, please wait</h4>
+			</center>
+		</div>
+
+		<center>
+			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-primary">Done</button>
+			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger">Cancel</button>
+		</center>
+	</div>
+
+	<div class="footer">
+		<div class="brandmark">
+			<span class="brand-big">@NETBRO</span>
+			<span class="brand-sub">Internet Services &copy; <span id="footYear">2026</span></span>
+		</div>
+	</div>
+
+		<form name="sendin" action="/portal/done" method="post" style="display:none">
+			<input type="hidden" name="username" />
+			<input type="hidden" name="password" />
+		</form>
+		<form name="logout" action="/portal/logout" style="display:none"></form>
+
+		<script src="assets/js/jquery.min.js?v=26"></script>
+		<script src="assets/js/popper.min.js?v=26"></script>
+		<script src="assets/js/bootstrap.min.js?v=26"></script>
+		<script src="assets/js/toast.min.js?v=26"></script>
+		<script src="assets/js/core.js?v=26"></script>
+		<script>
+			// Router shells override form actions via globals before this runs.
+			if (window.loginAction) { document.sendin.action = window.loginAction; }
+			if (window.logoutAction) {
+				if (document.logout) { document.logout.action = window.logoutAction; }
+			}
+
+			function doLogin() {
+				var vc = $("#voucherInput").val() || window.currentVoucher || "";
+				if (window.macAsVoucherCode && vc == "") {
+					vc = String(window.mac).split(":").join("");
+					$("#voucherInput").val(vc);
+				}
+				setStorageValue("activeVoucher", vc);
+				mergeTempValidity(vc);
+				document.sendin.username.value = vc;
+				if (window.chapId) {
+					var pw = (typeof loginOption !== 'undefined' && loginOption == 1) ? vc : "";
+					document.sendin.password.value = hexMD5(window.chapId + pw + window.chapChallenge);
+				}
+				document.sendin.submit();
+				return false;
+			}
+			function doLoginMember() {
+				document.sendin.username.value = document.login.username.value;
+				if (window.chapId) {
+					document.sendin.password.value = hexMD5(window.chapId + document.login.password.value + window.chapChallenge);
+				}
+				document.sendin.submit();
+				return false;
+			}
+			// Fold purchased minutes into the stored absolute expiry (was inline in login.html).
+			function mergeTempValidity(vc) {
+				var validity = getStorageValue(vc + "validity");
+				var tempValidity = getStorageValue(vc + "tempValidity");
+				if (tempValidity != null) {
+					var currentExpireDate = new Date();
+					if (validity != null) {
+						currentExpireDate = new Date(parseInt(validity));
+					}
+					var expireDate = new Date(currentExpireDate.getTime() + parseInt(tempValidity) * 60000);
+					if (expireDate.getTime() < new Date().getTime()) {
+						removeStorageValue(vc + "validity");
+						removeStorageValue(vc + "tempValidity");
+					} else {
+						setStorageValue(vc + "validity", expireDate.getTime() + "");
+						removeStorageValue(vc + "tempValidity");
+					}
+				}
+			}
+
+			$("#clientIp").html(window.uIp);
+			$("#clientMac").html(window.mac);
+			boot();
+			new QRCode(document.getElementById("qrcode"), JSON.stringify("juanfi://purchasevoucher?mac=" + window.mac + "&ip=" + window.uIp));
+		</script>
+
+		<div id="loaderDiv" class="spinner hidden">
+			<center>
+				<div class="spinner-ring"></div>
+			</center>
+		</div>
+</div>
+</div>
+</body>
+
+</html>

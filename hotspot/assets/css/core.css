@@ -1,0 +1,392 @@
+.spinner {
+    position: fixed;
+    z-index: 9999;
+    opacity: 80%; display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    background: white;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+.spinner.hidden {
+     animation: fadeOut 1s; animation-fill-mode: forwards;
+     display: none
+}
+
+/* Fullscreen boot loader (shared: shells show it before the app injects). */
+#bootLoader {
+    position: fixed;
+    z-index: 2000;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #101418;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+}
+#bootText {
+    color: #a3a7ad;
+    font-size: 14px;
+}
+.spinner-ring {
+    width: 64px;
+    height: 64px;
+    flex: none;
+    border-radius: 50%;
+    border: 6px solid rgba(255,255,255,.25);
+    border-top-color: #e8590c;
+    -webkit-animation: spinRing .8s linear infinite;
+    animation: spinRing .8s linear infinite;
+}
+
+.spinner .spinner-ring {
+    border-color: rgba(16,20,24,.15);
+    border-top-color: #e8590c;
+}
+
+@-webkit-keyframes spinRing {
+    to { -webkit-transform: rotate(360deg); }
+}
+@keyframes spinRing {
+    to { transform: rotate(360deg); }
+}
+
+.insertCoinImg {
+    width: 300px;
+    height: 200px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#ratesSection { margin-top: 8px; }
+#ratesSection .panelTitle {
+    display: block;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: #fff;
+}
+#coinPanel .panelTitle,
+#memberSection .panelTitle,
+#qrSection .panelTitle {
+    display: block;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin: 10px 0 6px 0;
+    color: #fff;
+}
+.panelTitle.toggle {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Single-column kiosk layout: one phone screen per state. */
+.portal {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 10px 12px 16px 12px;
+}
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px;
+}
+.topbar .brandmark {
+    padding: 0;
+}
+.topbar .brand-big {
+    font-size: 26px;
+}
+.topbar .brand-sub {
+    display: none;
+}
+#connPill .status-disconnected,
+#connPill .status-connected {
+    border: none;
+    padding: 0;
+    line-height: 1.2;
+    font-size: 16px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.clientline {
+    color: #5b6570;
+    font-size: 11px;
+    padding: 0 2px 6px 2px;
+    font-variant-numeric: tabular-nums;
+}
+.hero {
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 6px 0;
+    text-align: center;
+    margin: 4px 0 10px 0;
+}
+.hero .big {
+    font-size: clamp(30px, 11vw, 44px);
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+#remainTime, #pauseRemainTime, .odometer {
+    white-space: nowrap;
+}
+.hero .big .cur {
+    font-size: 16px;
+    color: #a3a7ad;
+    font-weight: 600;
+}
+.hero .sub {
+    color: #a3a7ad;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+}
+.hero .vouchline {
+    color: #dcdde1;
+    font-size: 13px;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+}
+.hero .vouchline span {
+    color: #fff;
+    font-weight: 700;
+}
+.hero .graceline {
+    color: #f1c40f;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+.hero #insertBtn {
+    margin-top: 10px;
+}
+.btnrow {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.btnrow .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    font-weight: 700;
+}
+
+/* One button shape across the portal. */
+#app .btn {
+    border-radius: 8px;
+}
+
+/* Coin-slot button: a gold coin, glowing + pressable.
+   Lives here (not in portal.html) so the thin router shells get it too. */
+#insertBtn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    width: 132px;
+    height: 132px;
+    margin: 10px auto 4px auto;
+    padding: 0;
+    border-radius: 50%;
+    border: 6px dashed rgba(121, 85, 0, .55);
+    background: radial-gradient(circle at 35% 30%, #ffe082, #f9a825 55%, #c17900);
+    color: #4e342e;
+    font-family: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: 0 6px 0 #7c5a00, 0 10px 18px rgba(0, 0, 0, .5);
+    -webkit-animation: coinGlow 2.4s ease-in-out infinite;
+    animation: coinGlow 2.4s ease-in-out infinite;
+}
+#insertBtn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #7c5a00, 0 4px 10px rgba(0, 0, 0, .5);
+}
+#insertBtn::before {
+    content: "";
+    position: absolute;
+    inset: -45%;
+    border-radius: 50%;
+    background: conic-gradient(transparent 0deg, rgba(255, 255, 255, .55) 25deg, transparent 60deg);
+    -webkit-animation: coinSpin 3.2s linear infinite;
+    animation: coinSpin 3.2s linear infinite;
+    pointer-events: none;
+}
+@-webkit-keyframes coinSpin {
+    to { -webkit-transform: rotate(360deg); }
+}
+@keyframes coinSpin {
+    to { transform: rotate(360deg); }
+}
+#insertBtn .coin-peso {
+    font-size: 34px;
+    line-height: 1;
+}
+#insertBtn .coin-label {
+    font-size: 12px;
+    letter-spacing: .12em;
+    margin-top: 2px;
+}
+@-webkit-keyframes coinGlow {
+    0%, 100% { -webkit-filter: brightness(1); }
+    50% { -webkit-filter: brightness(1.14); }
+}
+@keyframes coinGlow {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.14); }
+}
+
+#extendBtn {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    font-weight: 700;
+}
+
+.input-bottom-space-20px {
+    margin-bottom: 20px;
+}
+
+.qrcode-wrapper{
+    background-color: white;
+    padding: 23px;
+    width: fit-content;
+}
+
+/* Coin focus: dim everything under a veil except the coin panel + rates. */
+#coinDim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .65);
+    z-index: 1500;
+    display: none;
+}
+body.coin-focus #coinDim {
+    display: block;
+}
+body.coin-focus #coinPanel,
+body.coin-focus #ratesSection {
+    position: relative;
+    z-index: 1600;
+}
+
+hr.foot-hr {
+    border: none;
+    border-top: 1px solid #485460;
+    margin: 14px 2px 0 2px;
+}
+.voucher-pill {
+    display: flex;
+    align-items: stretch;
+    margin-top: 10px;
+}
+.voucher-pill input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 16px;
+    height: 48px;
+    border-radius: 9px 0 0 9px !important;
+    border-right: none;
+    margin: 0 !important;
+}
+.voucher-pill button {
+    flex: none;
+    border-radius: 0 9px 9px 0 !important;
+    white-space: nowrap;
+    margin: 0 !important;
+    height: 48px;
+    font-weight: 700;
+}
+#totalCoin, #totalTime, #totalData,
+#remainTime, #pauseRemainTime,
+#expirationTime, #expirationTimePaused,
+#codeGenerated, .stat-list .v,
+#ratesBody .table td {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Dashboard list rows (no cards). */
+.stat-list {
+    list-style: none;
+    margin: 6px 0 4px 0;
+    padding: 0;
+}
+.stat-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 2px;
+    border-bottom: 1px solid #485460;
+    color: #fff;
+    font-size: 14px;
+}
+.stat-list li:last-child {
+    border-bottom: none;
+}
+.stat-list .k {
+    color: #a3a7ad;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.stat-list .k img {
+    vertical-align: -2px;
+}
+.stat-list .v {
+    font-weight: 700;
+    text-align: right;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+#ratesBody .table {
+	margin-bottom: 6px;
+	font-size: 13px;
+}
+#ratesBody .table th, #ratesBody .table td {
+	padding: 5px 6px;
+}
+#coinPanel, #memberSection, #qrSection { margin-top: 14px; }
+
+/* Coin countdown gauge: large bar, timer text inside, traffic-light states. */
+#coinPanel .progress {
+    height: 38px;
+    border-radius: 10px;
+    background: #2c3a47;
+}
+#progressDiv {
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 38px;
+    color: #fff;
+}
+#progressDiv.time-ok { background-color: #2eaf5a !important; }
+#progressDiv.time-half { background-color: #e67e22 !important; }
+#progressDiv.time-low { background-color: #e74c3c !important; }
