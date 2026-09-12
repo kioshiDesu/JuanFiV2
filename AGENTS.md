@@ -1,6 +1,6 @@
 # AGENTS.md — JuanFiV2
 
-Coinslot vendo system: ESP8266 firmware (`JuanFi-nodemcu/`) + MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §3–4). No npm/build/test/lint — do not invent commands. Firmware CI lives in `.github/workflows/firmware-release.yml` (runs on `v*` tags and manual dispatch only, never on pushes: compiles ESP8266 with pinned core, zips bins, attaches to the GitHub Release); hardware verification is still careful diff review, no test harness. Local builds use `arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2:eesz=4M JuanFi-nodemcu/JuanFi-nodemcu.ino` (needs the `ESP8266-Telnet-Client` library; `src/base64.h` is vendored).
+Coinslot vendo system: ESP8266 firmware (`JuanFi-nodemcu/`) + MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §3–4). No npm/build/test/lint — do not invent commands. Firmware CI lives in `.github/workflows/firmware-release.yml` (runs on `v*` tags and manual dispatch only, never on pushes: compiles ESP8266 with pinned core, zips bins, attaches to the GitHub Release); hardware verification is still careful diff review, no test harness. Local builds use `arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2:eesz=4M2M JuanFi-nodemcu/JuanFi-nodemcu.ino` (needs the `ESP8266-Telnet-Client` library; `src/base64.h` is vendored).
 
 ## Layout
 

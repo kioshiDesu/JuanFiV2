@@ -78,7 +78,7 @@ jobs:
       - name: Compile ESP8266 (wireless)
         run: >
           arduino-cli compile
-          --fqbn esp8266:esp8266:nodemcuv2:eesz=4M
+          --fqbn esp8266:esp8266:nodemcuv2:eesz=4M2M
           --output-dir build/esp8266
           JuanFi-nodemcu/JuanFi-nodemcu.ino
 
@@ -91,8 +91,8 @@ jobs:
           test -x "$MKSPIFFS"
 
           BTXT="$HOME/.arduino15/packages/esp8266/hardware/esp8266/${{ env.ESP8266_VERSION }}/boards.txt"
-          S_START="$(grep '^nodemcuv2.menu.eesz.4M.build.spiffs_start=' "$BTXT" | cut -d= -f2)"
-          S_END="$(grep '^nodemcuv2.menu.eesz.4M.build.spiffs_end=' "$BTXT" | cut -d= -f2)"
+          S_START="$(grep '^nodemcuv2.menu.eesz.4M2M.build.spiffs_start=' "$BTXT" | cut -d= -f2)"
+          S_END="$(grep '^nodemcuv2.menu.eesz.4M2M.build.spiffs_end=' "$BTXT" | cut -d= -f2)"
           S_SIZE=$((S_END - S_START))
           echo "ESP8266 SPIFFS start=$S_START size=$S_SIZE"
           # Guard the documented PyFlasher offset before shipping a bad image.
