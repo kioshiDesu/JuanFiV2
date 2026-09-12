@@ -286,9 +286,6 @@ function render(state) {
 	$("#connPill").html(pill);
 	if (state == "status") {
 		$("#statusVoucher").html(voucher);
-		if (window.bytesInNice) { $("#upBytes").html(window.bytesInNice); }
-		if (window.bytesOutNice) { $("#downBytes").html(window.bytesOutNice); }
-		if (window.remainBytesNice) { $("#totalDataInfo").html(window.remainBytesNice); }
 		startCountdown();
 	}
 	if (state == "paused") {
@@ -398,10 +395,6 @@ function applyFlags() {
 		$("#vendoSelectDiv").attr("style", "display: none");
 	}
 
-	// Data rows stay hidden: data rates are off in this build.
-	$("#dataInfoDiv").attr("style", "display: none");
-	$("#dataUsedRow").attr("style", "display: none");
-	$("#dataRemainRow").attr("style", "display: none");
 }
 
 // ---------- focused blocks: one action on screen at a time (no modals) ----------

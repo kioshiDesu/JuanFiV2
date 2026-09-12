@@ -27,9 +27,6 @@
 		window.sessiontime = window.sessiontime || "3600";
 		window.currentVoucher = window.currentVoucher || "";
 		window.remainingTimer = window.remainingTimer || null;
-		window.bytesInNice = window.bytesInNice || "";
-		window.bytesOutNice = window.bytesOutNice || "";
-		window.remainBytesNice = window.remainBytesNice || "";
 		window.chapId = window.chapId || "";
 		window.chapChallenge = window.chapChallenge || "";
 		window.loginAction = window.loginAction || "/portal/done";
@@ -107,8 +104,6 @@
 		</div>
 		<ul class="stat-list">
 			<li id="expireRow"><span class="k">Expiration Time</span><span class="v" id="expirationTime"></span></li>
-			<li id="dataUsedRow"><span class="k">Data Used</span><span class="v"><span id="upBytes"></span> &nbsp;<span id="downBytes"></span></span></li>
-			<li id="dataRemainRow"><span class="k">Remaining Data</span><span class="v" id="totalDataInfo"></span></li>
 		</ul>
 
 		<div class="btnrow">
@@ -176,7 +171,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=36"></script>
+		<script src="assets/js/core.js?v=37"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
