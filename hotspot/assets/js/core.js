@@ -398,30 +398,16 @@ function applyFlags() {
 		$("#vendoSelectDiv").attr("style", "display: none");
 	}
 
-	if (!dataRateOption) {
-		$("#dataInfoDiv").attr("style", "display: none");
-		$("#dataUsedRow").attr("style", "display: none");
-		$("#dataRemainRow").attr("style", "display: none");
-	}
-	if (!showPauseTime) {
-		$("#pauseTimeBtn").attr("style", "display: none");
-	}
-	if (!showMemberLogin) {
-		$("#memberSection").attr("style", "display: none");
-	}
-	if (!showExtendTimeButton) {
-		$("#extendBtn").attr("style", "display: none");
-	}
-	if (typeof disableVoucherInput !== 'undefined' && disableVoucherInput) {
-		$("#voucherBlock").attr("style", "display: none");
-	}
+	// Data rows stay hidden: data rates are off in this build.
+	$("#dataInfoDiv").attr("style", "display: none");
+	$("#dataUsedRow").attr("style", "display: none");
+	$("#dataRemainRow").attr("style", "display: none");
 }
 
 // ---------- focused blocks: one action on screen at a time (no modals) ----------
 
 // Collapse/expand a section body; headers with class "toggle" call this.
 function toggleBlock(id) {
-	if (id == "memberSectionBody" && (typeof showMemberLogin === 'undefined' || !showMemberLogin)) { return; }
 	var el = document.getElementById(id);
 	if (!el) { return; }
 	var hidden = el.style.display == "none";
@@ -471,16 +457,8 @@ function restoreCoinChrome() {
 	$("#view-status .stat-list").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
 	$("#expireRow").attr("style", "");
-	if (typeof disableVoucherInput !== 'undefined' && disableVoucherInput) {
-		$("#voucherBlock").attr("style", "display: none");
-	} else {
-		$("#voucherBlock").attr("style", "");
-	}
-	if (typeof showMemberLogin === 'undefined' || showMemberLogin) {
-		$("#memberSection").attr("style", "");
-	} else {
-		$("#memberSection").attr("style", "display: none");
-	}
+	$("#voucherBlock").attr("style", "");
+	$("#memberSection").attr("style", "");
 }
 
 function cancelCoin() {
@@ -539,7 +517,6 @@ function loadRates() {
 	}).done(function (data) {
 		var html = "<div class='table-responsive'><table class='table table-striped'>";
 		html += "<thead><tr><th>Rate</th><th>Time</th><th>Validity</th>";
-		if (dataRateOption) { html += "<th>Data</th>"; }
 		html += "</tr></thead><tbody>";
 		var rows = String(data).split("|");
 		for (var r = 0; r < rows.length; r++) {
@@ -548,9 +525,6 @@ function loadRates() {
 			html += "<tr><td>" + escHtml(c[0]) + "</td>";
 			html += "<td>" + humanDuration(c[2]) + "</td>";
 			html += "<td>" + humanDuration(c[3]) + "</td>";
-			if (dataRateOption) {
-				html += "<td>" + (c[4] != "" ? escHtml(c[4]) + " MB" : "unlimited") + "</td>";
-			}
 			html += "</tr>";
 		}
 		html += "</tbody></table></div>";

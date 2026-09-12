@@ -176,7 +176,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=35"></script>
+		<script src="assets/js/core.js?v=36"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -194,7 +194,7 @@
 				mergeTempValidity(vc);
 				document.sendin.username.value = vc;
 				if (window.chapId) {
-					var pw = (typeof loginOption !== 'undefined' && loginOption == 1) ? vc : "";
+					var pw = "";
 					document.sendin.password.value = hexMD5(window.chapId + pw + window.chapChallenge);
 				}
 				document.sendin.submit();
