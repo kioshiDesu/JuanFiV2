@@ -4,21 +4,22 @@
 > Fork of the original **JuanFi** by Ivan Julius Alayan —
 > full [original README here](https://github.com/ivanalayan15/JuanFi#readme).
 
-Coinslot vendo system for MikroTik Hotspot (ESP8266 wireless / ESP32 wireless+LAN).
+Coinslot vendo system for MikroTik Hotspot (ESP8266 wireless).
 Vouchers look like `1FI` + 5 chars, work from any AP on the same router.
 
 ## Requirements
 
-- NodeMCU ESP8266 (wireless) or ESP32 (wireless/LAN) + baseboard
+- NodeMCU ESP8266 (wireless) + baseboard
 - Coinslot, MikroTik router, access point
-- 12V supply for NodeMCU and MikroTik, W5500 module for LAN builds
+- 12V supply for NodeMCU and MikroTik
 
 ## 1. Flash the firmware
 
-Get the bins from the [Releases page](https://github.com/kioshiDesu/JuanFiV2/releases)
-(`JuanFiV2-ESP8266-Wireless-*.zip` or `JuanFiV2-ESP32-LAN-*.zip`).
-New bins are built automatically when a `v*` tag is pushed
-(see `.github/workflows/firmware-release.yml`).
+Get the ESP8266 bin from the [Releases page](https://github.com/kioshiDesu/JuanFiV2/releases)
+(`JuanFiV2-ESP8266-Wireless-*.zip`; new bins build automatically when a `v*`
+tag is pushed), or compile `JuanFi-nodemcu/` yourself
+with the Arduino IDE (NodeMCU 1.0, ESP8266 core) — only the
+`ESP8266-Telnet-Client` library is needed on top of the core.
 
 ESP8266 with NodeMCU-PyFlasher, flash in this order:
 
@@ -27,18 +28,10 @@ File 1: JuanFi-FlashFile1.bin at offset 0x000000
 File 2: JuanFi-FlashFile2.bin at offset 0x200000
 ```
 
-ESP32: copy the whole ESP32 release folder to Windows, plug in USB, run:
-
-```text
-start_flash.bat  -> pick the COM port -> hold FLASH 3-5s until it starts
-```
-
-Wiring diagrams are in `/docs` (esp32/esp8266, wireless/LAN, power-cut variants).
-
 ## 2. First-time vendo setup
 
 1. Power on, connect to WiFi SSID `JuanFiV2 Setup` (no password).
-2. Open `http://172.217.28.1/login` (LAN builds: plug into PC NIC with static `172.217.28.10` first).
+2. Open `http://172.217.28.1/login`.
 3. Log in with the defaults, then fill in your system config + promo rates:
 
 ```text
@@ -181,9 +174,9 @@ the paste clean; see the original README for the telegram snippet.)
 
 ## 5. Portal files
 
-1. In `mikrotik-template/4.3/assets/js/config.js` set `vendoIpAddress` to your
+1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your
    vendo IP (`10.0.0.254` by default).
-2. Upload the `mikrotik-template/4.3` folder contents to the router's
+2. Upload the `hotspot/` folder contents to the router's
    `hotspot` directory (Files window, drag and drop).
 
 ## 6. Nightly reboot (optional)

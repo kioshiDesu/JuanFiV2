@@ -730,7 +730,7 @@ var timer = null;
 var upTimeSeconds = 0;
 var separator = "|";
 var rowSeparator = "#";
-var hardwareType = "ESP32";
+var hardwareType = "ESP8266";
 var version = "2.4";
 
 function saveSystemConfig(){
@@ -949,41 +949,7 @@ function openDashboard(evt){
 		version = dashboardData[9];
 		$('#appVersionAbout').html(version);
 		$('#currentVersion').html(version);
-		if(hardwareType == 'ESP32'){
-			$('#apSettingDiv').attr('style','display: none');
-			
-			$('select[name*="Pin"]' ).each(function( index ) {
-			  $(this).html(""); 	
-			  $(this)
-				.append(new Option("P0", "0"))
-				.append(new Option("P1", "1"))
-				.append(new Option("P2", "2"))
-				.append(new Option("P3", "6"))
-				.append(new Option("P4", "4"))
-				.append(new Option("P6", "5"))
-				.append(new Option("P7", "7"))
-				.append(new Option("P8", "8"))
-				.append(new Option("P9", "9"))
-				.append(new Option("P10", "10"))
-				.append(new Option("P11", "11"))
-				.append(new Option("P12", "12"))
-				.append(new Option("P13", "13"))
-				.append(new Option("P14", "14"))
-				.append(new Option("P15", "15"))
-				.append(new Option("P16", "16"))
-				.append(new Option("P17", "17"))
-				.append(new Option("P25", "25"))
-				.append(new Option("P26", "26"))
-				.append(new Option("P27", "27"))
-				.append(new Option("P32", "32"))
-				.append(new Option("P33", "33"))
-				.append(new Option("P34", "34"))
-				.append(new Option("P35", "35"))
-				.append(new Option("P36", "36"))
-				.append(new Option("P39", "39"));
-			});
-			
-		}
+
 	  }
 	});
 	openTab(evt, 'Dashboard');

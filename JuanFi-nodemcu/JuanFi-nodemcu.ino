@@ -27,22 +27,15 @@
 //increase always when publishing a new version for tracking
 #define CURRENT_VERSION "2.4"
 
-#ifdef ESP32
-  #include "lan_definition.h"
-  #include <TelnetClient.h>
-  #include <SPIFFS.h>
-  #include <Update.h>
-  #include <WiFi.h>
-#else
-  #include <ESP8266TelnetClient.h>
-  #include <ESP8266WiFi.h>
-  #include <ESP8266WebServer.h>
-  #include <ESP8266HTTPClient.h>
-  #include <ESP8266mDNS.h>
-  #include <DNSServer.h>
-  #include <Arduino.h>
-  #include <flash_hal.h>
-#endif
+// ESP8266-only firmware (ESP32/LAN support removed)
+#include <ESP8266TelnetClient.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+#include <ESP8266mDNS.h>
+#include <DNSServer.h>
+#include <Arduino.h>
+#include <flash_hal.h>
 
 #include <EEPROM.h>
 #include "FS.h"
@@ -66,11 +59,7 @@ bool coinExpired = false;
 bool mikrotekConnectionSuccess = false;
 String currentMacAddress = "";
 String currentIpAddress = "";
-#ifdef ESP32
-  String HARDWARE_TYPE = "ESP32";
-#else
-  String HARDWARE_TYPE = "ESP8266";
-#endif
+String HARDWARE_TYPE = "ESP8266";
 
 typedef struct {
   String rateName;
@@ -152,25 +141,17 @@ IPAddress primaryDNS(10, 0, 0, 1); // hotspot router
 
 IPAddress apIP(172, 217, 28, 1);
 
-#ifdef ESP32
-  EthernetWebServer server(80);
-  EthernetClient client;
-  EthernetClient client2;
-  telnetClient tc(client);
-#else
   WiFiClient client2;
   WiFiClient client;
   ESP8266telnetClient tc(client);
   ESP8266WebServer server(80);
   const byte DNS_PORT = 53;
   DNSServer dnsServer;
-#endif
 
 const int WIFI_CONNECT_TIMEOUT = 360000;
 const int WIFI_CONNECT_DELAY = 500;
 
 bool networkConnected = false;
-bool cableNotConnected = false;
 
 int lastSaleTime = 0;
 int thankyou_cooldown = 5000;
@@ -191,9 +172,6 @@ void setup () {
   pinMode(SYSTEM_READY_LED, OUTPUT);
   pinMode(COIN_SET_PIN, OUTPUT);
 
-  #ifdef ESP32
-    initializeLANSetup();
-  #else
     // We start by connecting to a WiFi network
     WiFi.mode(WIFI_STA);
     //for static ip configuration
@@ -229,7 +207,6 @@ void setup () {
       Serial.println("Initial setup detected, no need to connect to AP");
       networkConnected= false;
     }
-  #endif
   
   
   if(networkConnected){
@@ -247,13 +224,9 @@ void setup () {
     attachInterrupt(COIN_SELECTOR_PIN, coinInserted, RISING);
     loginMirotik();
    
-    #ifdef ESP32
-      //nothing
-    #else
       if (MDNS.begin("esp8266")) {
         Serial.println("MDNS responder started");
       }
-    #endif
 
     server.on("/topUp", topUp);
     server.on("/checkCoin", checkCoin);
@@ -265,9 +238,6 @@ void setup () {
     server.onNotFound(handleNotFound);
     
   }else{
-    #ifdef ESP32
-      //nothing
-    #else
       //Soft AP setup
       WiFi.mode(WIFI_AP);
       WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
@@ -275,7 +245,6 @@ void setup () {
       //if DNSServer is started with "*" for domain name, it will reply with
       //provided IP to all DNS request
       dnsServer.start(DNS_PORT, "*", apIP);
-    #endif
 
     server.onNotFound([]() {
       server.sendHeader("Location", String("/admin"), true);
@@ -318,21 +287,10 @@ void handleFileUploadRequest(){
        return;
     }
     if (Update.hasError()) {
-      //when esp32 has sometimes error of not enough space, but actually its uploaded some part succesfully so we will just return success
-      if(isFileSystem && HARDWARE_TYPE == "ESP32"){
-        server.send(200, F("text/html"), "Upload done, with warnings");
-        server.client().stop();
-        ESP.restart();
-      }else{
-        server.send(200, F("text/html"), "Upload has error");
-      }
+      server.send(200, F("text/html"), "Upload has error");
     }
     else {
-        #ifdef ESP32
-          //nothing not avaiable at esp32
-        #else
          server.client().setNoDelay(true);
-        #endif
         server.send_P(200, PSTR("text/html"), "Upload done");
         delay(100);
         server.client().stop();
@@ -351,19 +309,12 @@ void handleFileUploadStream(){
         if (upload.name == "filesystem") {
             isFileSystem = true;
             backupSystemConfig();
-            #ifdef ESP32
-              if (!Update.begin(SPIFFS.totalBytes(), U_SPIFFS)) {
-                  Serial.println("Upload filesystem start failed");
-                  hasUploadError = true;
-              }
-            #else
                size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
                close_all_fs();
                if (!Update.begin(fsSize, U_FS)){//start with max available size
                  Serial.println("Upload filesystem start failed");
                  hasUploadError = true;
                }
-            #endif
         }
         else {
             uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
@@ -403,71 +354,6 @@ void backupSystemConfig(){
   eeWriteInt(BACKUP_CONFIG_LENGTH_INDEX, len);
   eeWriteString(BACKUP_CONFIG_LENGTH_INDEX+5, data);
 }
-
-#ifdef ESP32
-void initializeLANSetup(){
-  delay(3000);
-  Serial.print("\nStarting ESP32_FS_EthernetWebServer on " + String(BOARD_TYPE));
-  Serial.println(" with " + String(SHIELD_TYPE));
-  Serial.println(ETHERNET_WEBSERVER_VERSION);
-
-  ET_LOGWARN(F("=========== USE_ETHERNET ==========="));
-
-  ET_LOGWARN(F("Default SPI pinout:"));
-  ET_LOGWARN1(F("MOSI:"), MOSI);
-  ET_LOGWARN1(F("MISO:"), MISO);
-  ET_LOGWARN1(F("SCK:"),  SCK);
-  ET_LOGWARN1(F("SS:"),   SS);
-  ET_LOGWARN(F("========================="));
-
-  #ifndef USE_THIS_SS_PIN
-    #define USE_THIS_SS_PIN   5   //22    // For ESP32
-  #endif
-
-  ET_LOGWARN1(F("ESP32 setCsPin:"), USE_THIS_SS_PIN);
-  Ethernet.init (USE_THIS_SS_PIN);
-  // start the ethernet connection and the server:
-  Serial.println("Ethernet initialized...");
-
-  //Use the ESP32 wifi mac address for our LAN
-  byte mac[6];
-  WiFi.macAddress(mac);
-
-  if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Cable not detected!!!");
-    networkConnected = false;
-    cableNotConnected = true;
-  }else if(IP_ADDRESS_MODE == 1){ //for static LAN IP
-    Ethernet.begin(mac, local_IP, primaryDNS, gateway, subnet);
-    networkConnected = true;
-  }else if(Ethernet.begin(mac) != 0){ //for dhcp LAN IP
-    networkConnected = true;
-  }else{
-    networkConnected = false;
-    Serial.println("Cannot connect to dhcp server");
-    Ethernet.begin(mac, apIP, apIP, apIP, IPAddress(255, 255, 255, 0));
-  }
-  // Just info to know how to connect correctly
-  Serial.println(F("========================="));
-  Serial.println(F("Currently Used SPI pinout:"));
-  Serial.print(F("MOSI:"));
-  Serial.println(MOSI);
-  Serial.print(F("MISO:"));
-  Serial.println(MISO);
-  Serial.print(F("SCK:"));
-  Serial.println(SCK);
-  Serial.print(F("SS:"));
-  Serial.println(SS);
-  Serial.println("=========================");
-  
-  Serial.print(F("Connected! IP address: "));
-  Serial.println(Ethernet.localIP());
-
-  currentIpAddress = Ethernet.localIP().toString().c_str();
-  //Use the ESP32 wifi mac address for our LAN
-  currentMacAddress = WiFi.macAddress();
-}
-#endif
 
 void handleNotFound()
 {
@@ -827,26 +713,10 @@ bool checkIfSystemIsAvailable(){
   }
 }
 
-#ifdef ESP32
-  char internetServerAddress[] = "ifconfig.me";  // server address
-  int internetCheckPort = 80;
-  EthernetHttpClient  httpClient(client2, internetServerAddress, internetCheckPort);
-#else
   String INTERNET_CHECK_URL = "http://ifconfig.me";
-#endif
 
 bool hasInternetConnect(){
 
-    #ifdef ESP32
-      httpClient.get("/");
-      int statusCode = httpClient.responseStatusCode();
-      String response = httpClient.responseBody();
-      Serial.print("Status code: ");
-      Serial.println(statusCode);
-      Serial.print("Response: ");
-      Serial.println(response);
-      return true;
-    #else
       HTTPClient http;  
   
       http.begin(client2, INTERNET_CHECK_URL); //HTTP
@@ -866,7 +736,6 @@ bool hasInternetConnect(){
         http.end();
         return false;
       }
-    #endif
 }
 
 void addAttemptToCoinslot(){
@@ -1488,24 +1357,13 @@ void populateRates(){
 }
 
 int coinWaiting = 0;
-long lastLinkStatusCheck = 0;
 
 void loop () {
    if(networkConnected){
     unsigned long currentMilis = millis();
 
-   //handling for disconnection of AP
-   bool linkStatusOff = false;
-
-   #ifdef ESP32
-   //check ethernet status every 2 sec
-   if(currentMilis > lastLinkStatusCheck + 2000){
-    linkStatusOff = Ethernet.linkStatus() == LinkOFF;
-    lastLinkStatusCheck = currentMilis;
-   }
-   #endif
-   
-   if (!client.connected() || linkStatusOff) {
+    //handling for disconnection of AP
+    if (!client.connected()) {
       handleSystemAbnormal();
       server.handleClient();
       return;
@@ -1563,14 +1421,10 @@ void loop () {
     //DHCP auto renewal: re-request/verify the lease instead of restarting
     if(IP_ADDRESS_MODE == 0 && (millis() - lastDhcpCheck) >= 300000UL){
       lastDhcpCheck = millis();
-      #ifdef ESP32
-        Ethernet.maintain();
-      #else
         if(WiFi.status() != WL_CONNECTED){
           Serial.println("WiFi lost, reconnecting without restart...");
           WiFi.reconnect();
         }
-      #endif
     }
     //auto restart after configured minutes, only when the vendo is idle
     if(AUTO_RESTART_MINUTES > 0 && (millis() - lastAutoRestartCheck) >= (unsigned long)AUTO_RESTART_MINUTES * 60000UL){
@@ -1588,19 +1442,11 @@ void loop () {
         ESP.restart();
       }
     }
-    #ifdef ESP32
-      //nothing
-    #else
      dnsServer.processNextRequest();
-    #endif
   }
   
   server.handleClient();
-  #ifdef ESP32
-    //nothing
-  #else
-    MDNS.update();
-  #endif
+  MDNS.update();
 }
 
 void handleSystemAbnormal(){
