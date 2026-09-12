@@ -68,6 +68,19 @@ jobs:
           git clone --depth 1 https://github.com/alejho/Arduino-Telnet-Client "$LIBS/Arduino-Telnet-Client"
           git clone --depth 1 https://github.com/videojedi/ESP8266-Telnet-Client "$LIBS/ESP8266-Telnet-Client"
 
+      - name: Patch ESP8266 telnet lib filename case (Linux runners are case-sensitive)
+        run: |
+          # Upstream ESP8266TelnetClient.cpp includes "ESP8266telnetClient.h"
+          # (lowercase t) but the file is ESP8266TelnetClient.h. Worked on
+          # Windows/macOS, fatal on Linux. Fix the installed copy in place.
+          # (Each step gets a fresh shell, so LIBS is redefined here.)
+          LIBS="$HOME/Arduino/libraries"
+          CPP="$LIBS/ESP8266-Telnet-Client/src/ESP8266TelnetClient.cpp"
+          sed -i 's|"ESP8266telnetClient.h"|"ESP8266TelnetClient.h"|' "$CPP"
+          grep -q '#include "ESP8266TelnetClient.h"' "$CPP"
+          grep -rn 'telnetClient\.h' "$LIBS/ESP8266-Telnet-Client/src/" || true
+          test -f "$LIBS/ESP8266-Telnet-Client/src/ESP8266TelnetClient.h"
+
       - name: Compile ESP8266 (wireless)
         run: >
           arduino-cli compile
