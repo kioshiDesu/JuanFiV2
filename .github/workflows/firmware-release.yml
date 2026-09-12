@@ -68,7 +68,7 @@ jobs:
           git clone --depth 1 https://github.com/alejho/Arduino-Telnet-Client "$LIBS/Arduino-Telnet-Client"
           git clone --depth 1 https://github.com/videojedi/ESP8266-Telnet-Client "$LIBS/ESP8266-Telnet-Client"
 
-      - name: Patch ESP8266 telnet lib filename case (Linux runners are case-sensitive)
+      - name: Patch third-party telnet libs for Linux CI
         run: |
           # Upstream ESP8266TelnetClient.cpp includes "ESP8266telnetClient.h"
           # (lowercase t) but the file is ESP8266TelnetClient.h. Worked on
@@ -93,6 +93,14 @@ jobs:
           open(p, "w").write(t)
           print("sendCommand return patched")
           EOF
+          # alejho's TelnetClient.h targets the classic AVR Ethernet shield
+          # (#include <Ethernet.h>). Our ESP32 build uses khoih-prog's W5500
+          # stack, which has no Ethernet.h, so point it at Ethernet_Generic.h
+          # (declares the EthernetClient type it needs).
+          TLN="$LIBS/Arduino-Telnet-Client/TelnetClient.h"
+          sed -i 's|#include <Ethernet.h>|#include <Ethernet_Generic.h>|' "$TLN"
+          grep -q '#include <Ethernet_Generic.h>' "$TLN"
+          ! grep -q '#include <Ethernet.h>' "$TLN"
 
       - name: Compile ESP8266 (wireless)
         run: >

@@ -28,8 +28,8 @@
 #define CURRENT_VERSION "2.4"
 
 #ifdef ESP32
-  #include <TelnetClient.h>
   #include "lan_definition.h"
+  #include <TelnetClient.h>
   #include <SPIFFS.h>
   #include <Update.h>
   #include <WiFi.h>
