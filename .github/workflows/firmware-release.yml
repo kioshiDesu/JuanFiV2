@@ -1,0 +1,174 @@
+# Firmware release pipeline.
+#
+# Push a tag like `v2.5` and this compiles both supported variants, builds the
+# SPIFFS filesystem images from JuanFi-nodemcu/data, zips each variant with
+# its flasher, and attaches the zips to the GitHub Release page.
+#
+# Supported variants (the only two the current firmware code supports):
+#   - ESP32 LAN (W5500)      -> JuanFiV2-ESP32-LAN-<tag>.zip
+#   - ESP8266 wireless       -> JuanFiV2-ESP8266-Wireless-<tag>.zip
+#
+# Pinned toolchain (reproducible bins; bump deliberately, then re-tag):
+#   - esp8266 core 3.1.2, esp32 core 2.0.14 (era-matched to these libraries)
+#   - khoih-prog EthernetWebServer + Ethernet_Generic (ESP32 W5500)
+#   - alejho Arduino-Telnet-Client (ESP32) + videojedi ESP8266-Telnet-Client
+#   - base64 comes from JuanFi-nodemcu/src/base64.h (in-repo shim)
+#
+# Flash layout preserved from the historic release bins:
+#   - ESP8266: sketch @0x000000, SPIFFS @0x200000 (NodeMCU-PyFlasher, in repo)
+#   - ESP32: boot_app0 @0xe000, bootloader @0x1000, sketch @0x10000,
+#     partitions @0x8000, SPIFFS @0x290000 (start_flash.bat + esptool.exe)
+
+name: Firmware release
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ESP8266_VERSION: "3.1.2"
+  ESP32_VERSION: "2.0.14"
+  ESPTOOL_VERSION: "4.8.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP cores (pinned)
+        run: |
+          arduino-cli core update-index \
+            --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core install "esp8266:esp8266@${{ env.ESP8266_VERSION }}" \
+            --additional-urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core update-index \
+            --additional-urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core install "esp32:esp32@${{ env.ESP32_VERSION }}" \
+            --additional-urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+      - name: Install third-party libraries from git
+        run: |
+          LIBS="$HOME/Arduino/libraries"
+          mkdir -p "$LIBS"
+          git clone --depth 1 https://github.com/khoih-prog/EthernetWebServer "$LIBS/EthernetWebServer"
+          git clone --depth 1 https://github.com/khoih-prog/Ethernet_Generic "$LIBS/Ethernet_Generic"
+          git clone --depth 1 https://github.com/alejho/Arduino-Telnet-Client "$LIBS/Arduino-Telnet-Client"
+          git clone --depth 1 https://github.com/videojedi/ESP8266-Telnet-Client "$LIBS/ESP8266-Telnet-Client"
+
+      - name: Compile ESP8266 (wireless)
+        run: >
+          arduino-cli compile
+          --fqbn esp8266:esp8266:nodemcuv2:eesz=4M
+          --output-dir build/esp8266
+          JuanFi-nodemcu/JuanFi-nodemcu.ino
+
+      - name: Compile ESP32 (LAN)
+        run: >
+          arduino-cli compile
+          --fqbn esp32:esp32:esp32:PartitionScheme=default,CPUFreq=240,FlashMode=dio,FlashFreq=80,FlashSize=4M,UploadSpeed=115200,DebugLevel=none
+          --output-dir build/esp32
+          JuanFi-nodemcu/JuanFi-nodemcu.ino
+
+      - name: Build filesystem images and release zips
+        if: github.event_name != 'pull_request'
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME:-manual}"
+          mkdir -p dist/esp8266 dist/esp32
+          MKSPIFFS="$(find "$HOME/.arduino15/packages/esp8266" -name mkspiffs -type f | head -1)"
+          test -x "$MKSPIFFS"
+
+          # ---- ESP8266: sketch @0x000000, SPIFFS @0x200000 ----
+          BTXT="$HOME/.arduino15/packages/esp8266/hardware/esp8266/${{ env.ESP8266_VERSION }}/boards.txt"
+          S_START="$(grep '^nodemcuv2.menu.eesz.4M.build.spiffs_start=' "$BTXT" | cut -d= -f2)"
+          S_END="$(grep '^nodemcuv2.menu.eesz.4M.build.spiffs_end=' "$BTXT" | cut -d= -f2)"
+          S_SIZE=$((S_END - S_START))
+          echo "ESP8266 SPIFFS start=$S_START size=$S_SIZE"
+          # Guard the documented PyFlasher offset before shipping a bad image.
+          [ "$S_START" = "0x200000" ]
+          cp build/esp8266/JuanFi-nodemcu.ino.bin dist/esp8266/JuanFi-FlashFile1.bin
+          "$MKSPIFFS" -c JuanFi-nodemcu/data -p 256 -b 8192 -s "$S_SIZE" \
+            dist/esp8266/JuanFi-FlashFile2.bin
+          cp NodeMCU-PyFlasher.exe dist/esp8266/
+          cat > dist/esp8266/FLASH-README.txt <<'EOF'
+          JuanFiV2 ESP8266 wireless - flash with NodeMCU-PyFlasher.exe:
+            File 1: JuanFi-FlashFile1.bin at offset 0x000000
+            File 2: JuanFi-FlashFile2.bin at offset 0x200000
+          Then power on, join SSID "JuanFiV2 Setup", open http://172.217.28.1/login
+          (defaults admin/admin).
+          EOF
+          (cd dist/esp8266 && zip -r "../JuanFiV2-ESP8266-Wireless-${TAG}.zip" .)
+
+          # ---- ESP32: layout from start_flash.bat, verified against default.csv ----
+          E32="$HOME/.arduino15/packages/esp32/hardware/esp32/${{ env.ESP32_VERSION }}"
+          SP_LINE="$(grep -E '^spiffs *, *data *, *spiffs *,' "$E32/tools/partitions/default.csv" | head -1)"
+          SP_OFF="$(echo "$SP_LINE" | cut -d, -f4 | tr -d ' ')"
+          SP_SIZE_HEX="$(echo "$SP_LINE" | cut -d, -f5 | tr -d ' ')"
+          SP_SIZE=$((SP_SIZE_HEX))
+          echo "ESP32 SPIFFS offset=$SP_OFF size=$SP_SIZE"
+          [ "$SP_OFF" = "0x290000" ]
+          cp build/esp32/JuanFi-nodemcu.ino.bin dist/esp32/JuanFi-lan.ino.bin
+          cp build/esp32/JuanFi-nodemcu.ino.bootloader.bin dist/esp32/JuanFi-lan.ino.bootloader.bin
+          cp build/esp32/JuanFi-nodemcu.ino.partitions.bin dist/esp32/JuanFi-lan.ino.partitions.bin
+          cp "$E32/tools/partitions/boot_app0.bin" dist/esp32/
+          "$MKSPIFFS" -c JuanFi-nodemcu/data -p 256 -b 4096 -s "$SP_SIZE" \
+            dist/esp32/JuanFi-lan.spiffs.bin
+          curl -sSLf -o esptool.zip \
+            "https://github.com/espressif/esptool/releases/download/v${{ env.ESPTOOL_VERSION }}/esptool-v${{ env.ESPTOOL_VERSION }}-win64.zip"
+          unzip -o -q esptool.zip -d esptool-dl
+          EXE="$(find esptool-dl -name esptool.exe | head -1)"
+          test -n "$EXE"
+          cp "$EXE" dist/esp32/esptool.exe
+          printf '%s\r\n' \
+            '@echo off' \
+            'cls' \
+            'echo JuanFiV2 LAN ESP32 flasher - select port below:' \
+            'reg query HKLM\HARDWARE\DEVICEMAP\SERIALCOMM' \
+            'SET /P comport=Port(ex: COM1) : ' \
+            'echo %comport% is selected' \
+            'esptool.exe --chip esp32 --port %comport% --baud 115200 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0xe000 boot_app0.bin 0x1000 JuanFi-lan.ino.bootloader.bin 0x10000 JuanFi-lan.ino.bin 0x8000 JuanFi-lan.ino.partitions.bin 0x290000 JuanFi-lan.spiffs.bin' \
+            'echo Flash done, please restart the esp32' \
+            'pause' > dist/esp32/start_flash.bat
+          cat > dist/esp32/FLASH-README.txt <<'EOF'
+          JuanFiV2 ESP32 LAN - copy this folder to Windows, plug in USB, run
+          start_flash.bat, pick the COM port, hold FLASH 3-5s until it starts.
+          Then plug into a PC NIC with static 172.217.28.10 and open
+          http://172.217.28.1/login (defaults admin/admin).
+          EOF
+          (cd dist/esp32 && zip -r "../JuanFiV2-ESP32-LAN-${TAG}.zip" .)
+
+      - name: Upload zips as run artifacts
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-zips
+          path: dist/*.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download zips
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware-zips
+          path: dist
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

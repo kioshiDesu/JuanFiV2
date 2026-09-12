@@ -15,7 +15,10 @@ Vouchers look like `1FI` + 5 chars, work from any AP on the same router.
 
 ## 1. Flash the firmware
 
-Get the bins from `/release` (WirelessBase or LanBased, ESP8266 or ESP32).
+Get the bins from the [Releases page](https://github.com/kioshiDesu/JuanFiV2/releases)
+(`JuanFiV2-ESP8266-Wireless-*.zip` or `JuanFiV2-ESP32-LAN-*.zip`).
+New bins are built automatically when a `v*` tag is pushed
+(see `.github/workflows/firmware-release.yml`).
 
 ESP8266 with NodeMCU-PyFlasher, flash in this order:
 
