@@ -129,6 +129,10 @@ int COINSLOT_BAN_MINUTES = 0;
 int AUTO_RESTART_MINUTES = 0;
 unsigned long lastAutoRestartCheck = 0;
 unsigned long lastDhcpCheck = 0;
+bool isExtendTime = false; // true when portal extends an existing online voucher
+String sessionIp = ""; // client IP bound at topUp, enforced on coin endpoints
+int authFailCount = 0;
+unsigned long authLockoutUntil = 0;
 int SETUP_FINISH = 0;
 
 //put here your raspi ip address, and login details
@@ -1044,11 +1048,6 @@ bool validateVoucher(String voucher){
       return true;
   }
 }
-
-bool isExtendTime = false; // true when portal extends an existing online voucher
-String sessionIp = ""; // client IP bound at topUp, enforced on coin endpoints
-int authFailCount = 0;
-unsigned long authLockoutUntil = 0;
 
 void topUp() {
   thankyou_cooldown = 5000;
