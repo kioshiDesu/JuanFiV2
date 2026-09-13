@@ -817,7 +817,11 @@ function saveVoucherBtnAction() {
 						catch (e) { location.reload(); }
 					}, 3000);
 				} else {
-					setTimeout(newLogin, 3000);
+					// Fresh purchase on login page: auto-login with the new voucher
+					// so the customer never has to click CONNECT manually.
+					setTimeout(function () {
+						try { doLogin(); } catch (e) { newLogin(); }
+					}, 3000);
 				}
 			} else {
 				notifyCoinSlotError(data.errorCode);
