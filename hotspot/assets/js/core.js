@@ -442,6 +442,17 @@ function applyFlags() {
 		$("#vendoSelectDiv").attr("style", "display: none");
 	}
 
+	// Branding from config.js — keep portal.html generic
+	try {
+		if (typeof brandHeaderHtml !== 'undefined' && brandHeaderHtml) {
+			$("#brandHeader").html(brandHeaderHtml);
+			var plain = brandHeaderHtml.replace(/<[^>]*>/g, "");
+			$("#bootBrand").text(plain);
+			document.title = plain + " Portal";
+		}
+		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
+		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
+	} catch(e) {}
 }
 
 // ---------- focused blocks: one action on screen at a time (no modals) ----------
@@ -719,13 +730,15 @@ function insertBtnAction() {
 		$.ajax({
 			type: "GET",
 			url: "/status",
+			timeout: 4000,
 			success: function (data) {
 				if (data.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					location.reload();
 				} else {
 					callTopupAPI(0);
 				}
-			}
+			},
+			error: function () { callTopupAPI(0); }
 		});
 	} else {
 		callTopupAPI(0);
@@ -751,6 +764,7 @@ function callTopupAPI(retryCount) {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/topUp",
 		data: "voucher=" + voucher + "&mac=" + mac + "&extendTime=" + (isExtend ? "1" : "0"),
+		timeout: 5000,
 		success: function (data) {
 			$("#loaderDiv").attr("class", "spinner hidden");
 			if (data.status == "true") {
@@ -772,7 +786,9 @@ function callTopupAPI(retryCount) {
 				timer = null;
 				insertingCoin = false;
 			}
-		}, error: function () {
+		}, error: function (xhr, status) {
+			// ESP dead / timeout: retry quickly, then show unreachable error
+			if (status === "timeout") { console.log("topUp timeout, retry " + retryCount); }
 			setTimeout(function () {
 				if (retryCount < 3) {
 					callTopupAPI(retryCount + 1);
@@ -799,6 +815,7 @@ function saveVoucherBtnAction() {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
 		data: "voucher=" + voucher,
+		timeout: 6000,
 		success: function (data) {
 			totalCoinReceived = 0;
 			insertingCoin = false;
@@ -826,21 +843,26 @@ function saveVoucherBtnAction() {
 			} else {
 				notifyCoinSlotError(data.errorCode);
 			}
-		}, error: function (jqXHR, exception) {
+		}, error: function (jqXHR, status) {
 			$("#loaderDiv").attr("class", "spinner hidden");
-			if (totalCoinReceived > 0) {
+			if (status === "timeout") {
+				$.toast({ title: 'Error', content: 'ESP unreachable — check that the vendo is powered on and WiFi connected', type: 'error', delay: 5000 });
+			} else if (totalCoinReceived > 0) {
 				$.toast({ title: 'Warning', content: 'Connect/Login failed, however coin has been process, please manually connect using this voucher: ' + voucher, type: 'info', delay: 8000 });
 			}
 		}
 	});
 }
 
+var checkCoinFailStreak = 0;
 function checkCoin() {
 	$.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/checkCoin",
 		data: "voucher=" + voucher,
+		timeout: 4000,
 		success: function (data) {
+			checkCoinFailStreak = 0;
 			$("#noticeDiv").attr('style', 'display: none');
 			if (data.status == "true") {
 			totalCoinReceived = parseInt(data.totalCoin);
@@ -895,8 +917,13 @@ function checkCoin() {
 				timer = null;
 				insertingCoin = false;
 			}
-		}, error: function () {
-			console.log('checkCoin error, retrying on next tick');
+		}, error: function (xhr, status) {
+			checkCoinFailStreak++;
+			console.log('checkCoin error (' + status + '), streak ' + checkCoinFailStreak);
+			if (checkCoinFailStreak >= 5) {
+				$("#noticeDiv").attr('style', 'display: block');
+				$("#noticeText").html("ESP unreachable — check power &amp; WiFi, then tap Cancel to retry.");
+			}
 		}
 	});
 }

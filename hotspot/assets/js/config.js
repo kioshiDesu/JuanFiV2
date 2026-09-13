@@ -11,5 +11,10 @@ var multiVendoAddresses = [
 	}
 ];
 
-var venueId = "NETBRO-001"; // CHANGE per site: isolates saved vouchers between neighbouring vendos with same IP
+var venueId = "BROBRO"; // CHANGE per site: isolates saved vouchers between neighbouring vendos with same IP
 var vendorIpAddress = "10.0.0.254"; //ESP Address
+
+// Branding — header + footer (change per site without touching portal.html)
+var brandHeaderHtml = "BRO<em>BRO</em>";
+var footerBrandText = "@NETBRO";
+var footerSubText = "INTERNET SERVICES";
