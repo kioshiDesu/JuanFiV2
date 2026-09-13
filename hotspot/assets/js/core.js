@@ -212,7 +212,11 @@ function boot() {
 	}
 
 	// Failsafe: never trap the customer behind the loader (dead vendo, no net).
-	setTimeout(hideBoot, 9000);
+	// Says so honestly instead of pretending everything is ready.
+	setTimeout(function () {
+		setBootText("Taking longer than usual — showing what loaded so far.");
+		hideBoot();
+	}, 9000);
 
 	setBootText("Detecting session...");
 	detectState().done(function (state) {
@@ -248,7 +252,7 @@ function detectState() {
 	if (getStorageValue("isPaused") == "1") {
 		removeStorageValue("isPaused");
 	}
-	$.ajax({ type: "GET", url: "/status" }).done(function (data) {
+	$.ajax({ type: "GET", url: "/status", timeout: 8000 }).done(function (data) {
 		var html = String(data);
 		if (html.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") >= 0) {
 			d.resolve("login");
@@ -504,17 +508,30 @@ function humanDuration(mins) {
 
 function loadRates() {
 	setBootText("Loading promo rates...");
+	$("#ratesBody").html("<p>Loading promo rates…</p>");
 	return $.ajax({
 		type: "GET",
+		timeout: 8000,
 		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime())
 	}).done(function (data) {
-		var html = "<div class='table-responsive'><table class='table table-striped'>";
-		html += "<thead><tr><th>Rate</th><th>Time</th><th>Validity</th>";
-		html += "</tr></thead><tbody>";
 		var rows = String(data).split("|");
+		var usable = 0;
 		for (var r = 0; r < rows.length; r++) {
 			if (rows[r] == "") { continue; }
 			var c = rows[r].split("#");
+			if (c.length >= 4 && String(c[0]).trim() != "") { usable++; }
+		}
+		if (usable == 0) {
+			$("#ratesBody").html("<p>No promo rates configured on this vendo yet.</p>");
+			return;
+		}
+		var html = "<div class='table-responsive'><table class='table table-striped'>";
+		html += "<thead><tr><th>Rate</th><th>Time</th><th>Validity</th>";
+		html += "</tr></thead><tbody>";
+		for (var r = 0; r < rows.length; r++) {
+			if (rows[r] == "") { continue; }
+			var c = rows[r].split("#");
+			if (c.length < 4 || String(c[0]).trim() == "") { continue; }
 			html += "<tr><td>" + escHtml(c[0]) + "</td>";
 			html += "<td>" + humanDuration(c[2]) + "</td>";
 			html += "<td>" + humanDuration(c[3]) + "</td>";
@@ -523,7 +540,7 @@ function loadRates() {
 		html += "</tbody></table></div>";
 		$("#ratesBody").html(html);
 	}).fail(function () {
-		$("#ratesBody").html("<p>Rates unavailable — vendo unreachable.</p>");
+		$("#ratesBody").html("<p>Rates unavailable — ESP unreachable. Check that the ESP is powered on.</p>");
 	});
 }
 

@@ -1,11 +1,11 @@
 .spinner {
     position: fixed;
     z-index: 9999;
-    opacity: 80%; display: flex;
+    opacity: 92%; display: flex;
     justify-content: center;
     align-items: center;
     height: 100%;
-    background: white;
+    background: #101418;
     top: 0;
     left: 0;
     width: 100%;
