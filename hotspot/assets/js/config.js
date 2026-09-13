@@ -11,4 +11,5 @@ var multiVendoAddresses = [
 	}
 ];
 
+var venueId = "NETBRO-001"; // CHANGE per site: isolates saved vouchers between neighbouring vendos with same IP
 var vendorIpAddress = "10.0.0.254"; //ESP Address
