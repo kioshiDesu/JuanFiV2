@@ -7,6 +7,7 @@
 var errorCodeMap = {
 	'coins.wait.expired': 'Coin slot expired',
 	'coin.not.inserted': 'Coin not inserted',
+	'coin.is.reading': 'Verifying coin, please wait..',
 	'coinslot.cancelled': 'Coinslot was cancelled',
 	'coinslot.busy': 'Coin slot is busy',
 	'coin.slot.banned': 'You have been banned from using coin slot, due to multiple request for insert coin, please try again later!',
@@ -295,7 +296,7 @@ function detectState() {
 	if (getPausedFlag() == "1") {
 		removePausedFlag();
 	}
-	$.ajax({ type: "GET", url: "/status", timeout: 8000 }).done(function (data) {
+	$.ajax({ type: "GET", url: "/status" }).done(function (data) {
 		var html = String(data);
 		if (html.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") >= 0) {
 			d.resolve("login");
@@ -517,6 +518,9 @@ function cancelCoin() {
 	timer = null;
 	insertingCoin = false;
 	sfxStopLoop();
+	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} currentTopUpXhr = null; }
+	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch(e){} currentCheckCoinXhr = null; }
+	$("#loaderDiv").attr("class", "spinner hidden");
 	if (totalCoinReceived == 0) {
 		$.ajax({
 			type: "POST",
@@ -565,7 +569,6 @@ function loadRates() {
 	$("#ratesBody").html("<p>Loading promo rates…</p>");
 	return $.ajax({
 		type: "GET",
-		timeout: 8000,
 		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime())
 	}).done(function (data) {
 		var rows = String(data).split("|");
@@ -730,7 +733,6 @@ function insertBtnAction() {
 		$.ajax({
 			type: "GET",
 			url: "/status",
-			timeout: 4000,
 			success: function (data) {
 				if (data.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					location.reload();
@@ -760,11 +762,12 @@ function callTopupAPI(retryCount) {
 		}
 	}
 
-	$.ajax({
+	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} }
+	currentTopUpXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/topUp",
 		data: "voucher=" + voucher + "&mac=" + mac + "&extendTime=" + (isExtend ? "1" : "0"),
-		timeout: 10000,
+		complete: function(){ currentTopUpXhr = null; },
 		success: function (data) {
 			$("#loaderDiv").attr("class", "spinner hidden");
 			if (data.status == "true") {
@@ -816,7 +819,6 @@ function saveVoucherBtnAction() {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
 		data: "voucher=" + voucher,
-		timeout: 10000,
 		success: function (data) {
 			totalCoinReceived = 0;
 			insertingCoin = false;
@@ -856,12 +858,17 @@ function saveVoucherBtnAction() {
 }
 
 var checkCoinFailStreak = 0;
+var currentTopUpXhr = null;
+var currentCheckCoinXhr = null;
 function checkCoin() {
-	$.ajax({
+	// Skip the tick while a poll is still in flight — aborting it can kill
+	// the very response carrying status:true/newCoin (ESP is single-threaded
+	// and slow under telnet), which looked like "error, retry shows coins".
+	if (currentCheckCoinXhr) { return; }
+	currentCheckCoinXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/checkCoin",
 		data: "voucher=" + voucher,
-		timeout: 8000,
 		success: function (data) {
 			checkCoinFailStreak = 0;
 			$("#noticeDiv").attr('style', 'display: none');
@@ -912,6 +919,12 @@ function checkCoin() {
 					$.toast({ title: 'Success', content: 'Coin slot cancelled!, but was able to succesfully process the coin ' + totalCoinReceived + ", will do auto login shortly", type: 'info', delay: 5000 });
 					setTimeout(autoLoginAfterCoin, 3000);
 				}
+			} else if (data.errorCode == "coin.is.reading") {
+				// Transient: coin pulse is being verified on the ESP.
+				// Keep polling — killing the timer here is what forced a
+				// re-tap to reveal already-latched coins.
+				$("#noticeDiv").attr('style', 'display: block');
+				$("#noticeText").html("Verifying, please wait..");
 			} else {
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
@@ -919,13 +932,15 @@ function checkCoin() {
 				insertingCoin = false;
 			}
 		}, error: function (xhr, status) {
+			if (status === "abort") return;
 			checkCoinFailStreak++;
 			console.log('checkCoin error (' + status + '), streak ' + checkCoinFailStreak);
 			if (checkCoinFailStreak >= 5) {
 				$("#noticeDiv").attr('style', 'display: block');
 				$("#noticeText").html("ESP unreachable — check power &amp; WiFi, then tap Cancel to retry.");
 			}
-		}
+		},
+		complete: function(){ currentCheckCoinXhr = null; }
 	});
 }
 
@@ -983,7 +998,7 @@ function resume() {
 }
 
 function notifyCoinSlotError(errorCode) {
-	$.toast({ title: 'Error', content: errorCodeMap[errorCode], type: 'error', delay: 5000 });
+	$.toast({ title: 'Error', content: errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again'), type: 'error', delay: 5000 });
 }
 
 function notifyCoinSuccess(coin) {
