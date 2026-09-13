@@ -7,7 +7,7 @@ var multiVendoAddresses = [
 		vendoName: "Vendo 1",
 		vendoIp: "10.0.0.254", //ESP Address
 		hotspotAddress: "10.0.0.1",
-		interfaceName: "vlan10"
+		interfaceName: "vlan1"
 	}
 ];
 

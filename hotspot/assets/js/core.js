@@ -751,7 +751,7 @@ function callTopupAPI(retryCount) {
 	$("#vcCodeDiv").attr('style', 'display: block');
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
 
-	if (!isExtend && totalCoinReceived == 0) {
+	if (retryCount === 0 && !isExtend && totalCoinReceived == 0) {
 		var storedVoucher = getActiveVoucher();
 		if (storedVoucher != null) {
 			voucher = "";
@@ -764,11 +764,12 @@ function callTopupAPI(retryCount) {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/topUp",
 		data: "voucher=" + voucher + "&mac=" + mac + "&extendTime=" + (isExtend ? "1" : "0"),
-		timeout: 5000,
+		timeout: 10000,
 		success: function (data) {
 			$("#loaderDiv").attr("class", "spinner hidden");
 			if (data.status == "true") {
 				voucher = data.voucher;
+				setActiveVoucher(voucher);
 				showCoinPanel();
 				insertingCoin = true;
 				$('#codeGenerated').html(voucher);
@@ -815,7 +816,7 @@ function saveVoucherBtnAction() {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
 		data: "voucher=" + voucher,
-		timeout: 6000,
+		timeout: 10000,
 		success: function (data) {
 			totalCoinReceived = 0;
 			insertingCoin = false;
@@ -860,7 +861,7 @@ function checkCoin() {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/checkCoin",
 		data: "voucher=" + voucher,
-		timeout: 4000,
+		timeout: 8000,
 		success: function (data) {
 			checkCoinFailStreak = 0;
 			$("#noticeDiv").attr('style', 'display: none');
