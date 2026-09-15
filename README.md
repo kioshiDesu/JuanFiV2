@@ -92,6 +92,30 @@ RouterOS v7 equivalent:
 Raw IPs on purpose (Google Public NTP): no DNS lookup needed, so the
 clock syncs even when DNS isn't up yet at boot.
 
+### Hotspot server + user profile tuning
+
+Winbox: Hotspot -> Server Profiles -> your profile -> **Login** tab:
+HTTP Cookie Lifetime `7d`, tick **Login by MAC Cookie**, MAC Cookie
+Timeout `30d`. Hotspot -> **User Profiles** -> `default` (the profile
+vendo users land on unless `VOUCHER_PROFILE` says otherwise):
+Idle Timeout `none` (leave blank), Keepalive Timeout `30s`,
+Status Autorefresh `30s`.
+
+Same via terminal (replace `hsprof1` if your server profile is named
+differently; check your current login methods first with
+`/ip hotspot profile print` and keep them, just adding `mac-cookie`):
+
+```bash
+/ip hotspot profile set [find name="hsprof1"] http-cookie-lifetime=7d mac-cookie-timeout=30d login-by=cookie,http-chap,http-pap,mac-cookie
+/ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=30s
+```
+
+Note: the status page's own autorefresh counts as traffic, so with
+autorefresh equal to keepalive, sessions stay up while the page is open —
+that combination is intentional here (pause/resume relies on it), but if
+idle users never expire, check the defconf FastTrack rule first
+(fasttracked traffic skips idle accounting).
+
 ## 4. Hotspot login script (On Login)
 
 Hotspot -> Server Profiles -> your profile -> Login tab -> On Login.
