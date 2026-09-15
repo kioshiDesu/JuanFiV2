@@ -48,20 +48,6 @@ Save and let it restart. Change the admin password after first login.
 Set up a hotspot server first, then paste each block into the MikroTik terminal
 (New Terminal). Order matters.
 
-Daily/monthly income reset:
-
-```bash
-/system scheduler add interval=1d name="Reset Daily Income" on-event="/system script set source=\"0\" todayincome " policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=00:00:00;
-/system scheduler add interval=30d name="Reset Monthly Income" on-event="/system script set source=\"0\" monthlyincome " policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=00:00:00;
-```
-
-Income tracker scripts:
-
-```bash
-/system script add dont-require-permissions=no name=todayincome owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="0";
-/system script add dont-require-permissions=no name=monthlyincome owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="0";
-```
-
 Let the vendo talk to the router (replace `JuanfiVendo` list usage as-is):
 
 ```bash
@@ -79,11 +65,32 @@ Create the API user the vendo logs in with (must match step 2):
 /user add name=pisonet password=abc123 group=full disabled=no
 ```
 
-### Router clock (fixes 1970-time voucher issues)
+Already pasted the old income tracker? Remove its leftovers (now unused —
+sales live in the vendo admin dashboard, not on the router):
 
 ```bash
-/system ntp client set enabled=yes servers=time.google.com,time.cloudflare.com
+/system scheduler remove [find name="Reset Daily Income"]
+/system scheduler remove [find name="Reset Monthly Income"]
+/system script remove [find name=todayincome]
+/system script remove [find name=monthlyincome]
 ```
+
+### Router clock (fixes 1970-time voucher issues)
+
+RouterOS v6 (`servers=` doesn't exist there — that's the column 36 error):
+
+```bash
+/system ntp client set enabled=yes primary-ntp=216.239.35.8 secondary-ntp=216.239.35.4
+```
+
+RouterOS v7 equivalent:
+
+```bash
+/system ntp client set enabled=yes servers=216.239.35.8,216.239.35.4
+```
+
+Raw IPs on purpose (Google Public NTP): no DNS lookup needed, so the
+clock syncs even when DNS isn't up yet at boot.
 
 ## 4. Hotspot login script (On Login)
 
@@ -99,7 +106,6 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
 :local aUsrNote [/ip hotspot user get $user comment];
 :local aUsrNote [:toarray $aUsrNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
-:local iSaleAmt [:tonum ($aUsrNote->1)];
 :local iExtCode ($aUsrNote->2);
 :local iVdoName ($aUsrNote->3);
 :local iTimeMin [/ip hotspot user get $user limit-uptime];
@@ -149,14 +155,6 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
     :local x 10;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
     /file set "$HSFilePath/data/$iFileMac" contents="$user#$iValidUntil";
   }
-# Update Today Income
-  :local iSaveAmt [:tonum [/system script get todayincome source]];
-  :local iDailySales ($iSaleAmt + $iSaveAmt);
-  /system script set todayincome source="$iDailySales";
-# Update Monthly Income
-  :local iSaveAmt [:tonum [/system script get monthlyincome source]];
-  :local iMonthSales ( $iSaleAmt + $iSaveAmt );
-  /system script set monthlyincome source="$iMonthSales";
 };
 ```
 
