@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=29">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=26">
+	<link rel="stylesheet" href="assets/css/core.css?v=31">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=27">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
@@ -72,7 +72,7 @@
 					<div id="voucherBlock">
 			<span class="form-text text-muted" style="padding: 5px">VOUCHER</span>
 			<div class="voucher-pill">
-				<input type="voucher" class="form-control" id="voucherInput" aria-describedby="voucherHelp" placeholder="Voucher here.." autocomplete="off">
+				<input type="text" class="form-control" id="voucherInput" aria-describedby="voucherHelp" placeholder="Voucher here.." autocomplete="off">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
 			<small id="voucherHelp" class="form-text text-muted" style="padding: 5px">Please enter voucher code if have existing</small>
@@ -83,7 +83,7 @@
 			<div id="memberSectionBody" style="display: none">
 			<div class="memdiv">
 			<center>
-			<form name="login" action="/portal/done" method="post">
+			<form name="login" action="/portal/done" method="post" onsubmit="return doLoginMember()">
 				<span style="float: left; color: #a4b0be">Username</span><br>
 				<input name="username" type="text" /><br>
 				<span style="float: left; color: #a4b0be">Password</span><br>
@@ -171,7 +171,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=46"></script>
+		<script src="assets/js/core.js?v=52"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -179,26 +179,35 @@
 				if (document.logout) { document.logout.action = window.logoutAction; }
 			}
 
+			// Voucher users carry an empty password by default (firmware
+			// VOUCHER_LOGIN_OPTION=0). The PAP branch pins "" so a previous
+			// member login can't leak its password through the hidden form.
 			function doLogin() {
 				var vc = $("#voucherInput").val() || window.currentVoucher || "";
 				if (vc == "") {
 					$.toast({ title: 'Error', content: 'Please enter your voucher code first', type: 'error', delay: 3000 });
 					return false;
 				}
-				setStorageValue("activeVoucher", vc);
+				setActiveVoucher(vc);
 				mergeTempValidity(vc);
 				document.sendin.username.value = vc;
 				if (window.chapId) {
-					var pw = "";
-					document.sendin.password.value = hexMD5(window.chapId + pw + window.chapChallenge);
+					document.sendin.password.value = hexMD5(window.chapId + "" + window.chapChallenge);
+				} else {
+					document.sendin.password.value = "";
 				}
 				document.sendin.submit();
 				return false;
 			}
+			// Member form submits through sendin so it hits the router login
+			// URL with CHAP hashing when offered (plain password otherwise).
+			// Wired via onsubmit on the member form above.
 			function doLoginMember() {
 				document.sendin.username.value = document.login.username.value;
 				if (window.chapId) {
 					document.sendin.password.value = hexMD5(window.chapId + document.login.password.value + window.chapChallenge);
+				} else {
+					document.sendin.password.value = document.login.password.value;
 				}
 				document.sendin.submit();
 				return false;

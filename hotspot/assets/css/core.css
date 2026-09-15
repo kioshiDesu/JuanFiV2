@@ -62,14 +62,6 @@
     to { transform: rotate(360deg); }
 }
 
-.insertCoinImg {
-    width: 300px;
-    height: 200px;
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-}
-
 #ratesSection { margin-top: 8px; }
 #ratesSection .panelTitle {
     display: block;
@@ -81,8 +73,7 @@
     color: #fff;
 }
 #coinPanel .panelTitle,
-#memberSection .panelTitle,
-#qrSection .panelTitle {
+#memberSection .panelTitle {
     display: block;
     font-weight: 800;
     font-size: 14px;
@@ -123,6 +114,7 @@
 #connPill .status-connected {
     border: none;
     padding: 0;
+    color: #fff;
     line-height: 1.2;
     font-size: 16px;
     font-weight: 800;
@@ -153,6 +145,21 @@
 #remainTime, #pauseRemainTime, .odometer {
     white-space: nowrap;
 }
+/* Session countdown urgency (set by paintCountdownUrgency). */
+#remainTime.time-warn {
+    color: #f5a623;
+}
+#remainTime.time-low {
+    color: #e74c3c;
+    -webkit-animation: timePulse 1s ease-in-out infinite;
+    animation: timePulse 1s ease-in-out infinite;
+}
+@-webkit-keyframes timePulse {
+    50% { opacity: .55; }
+}
+@keyframes timePulse {
+    50% { opacity: .55; }
+}
 .hero .big .cur {
     font-size: 16px;
     color: #a3a7ad;
@@ -174,12 +181,6 @@
 .hero .vouchline span {
     color: #fff;
     font-weight: 700;
-}
-.hero .graceline {
-    color: #f1c40f;
-    font-size: 13px;
-    font-weight: 700;
-    margin-top: 4px;
 }
 .pausenote {
     margin: 10px 0 2px 0;
@@ -320,12 +321,6 @@
     margin-bottom: 20px;
 }
 
-.qrcode-wrapper{
-    background-color: white;
-    padding: 23px;
-    width: fit-content;
-}
-
 /* Coin focus: dim everything under a veil except the coin panel + rates. */
 #coinDim {
     position: fixed;
@@ -370,7 +365,7 @@ hr.foot-hr {
     height: 48px;
     font-weight: 700;
 }
-#totalCoin, #totalTime, #totalData,
+#totalCoin, #totalTime,
 #remainTime, #pauseRemainTime,
 #expirationTime, #expirationTimePaused,
 #codeGenerated, .stat-list .v,
@@ -402,9 +397,6 @@ hr.foot-hr {
     font-weight: 600;
     white-space: nowrap;
 }
-.stat-list .k img {
-    vertical-align: -2px;
-}
 .stat-list .v {
     font-weight: 700;
     text-align: right;
@@ -418,7 +410,7 @@ hr.foot-hr {
 #ratesBody .table th, #ratesBody .table td {
 	padding: 5px 6px;
 }
-#coinPanel, #memberSection, #qrSection { margin-top: 14px; }
+#coinPanel, #memberSection { margin-top: 14px; }
 
 /* Coin countdown gauge: large bar, timer text inside, traffic-light states. */
 #coinPanel .progress {

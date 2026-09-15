@@ -17,6 +17,50 @@ var errorCodeMap = {
 	'invalid.request': 'Invalid request, please try again'
 };
 
+// ---------- console debug log (F12 console only, nothing injected into body) ----------
+var __dbgLines = [];
+function __dbgTime() {
+	try { return new Date().toLocaleTimeString(); } catch (e) { return ""; }
+}
+function dbgLog(msg, cls) {
+	var line = "[" + __dbgTime() + "] " + String(msg == null ? "" : msg);
+	__dbgLines.push(line);
+	if (__dbgLines.length > 80) { __dbgLines = __dbgLines.slice(-80); }
+	try {
+		if (cls == "dbg-err") { console.error(line); }
+		else { console.log(line); }
+	} catch (e) { }
+}
+function dbgAjaxErr(tag, xhr, status, err) {
+	var detail = status || "error";
+	try {
+		if (xhr) {
+			if (xhr.status) { detail += " http=" + xhr.status; }
+			var t = xhr.responseText || (err && err.toString && err.toString()) || "";
+			t = String(t).slice(0, 200);
+			if (t) { detail += " " + t; }
+		}
+	} catch (e) { }
+	dbgLog(tag + " FAILED: " + detail, "dbg-err");
+}
+function clearDebugLog() {
+	__dbgLines = [];
+	try { console.clear(); } catch (e) { }
+	dbgLog("debug cleared");
+}
+function copyDebugLog() {
+	var txt = __dbgLines.join("\n");
+	try {
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(txt);
+			console.log("debug log copied (" + __dbgLines.length + " lines)");
+		} else {
+			console.log(txt);
+		}
+	} catch (e) { try { console.log(txt); } catch (e2) { } }
+	return txt;
+}
+
 var voucher = (function(){ try { var k = scopedKey('activeVoucher'); var v = getStorageValue(k); if (v != null) return v; // migrate bare key once
 	var bare = getStorageValue('activeVoucher'); if (bare != null && bare !== "") { setStorageValue(k, bare); removeStorageValue('activeVoucher'); return bare; } return ""; } catch(e){ return ""; } })();
 if (voucher == null) { voucher = ""; }
@@ -218,6 +262,35 @@ function hideBoot() {
 	bootDone = true;
 	$("#bootLoader").attr("style", "display: none");
 	$("#app").attr("style", "display: block");
+	// The countdown was sized while hidden (zero widths, so the shrink loop
+	// never ran) — refit now that measurements are real, or first paint
+	// overflows small screens until the next 1s tick fixes it.
+	try {
+		__fitCache = {};
+		fitCountdown("#remainTime");
+		fitCountdown("#pauseRemainTime");
+	} catch (e) { }
+}
+
+// Boot progress: wrap a step's promise so the loader line reads
+// "Label... 0.4s ...done" on success or "Label... 0.4s ...fail" when the
+// data behind it didn't load. Steps run in parallel, last one to settle
+// owns the line — each result is still visible as it lands.
+function __stepSecs(t0) {
+	try { return (((new Date()).getTime() - t0) / 1000).toFixed(1) + "s"; }
+	catch (e) { return ""; }
+}
+function timedStep(label, promise) {
+	var t0 = (new Date()).getTime();
+	setBootText(label + "...");
+	if (!promise || typeof promise.always !== "function") { return promise; }
+	promise.always(function () {
+		var ok = true;
+		try { ok = (typeof promise.state === "function") ? promise.state() == "resolved" : true; }
+		catch (e) { }
+		setBootText(label + "... " + __stepSecs(t0) + (ok ? " ...done" : " ...fail"));
+	});
+	return promise;
 }
 
 function boot() {
@@ -247,6 +320,7 @@ function boot() {
 	} catch (e) { }
 	$("#footYear").html(new Date().getFullYear());
 	applyFlags();
+	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
 	// Re-scope voucher after vendorIp is resolved (multi-vendo selects it)
 	try {
 		var scopedV = getActiveVoucher();
@@ -262,18 +336,18 @@ function boot() {
 		hideBoot();
 	}, 9000);
 
-	setBootText("Detecting session...");
-	detectState().done(function (state) {
+	var bootT0 = (new Date()).getTime();
+	timedStep("Detecting session", detectState()).done(function (state) {
 		render(state);
-		var jobs = [loadRates()];
+		var jobs = [timedStep("Loading promo rates", loadRates())];
 		if (state == "login") {
-			jobs.push(resumeSession());
+			jobs.push(timedStep("Checking session", resumeSession()));
 		} else {
-			jobs.push(showValidity());
+			jobs.push(timedStep("Loading session", showValidity()));
 		}
 		// jQuery promises settle fail or success — either way reveal the portal.
 		$.when.apply($, jobs).always(function () {
-			setBootText("Ready");
+			setBootText("Ready (" + __stepSecs(bootT0) + ")");
 			hideBoot();
 		});
 	});
@@ -333,11 +407,12 @@ function render(state) {
 	}
 	$("#connPill").html(pill);
 	if (state == "status") {
-		$("#statusVoucher").html(voucher);
+		$("#statusVoucher").text(voucher);
 		startCountdown();
+		previewUrgencyHook();
 	}
 	if (state == "paused") {
-		$("#pausedVoucher").html(voucher);
+		$("#pausedVoucher").text(voucher);
 		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
 		fitCountdown("#pauseRemainTime");
 	}
@@ -360,18 +435,23 @@ function compactDhms(seconds) {
 // Shrink a hero countdown until it fits (long hour counts clip the
 // trailing "s" on 320px phones). Resets to the stylesheet size first
 // so shorter values grow back; re-runs on rotate/resize.
+// Skip refits when the text hasn't changed: the 1s countdown tick would
+// otherwise force a full shrink-loop reflow every second on every phone.
+var __fitCache = {};
 function fitCountdown(sel) {
 	var el = $(sel);
 	if (el.length == 0) { return; }
+	var node = el.get(0);
+	if (__fitCache[sel] === node.textContent) { return; }
 	if (!window.__countdownFitBound) {
 		window.__countdownFitBound = true;
 		$(window).on("resize orientationchange", function () {
+			__fitCache = {};
 			fitCountdown("#remainTime");
 			fitCountdown("#pauseRemainTime");
 		});
 	}
 	el.css("font-size", "");
-	var node = el.get(0);
 	var size = parseFloat(el.css("font-size")) || 30;
 	var guard = 0;
 	while (size > 20 && node.scrollWidth > node.clientWidth + 1 && guard < 20) {
@@ -379,6 +459,7 @@ function fitCountdown(sel) {
 		el.css("font-size", size + "px");
 		guard++;
 	}
+	__fitCache[sel] = node.textContent;
 }
 
 function startCountdown() {
@@ -390,11 +471,13 @@ function startCountdown() {
 	}
 	time = parseInt(time);
 	$("#remainTime").html(compactDhms(time));
+	paintCountdownUrgency(time);
 	fitCountdown("#remainTime");
 	if (window.remainingTimer != null) { clearInterval(window.remainingTimer); }
 	window.remainingTimer = setInterval(function () {
 		time--;
 		$("#remainTime").html(compactDhms(time));
+		paintCountdownUrgency(time);
 		fitCountdown("#remainTime");
 		if (time <= 0) {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
@@ -402,6 +485,29 @@ function startCountdown() {
 			setTimeout(function () { document.logout.submit(); }, 6000);
 		}
 	}, 1000);
+}
+
+// Preview hook, visual only (no timer/logout effect): ?urgency=warn|low
+// forces the countdown color so the thresholds can be checked without
+// waiting for a session to run down. Same spirit as the ?state= hook.
+function previewUrgencyHook() {
+	try {
+		var m = new RegExp("[?&]urgency=(warn|low)").exec(location.search || "");
+		if (m) {
+			$("#remainTime").removeClass("time-warn time-low")
+				.addClass(m[1] == "low" ? "time-low" : "time-warn");
+		}
+	} catch (e) { }
+}
+
+// Session countdown urgency: amber under 5 min, pulsing red under 1 min,
+// so the logout at zero never comes as a surprise. Unlimited plans skip it.
+function paintCountdownUrgency(time) {
+	var el = $("#remainTime");
+	if (el.length == 0) { return; }
+	el.removeClass("time-warn time-low");
+	if (time <= 60) { el.addClass("time-low"); }
+	else if (time <= 300) { el.addClass("time-warn"); }
 }
 
 function applyFlags() {
@@ -546,7 +652,10 @@ function setPortalState(s) {
 	// Paused screen stays minimal: resume/cancel only, rates hidden.
 	$("#ratesSection").attr("style", s == "paused" ? "display: none" : "display: block");
 	$("#saveVoucherButton").attr('data-save-type', s == "status" ? "extend" : "purchase");
-	if ((s == "status" || s == "paused") && $("#expirationTime").html() == "") {
+	// boot() already queues showValidity() as a job after render(); only
+	// refresh here for later transitions (cancel/pause/resume) so the boot
+	// path doesn't fire the same /data/*.txt GET twice.
+	if (bootDone && (s == "status" || s == "paused") && $("#expirationTime").html() == "") {
 		showValidity();
 	}
 }
@@ -571,6 +680,7 @@ function loadRates() {
 		type: "GET",
 		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime())
 	}).done(function (data) {
+		try { dbgLog("getRates ok (" + String(data).length + " chars): " + String(data).slice(0, 120), "dbg-ok"); } catch (e) { }
 		var rows = String(data).split("|");
 		var usable = 0;
 		for (var r = 0; r < rows.length; r++) {
@@ -596,8 +706,9 @@ function loadRates() {
 		}
 		html += "</tbody></table></div>";
 		$("#ratesBody").html(html);
-	}).fail(function () {
+	}).fail(function (xhr, status, err) {
 		$("#ratesBody").html("<p>Rates unavailable — ESP unreachable. Check that the ESP is powered on.</p>");
+		dbgAjaxErr("getRates", xhr, status, err);
 	});
 }
 
@@ -677,15 +788,24 @@ function showValidity() {
 	var d = $.Deferred();
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime() })
 		.done(function (data) {
-			if (String(data).length > 50) { fallbackValidity(); d.resolve(); return; }
+			if (String(data).length > 50) {
+				if (fallbackValidity()) { d.resolve(); } else { d.reject(); }
+				return;
+			}
 			var t = parseValidity(String(data).split("#")[1]);
-			renderExpiration(t != null ? t.toLocaleString() : "No Expiration");
+			if (t == null) {
+				renderExpiration("No Expiration");
+				d.resolve();
+				return;
+			}
+			renderExpiration(t.toLocaleString());
 			d.resolve();
 		})
-		.fail(function () { fallbackValidity(); d.resolve(); });
+		.fail(function () { if (fallbackValidity()) { d.resolve(); } else { d.reject(); } });
 	return d.promise();
 }
 
+// Returns true when some expiry could be shown, false when nothing loaded.
 function fallbackValidity() {
 	var validity = getStorageValue(voucher + "validity");
 	if (validity != null) {
@@ -694,21 +814,16 @@ function fallbackValidity() {
 			removeStorageValue(voucher + "validity");
 			removeStorageValue(voucher + "tempValidity");
 			renderExpiration("Not Available");
-		} else {
-			renderExpiration(t.toLocaleString());
+			return false;
 		}
-	} else {
-		renderExpiration("Not Available");
+		renderExpiration(t.toLocaleString());
+		return true;
 	}
+	renderExpiration("Not Available");
+	return false;
 }
 
 // ---------- coin flow ----------
-
-function promoBtnAction() {
-	var el = document.getElementById("ratesSection");
-	if (el && el.scrollIntoView) { el.scrollIntoView(); }
-	return false;
-}
 
 function insertBtnAction() {
 	// No double-submit: one coin session at a time (second tap = busy error).
@@ -750,7 +865,6 @@ function insertBtnAction() {
 
 function callTopupAPI(retryCount) {
 	$('#cncl').html("Cancel");
-	$("#vcCodeDiv").attr('style', 'display: block');
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
 
 	if (retryCount === 0 && !isExtend && totalCoinReceived == 0) {
@@ -770,13 +884,13 @@ function callTopupAPI(retryCount) {
 		complete: function(){ currentTopUpXhr = null; },
 		success: function (data) {
 			$("#loaderDiv").attr("class", "spinner hidden");
+			try { dbgLog("topUp ok voucher=" + (data && data.voucher ? data.voucher : "?"), "dbg-ok"); } catch (e) { }
 			if (data.status == "true") {
 				voucher = data.voucher;
 				setActiveVoucher(voucher);
 				showCoinPanel();
 				insertingCoin = true;
-				$('#codeGenerated').html(voucher);
-				$('#codeGeneratedBlock').attr('style', 'display: none');
+				$('#codeGenerated').text(voucher);
 				if (timer == null) {
 					timer = setInterval(checkCoin, 1000);
 				}
@@ -785,14 +899,16 @@ function callTopupAPI(retryCount) {
 				}
 				sfxStartLoop();
 			} else {
+				try { dbgLog("topUp rejected errorCode=" + data.errorCode, "dbg-err"); } catch (e) { }
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
 				timer = null;
 				insertingCoin = false;
 			}
-		}, error: function (xhr, status) {
+		}, error: function (xhr, status, err) {
 			// ESP dead / timeout: retry quickly, then show unreachable error
 			if (status === "timeout") { console.log("topUp timeout, retry " + retryCount); }
+			dbgAjaxErr("topUp retry=" + retryCount, xhr, status, err);
 			setTimeout(function () {
 				if (retryCount < 3) {
 					callTopupAPI(retryCount + 1);
@@ -823,31 +939,24 @@ function saveVoucherBtnAction() {
 			totalCoinReceived = 0;
 			insertingCoin = false;
 			$("#loaderDiv").attr("class", "spinner hidden");
-			if (data.status == "true") {
-				setStorageValue(voucher + "tempValidity", data.validity);
-				$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
-				if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
-					// A reload alone keeps the same router session, whose
-					// time-left never picks up the extended limit. End the
-					// session like pause/resume does; boot auto-logs back
-					// in with the extended voucher for a fresh countdown.
-					setReLoginFlag();
-					setTimeout(function () {
-						try { document.logout.submit(); }
-						catch (e) { location.reload(); }
-					}, 3000);
-				} else {
-					// Fresh purchase on login page: auto-login with the new voucher
-					// so the customer never has to click CONNECT manually.
-					setTimeout(function () {
-						try { doLogin(); } catch (e) { newLogin(); }
-					}, 3000);
-				}
-			} else {
-				notifyCoinSlotError(data.errorCode);
-			}
-		}, error: function (jqXHR, status) {
+			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
+		if (data.status == "true") {
+			setStorageValue(voucher + "tempValidity", data.validity);
+			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
+			autoLoginAfterUseVoucher();
+		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
+			// Lost the race with the ESP wait-expiry: the vendo already
+			// registered the voucher and added the time itself (then cleared
+			// its session, hence "busy"). The purchase is safe — tempValidity
+			// was stored by the checkCoin polls — so log in normally.
+			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
+			autoLoginAfterUseVoucher();
+		} else {
+			notifyCoinSlotError(data.errorCode);
+		}
+		}, error: function (jqXHR, status, err) {
 			$("#loaderDiv").attr("class", "spinner hidden");
+			dbgAjaxErr("useVoucher", jqXHR, status, err);
 			if (status === "timeout") {
 				$.toast({ title: 'Error', content: 'ESP unreachable — check that the vendo is powered on and WiFi connected', type: 'error', delay: 5000 });
 			} else if (totalCoinReceived > 0) {
@@ -855,6 +964,26 @@ function saveVoucherBtnAction() {
 			}
 		}
 	});
+}
+
+function autoLoginAfterUseVoucher() {
+	if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
+		// A reload alone keeps the same router session, whose
+		// time-left never picks up the extended limit. End the
+		// session like pause/resume does; boot auto-logs back
+		// in with the extended voucher for a fresh countdown.
+		setReLoginFlag();
+		setTimeout(function () {
+			try { document.logout.submit(); }
+			catch (e) { location.reload(); }
+		}, 3000);
+	} else {
+		// Fresh purchase on login page: auto-login with the new voucher
+		// so the customer never has to click CONNECT manually.
+		setTimeout(function () {
+			try { doLogin(); } catch (e) { newLogin(); }
+		}, 3000);
+	}
 }
 
 var checkCoinFailStreak = 0;
@@ -873,10 +1002,10 @@ function checkCoin() {
 			checkCoinFailStreak = 0;
 			$("#noticeDiv").attr('style', 'display: none');
 			if (data.status == "true") {
+			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
 			totalCoinReceived = parseInt(data.totalCoin);
 			$('#totalCoin').html(data.totalCoin);
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded)));
-			$('#codeGeneratedBlock').attr('style', 'display: block');
 			$('#voucherInput').val(voucher);
 				setActiveVoucher( voucher);
 				setStorageValue('totalCoinReceived', totalCoinReceived);
@@ -887,12 +1016,11 @@ function checkCoin() {
 				var remainTime = parseInt(parseInt(data.remainTime) / 1000);
 				var waitTime = parseFloat(data.waitTime);
 				var percent = parseInt(((remainTime * 1000) / waitTime) * 100);
-				totalCoinReceived = parseInt(data.totalCoin);
-				if (totalCoinReceived > 0) {
-					$("#saveVoucherButton").prop('disabled', false);
-					$("#cncl").prop('disabled', true);
-					$('#codeGeneratedBlock').attr('style', 'display: block');
-				}
+			totalCoinReceived = parseInt(data.totalCoin);
+			if (totalCoinReceived > 0) {
+				$("#saveVoucherButton").prop('disabled', false);
+				$('#voucherInput').val(voucher);
+			}
 				if (remainTime == 0) {
 					closeCoinModal();
 					if (totalCoinReceived > 0) {
@@ -926,15 +1054,17 @@ function checkCoin() {
 				$("#noticeDiv").attr('style', 'display: block');
 				$("#noticeText").html("Verifying, please wait..");
 			} else {
+				try { dbgLog("checkCoin end errorCode=" + data.errorCode, "dbg-err"); } catch (e) { }
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
 				timer = null;
 				insertingCoin = false;
 			}
-		}, error: function (xhr, status) {
+		}, error: function (xhr, status, err) {
 			if (status === "abort") return;
 			checkCoinFailStreak++;
 			console.log('checkCoin error (' + status + '), streak ' + checkCoinFailStreak);
+			dbgAjaxErr("checkCoin streak=" + checkCoinFailStreak, xhr, status, err);
 			if (checkCoinFailStreak >= 5) {
 				$("#noticeDiv").attr('style', 'display: block');
 				$("#noticeText").html("ESP unreachable — check power &amp; WiFi, then tap Cancel to retry.");
@@ -998,6 +1128,7 @@ function resume() {
 }
 
 function notifyCoinSlotError(errorCode) {
+	try { dbgLog("portal error: " + (errorCodeMap[errorCode] || ("Request failed (" + errorCode + ")")), "dbg-err"); } catch (e) { }
 	$.toast({ title: 'Error', content: errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again'), type: 'error', delay: 5000 });
 }
 
@@ -1013,8 +1144,5 @@ function secondsToDhms(seconds) {
 	var m = Math.floor(seconds % 3600 / 60);
 	var s = Math.floor(seconds % 60);
 	var dDisplay = d > 0 ? d + (d == 1 ? " Day " : " Days ") : "";
-	var hDisplay = h > 0 ? h + (h == 1 ? "" : "") : "0";
-	var mDisplay = m > 0 ? m + (m == 1 ? "" : "") : "0";
-	var sDisplay = s > 0 ? s + (s == 1 ? "" : "") : "0";
-	return dDisplay + " " + hDisplay + "h : " + mDisplay + "m : " + sDisplay + "s";
+	return dDisplay + " " + h + "h : " + m + "m : " + s + "s";
 }
