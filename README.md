@@ -48,15 +48,15 @@ Save and let it restart. Change the admin password after first login.
 Set up a hotspot server first, then paste each block into the MikroTik terminal
 (New Terminal). Order matters.
 
-Let the vendo talk to the router (replace `JuanfiVendo` list usage as-is):
+Let the vendo talk to the router (vendo at `10.0.0.254`):
 
 ```bash
-/ip hotspot walled-garden ip add action=accept disabled=no dst-address-list=JuanfiVendo
-/ip firewall filter add action=accept chain=input place-before=0 comment=JuanfiVendo src-address-list=JuanfiVendo
+/ip hotspot walled-garden ip add action=accept disabled=no dst-address=10.0.0.254 comment="JuanFi vendo"
+/ip firewall filter add action=accept chain=input place-before=0 src-address=10.0.0.254 comment="JuanFi vendo"
 ```
 
 Give the vendo a static lease: IP -> DHCP Server -> Leases, find `10.0.0.254`,
-Make Static, set Address-List to `JuanfiVendo`. Then Hotspot -> IP Bindings:
+Make Static. Then Hotspot -> IP Bindings:
 add the vendo MAC/IP as Bypassed (Server: all).
 
 Create the API user the vendo logs in with (must match step 2):
@@ -65,19 +65,9 @@ Create the API user the vendo logs in with (must match step 2):
 /user add name=pisonet password=abc123 group=full disabled=no
 ```
 
-Already pasted the old income tracker? Remove its leftovers (now unused —
-sales live in the vendo admin dashboard, not on the router):
-
-```bash
-/system scheduler remove [find name="Reset Daily Income"]
-/system scheduler remove [find name="Reset Monthly Income"]
-/system script remove [find name=todayincome]
-/system script remove [find name=monthlyincome]
-```
-
 ### Router clock (fixes 1970-time voucher issues)
 
-RouterOS v6 (`servers=` doesn't exist there — that's the column 36 error):
+RouterOS v6:
 
 ```bash
 /system ntp client set enabled=yes primary-ntp=216.239.35.8 secondary-ntp=216.239.35.4
@@ -99,7 +89,7 @@ HTTP Cookie Lifetime `7d`, tick **Login by MAC Cookie**, MAC Cookie
 Timeout `30d`. Hotspot -> **User Profiles** -> `default` (the profile
 vendo users land on unless `VOUCHER_PROFILE` says otherwise):
 Idle Timeout `none` (leave blank), Keepalive Timeout `30s`,
-Status Autorefresh `30s`.
+Status Autorefresh `1m`.
 
 Same via terminal (replace `hsprof1` if your server profile is named
 differently; check your current login methods first with
@@ -107,13 +97,13 @@ differently; check your current login methods first with
 
 ```bash
 /ip hotspot profile set [find name="hsprof1"] http-cookie-lifetime=7d mac-cookie-timeout=30d login-by=cookie,http-chap,http-pap,mac-cookie
-/ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=30s
+/ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m
 ```
 
-Note: the status page's own autorefresh counts as traffic, so with
-autorefresh equal to keepalive, sessions stay up while the page is open —
-that combination is intentional here (pause/resume relies on it), but if
-idle users never expire, check the defconf FastTrack rule first
+Note: the status page's own autorefresh counts as traffic, so while the
+page is open the session looks active — with autorefresh (`1m`) longer
+than keepalive (`30s`), idle expiry still works once the page is closed.
+If idle users never expire at all, check the defconf FastTrack rule first
 (fasttracked traffic skips idle accounting).
 
 ## 4. Hotspot login script (On Login)
@@ -200,6 +190,15 @@ the paste clean; see the original README for the telegram snippet.)
    vendo IP (`10.0.0.254` by default).
 2. Upload the `hotspot/` folder contents to the router's
    `hotspot` directory (Files window, drag and drop).
+3. Optional branding: same `config.js` — site ID plus header/footer
+   (ships as JuanFiV2, change per site):
+
+```js
+var venueId = "JUANFIV2";
+var brandHeaderHtml = "JuanFi<em>V2</em>";
+var footerBrandText = "@JUANFIV2";
+var footerSubText = "INTERNET SERVICES";
+```
 
 ## 6. Nightly reboot (optional)
 
