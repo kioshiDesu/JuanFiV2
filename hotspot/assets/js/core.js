@@ -470,6 +470,8 @@ function startCountdown() {
 		return;
 	}
 	time = parseInt(time);
+	var total = time;
+	var warned5 = false, warned1 = false;
 	$("#remainTime").html(compactDhms(time));
 	paintCountdownUrgency(time);
 	fitCountdown("#remainTime");
@@ -479,6 +481,21 @@ function startCountdown() {
 		$("#remainTime").html(compactDhms(time));
 		paintCountdownUrgency(time);
 		fitCountdown("#remainTime");
+		// One-shot low-time notices (in-page: no permission needed, works
+		// over plain HTTP). Skipped when the whole session is shorter than
+		// the threshold so the message is never wrong.
+		if (!warned5 && total > 300 && time <= 300) {
+			warned5 = true;
+			$.toast({ title: 'Running low', content: '5 minutes remaining — tap EXTEND TIME to add more', type: 'warning', delay: 5000 });
+		}
+		if (!warned1 && total > 60 && time <= 60) {
+			warned1 = true;
+			$.toast({ title: 'Almost out', content: '1 minute remaining! Tap EXTEND TIME now or you will be logged out', type: 'warning', delay: 8000 });
+			try {
+				sfxTone(880, 120, "square", 0.14);
+				sfxTone(880, 120, "square", 0.14, 200);
+			} catch (e) { }
+		}
 		if (time <= 0) {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
 			clearInterval(window.remainingTimer);
