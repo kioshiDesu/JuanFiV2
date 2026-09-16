@@ -215,17 +215,13 @@ function eraseCookie(name) {
 
 // Venue-scoped voucher storage — same browser visiting two neighbouring
 // vendos at 10.0.0.1 would otherwise share one localStorage key and a
-// neighbour's 1FI code would auto-fill here. Scope by venueId (unique
-// per site) falling back to vendorIp.
-// Scope order: an explicit per-site venueId (operator override) wins;
-// otherwise the router-published site ID auto-isolates identical portal
-// copies across sites sharing one origin/IP; venueId/vendorIp are fallbacks.
+// neighbour's 1FI code would auto-fill here. Scope is the router-published
+// site ID (board serial); vendorIp is only a last-resort fallback.
+// Scope order: site ID first, then vendorIp, then hotspotAddress.
 function venueScopeSuffix() {
 	var v = "";
 	try {
-		if (typeof venueId !== 'undefined' && venueId && venueId !== "JUANFIV2") v = venueId;
-		else if (typeof siteIdSuffix !== 'undefined' && siteIdSuffix) v = siteIdSuffix;
-		else if (typeof venueId !== 'undefined' && venueId) v = venueId;
+		if (typeof siteIdSuffix !== 'undefined' && siteIdSuffix) v = siteIdSuffix;
 		else if (typeof vendorIpAddress !== 'undefined' && vendorIpAddress) v = vendorIpAddress;
 		else if (typeof hotspotAddress !== 'undefined' && hotspotAddress) v = hotspotAddress;
 	} catch (e) { }
@@ -308,7 +304,7 @@ function macNoColon() {
 // data/site-id.txt from the board serial). Fire-and-forget: never gates the
 // boot jobs; on arrival re-scope the voucher the same way the multi-vendo
 // vendorIp step does. Missing file (scheduler not installed yet) fails fast
-// to a 404 and keeps venueId/vendorIp scoping.
+// to a 404 and keeps vendorIp scoping.
 function loadSiteId() {
 	$.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: 3000 })
 		.done(function (data) {
@@ -325,6 +321,7 @@ function loadSiteId() {
 					}
 				} catch (e) {}
 				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
+				try { renderSiteTag(); } catch (e) {}
 			}
 		})
 		.fail(function (xhr, status, err) { dbgAjaxErr("siteScope", xhr, status, err); });
@@ -684,7 +681,20 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
+		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
+}
+
+// Show the effective storage scope in the footer so support can tell which
+// site a report came from. Re-rendered when the async site-id file lands.
+function renderSiteTag() {
+	try {
+		var el = $("#siteTag");
+		if (!el || el.length === 0) { return; }
+		var s = "";
+		try { s = venueScopeSuffix(); } catch (e) {}
+		if (s) { el.text(s); }
+	} catch (e) {}
 }
 
 // ---------- focused blocks: one action on screen at a time (no modals) ----------

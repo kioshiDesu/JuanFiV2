@@ -211,9 +211,8 @@ from first boot, needs no reachable vendo and nothing typed per box:
 ```
 
 Run `/system script run publish-site-id` once after pasting (or reboot and let
-startup do it). Boards without a serial (CHR/x86) get no file — set an explicit
-`venueId` in `config.js` on those instead. Paste-test the `get serial-number`
-and `/file get [find ...]` lines on one live box before fleet rollout.
+startup do it). Boards without a serial (CHR/x86) get no file — the portal
+then falls back to vendorIp scoping, which is fine for single sites.
 
 Optional telegram sales alerts: set `isTelegram` to 1 and fill `iTBotToken` /
 `iTGrChatID` at the top of the login script. (Token block omitted here to keep
@@ -227,16 +226,14 @@ the paste clean; see the original README for the telegram snippet.)
    `hotspot` directory (Files window, drag and drop). Overwrite, don't
    delete the directory first — the scheduler keeps a published
    `data/site-id.txt` (board serial) there that auto-isolates saved vouchers per site.
-3. Site isolation is automatic via that site ID file: identical portal
-   files on every router, no per-site `config.js` needed. `venueId` is now
-   an optional override — it wins only when changed from the default.
-3. Optional branding: same `config.js` — site ID plus header/footer
-   (ships as JuanFiV2, change per site):
+3. Site isolation is automatic via that site ID file (board serial):
+   identical portal files on every router, no per-site `config.js` needed.
+   There is no manual ID to forget on returns or redeploys.
+4. Optional branding: same `config.js` — header/footer only:
 
 ```js
-var venueId = "JUANFIV2";
-var brandHeaderHtml = "JuanFi<em>V2</em>";
-var footerBrandText = "@JUANFIV2";
+var brandHeaderHtml = "BRO<em>BRO</em>";
+var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
 
