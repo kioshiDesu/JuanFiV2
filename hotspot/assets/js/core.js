@@ -649,7 +649,7 @@ function cancelCoin() {
 			type: "POST",
 			url: "http://" + vendorIpAddress + "/cancelTopUp",
 			timeout: 5000,
-			data: "voucher=" + voucher + "&mac=" + mac,
+			data: { voucher: voucher, mac: mac },
 			success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
 			error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
 		});
@@ -901,7 +901,7 @@ function callTopupAPI(retryCount) {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/topUp",
 		timeout: 5000,
-		data: "voucher=" + voucher + "&mac=" + mac + "&extendTime=" + (isExtend ? "1" : "0"),
+		data: { voucher: voucher, mac: mac, extendTime: (isExtend ? "1" : "0") },
 		complete: function(){ currentTopUpXhr = null; },
 		success: function (data) {
 			$("#loaderDiv").attr("class", "spinner hidden");
@@ -956,7 +956,7 @@ function saveVoucherBtnAction() {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
 		timeout: 5000,
-		data: "voucher=" + voucher,
+		data: { voucher: voucher },
 		success: function (data) {
 			totalCoinReceived = 0;
 			insertingCoin = false;
@@ -1020,7 +1020,7 @@ function checkCoin() {
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/checkCoin",
 		timeout: 5000,
-		data: "voucher=" + voucher,
+		data: { voucher: voucher },
 		success: function (data) {
 			checkCoinFailStreak = 0;
 			$("#noticeDiv").attr('style', 'display: none');
