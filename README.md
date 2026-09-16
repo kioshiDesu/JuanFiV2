@@ -227,9 +227,11 @@ the paste clean; see the original README for the telegram snippet.)
    delete the directory first — the scheduler keeps a published
    `data/site-id.txt` (board serial) there that auto-isolates saved vouchers per site.
 3. Site isolation is automatic via that site ID file (board serial):
-   identical portal files on every router, no per-site `config.js` needed.
-   There is no manual ID to forget on returns or redeploys.
-4. Optional branding: same `config.js` — header/footer only:
+   no per-site config needed for isolation. Branding (`brandHeaderHtml`
+   etc.) is still per-site display — set the homeowner name on each
+   router's copy; it never affects isolation.
+4. Optional branding: same `config.js` — header (homeowner) + footer
+   (your company):
 
 ```js
 var brandHeaderHtml = "BRO<em>BRO</em>";

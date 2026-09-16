@@ -501,14 +501,14 @@ function render(state) {
 	setPortalState(state);
 	var pill = '';
 	if (state == "login") {
-		pill = '<span class="status-disconnected">Status: <span class="blinking1">Disconnected</span></span>';
+		pill = '<span class="pill pill-off"><span class="dot"></span>Offline</span>';
 		$("#connPill").html(pill);
 		return;
 	}
 	if (state == "status") {
-		pill = '<span class="status-connected">Status: <span class="blinking2" style="color: #4cd137">Connected</span></span>';
+		pill = '<span class="pill pill-on"><span class="dot"></span>Connected</span>';
 	} else {
-		pill = '<span class="status-connected">Status: <span class="blinking1" style="color: #4cd137">Paused</span></span>';
+		pill = '<span class="pill pill-pause"><span class="dot"></span>Paused</span>';
 	}
 	$("#connPill").html(pill);
 	if (state == "status") {

@@ -14,6 +14,6 @@ var multiVendoAddresses = [
 var vendorIpAddress = "10.0.0.254"; //ESP Address
 
 // Branding — header + footer (change per site without touching portal.html)
-var brandHeaderHtml = "BRO<em>BRO</em>";
+var brandHeaderHtml = "TINDAHAN<em>LALA</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";

@@ -103,22 +103,64 @@
 }
 .topbar .brandmark {
     padding: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+    text-align: left;
 }
 .topbar .brand-big {
     font-size: 26px;
 }
+/* Homeowner names vary in length and must never truncate: shrink + wrap
+   on narrow phones, pill keeps its full text beside it. */
+#connPill {
+    flex-shrink: 0;
+}
+@media (max-width: 380px) {
+    .topbar .brand-big {
+        font-size: 20px;
+        line-height: 1.1;
+    }
+}
 .topbar .brand-sub {
     display: none;
 }
-#connPill .status-disconnected,
-#connPill .status-connected {
-    border: none;
-    padding: 0;
-    color: #fff;
-    line-height: 1.2;
-    font-size: 16px;
+#connPill .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
     font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #fff;
     white-space: nowrap;
+}
+#connPill .pill .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+#connPill .pill-on {
+    background: rgba(76, 209, 55, .16);
+    color: #4cd137;
+}
+#connPill .pill-on .dot {
+    animation: pulseDot 1.6s infinite;
+}
+#connPill .pill-pause {
+    background: rgba(255, 168, 0, .16);
+    color: #ffa800;
+}
+#connPill .pill-off {
+    background: rgba(164, 176, 190, .16);
+    color: #a4b0be;
+}
+@keyframes pulseDot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
 }
 .clientline {
     color: #5b6570;
