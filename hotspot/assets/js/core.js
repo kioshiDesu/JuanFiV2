@@ -434,6 +434,32 @@ function boot() {
 	});
 }
 
+// Read live session facts out of the status page. Prefers data-* attributes
+// on #loginBody (exact values, immune to JS formatting drift); falls back to
+// the legacy inline-JS regex for older shells or parsers without text/html
+// DOM support.
+function parseStatusFacts(html) {
+	var facts = { voucher: "", sessiontime: "" };
+	try {
+		var doc = new DOMParser().parseFromString(String(html), "text/html");
+		var root = doc.getElementById("loginBody") || doc.body;
+		if (root) {
+			var cv = root.getAttribute("data-current-voucher");
+			var st = root.getAttribute("data-session-time");
+			if (cv) { facts.voucher = cv; }
+			if (st) { facts.sessiontime = st; }
+			if (facts.voucher || facts.sessiontime) { return facts; }
+		}
+	} catch (e) {}
+	try {
+		var m = String(html).match(/(?:var|window\.)currentVoucher\s*=\s*"([^"]*)"/);
+		if (m) { facts.voucher = m[1]; }
+		var t = String(html).match(/(?:var|window\.)sessiontime\s*=\s*"([^"]*)"/);
+		if (t) { facts.sessiontime = t[1]; }
+	} catch (e) {}
+	return facts;
+}
+
 // Probe the router for the real client state and render the matching view,
 // document.write-style: one file, UI follows the session, not the filename.
 function detectState() {
@@ -457,14 +483,15 @@ function detectState() {
 			d.resolve("login");
 		} else {
 			// Logged in: lift live session facts out of the status page itself.
-			var m = html.match(/(?:var|window\.)currentVoucher\s*=\s*"([^"]*)"/);
-			if (m) {
-				window.currentVoucher = m[1];
-				voucher = m[1];
-				setActiveVoucher( m[1]);
-			}
-			var t = html.match(/(?:var|window\.)sessiontime\s*=\s*"([^"]*)"/);
-			if (t) { window.sessiontime = t[1]; }
+			try {
+				var facts = parseStatusFacts(html);
+				if (facts.voucher) {
+					window.currentVoucher = facts.voucher;
+					voucher = facts.voucher;
+					setActiveVoucher( facts.voucher);
+				}
+				if (facts.sessiontime) { window.sessiontime = facts.sessiontime; }
+			} catch (e) {}
 			d.resolve("status");
 		}
 	}).fail(function () {
