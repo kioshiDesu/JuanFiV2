@@ -71,6 +71,9 @@ var insertingCoin = false;
 var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
+// Per-site scope from the router-published ESP MAC (data/esp.txt, written by
+// the On-Login script). Empty until the async boot fetch lands; venueScopeSuffix()
+// falls back to venueId/vendorIp meanwhile.
 
 // Built-in sounds: WebAudio synth + vibration, no MP3 files needed.
 // Works offline; degrades silently where unsupported (e.g. iOS vibration).
@@ -213,10 +216,15 @@ function eraseCookie(name) {
 // vendos at 10.0.0.1 would otherwise share one localStorage key and a
 // neighbour's 1FI code would auto-fill here. Scope by venueId (unique
 // per site) falling back to vendorIp.
+// Scope order: an explicit per-site venueId (operator override) wins;
+// otherwise the router-published ESP MAC auto-isolates identical portal
+// copies across sites sharing one origin/IP; venueId/vendorIp are fallbacks.
 function venueScopeSuffix() {
 	var v = "";
 	try {
-		if (typeof venueId !== 'undefined' && venueId) v = venueId;
+		if (typeof venueId !== 'undefined' && venueId && venueId !== "JUANFIV2") v = venueId;
+		else if (typeof espMacSuffix !== 'undefined' && espMacSuffix) v = espMacSuffix;
+		else if (typeof venueId !== 'undefined' && venueId) v = venueId;
 		else if (typeof vendorIpAddress !== 'undefined' && vendorIpAddress) v = vendorIpAddress;
 		else if (typeof hotspotAddress !== 'undefined' && hotspotAddress) v = hotspotAddress;
 	} catch (e) { }
@@ -247,8 +255,77 @@ function getReLoginFlag() { return getStorageValue(scopedKey('reLogin')); }
 function setReLoginFlag() { return setStorageValue(scopedKey('reLogin'), "1"); }
 function removeReLoginFlag() { return removeStorageValue(scopedKey('reLogin')); }
 
+// Scoped migration wipe: removes only portal-owned keys. Never
+// localStorage.clear() — that would nuke foreign data stored by any other
+// app on this hotspot origin. Covers legacy bare keys, venue-scoped keys
+// (<base>_<anything>, suffix-agnostic so renames and ESP swaps can't strand
+// orphans) and per-voucher keys (<voucher>remain/tempValidity/validity)
+// for every voucher code still on record.
+function wipePortalStorage() {
+	var fixed = ["activeVoucher", "activeVoucher_ts", "isPaused", "forceLogout",
+		"redirectLogin", "ignoreSaveCode", "insertCoinRefreshed",
+		"totalCoinReceived", "reLogin", "selectedVendo"];
+	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin"];
+	var vouchers = [];
+	try {
+	// Raw reads on purpose: getActiveVoucher() can expire-and-delete a
+		// stale code (7-day check) before we harvest it for dynamic keys.
+		var bare = getStorageValue('activeVoucher');
+		if (bare) { vouchers.push(bare); }
+		try {
+			var sc = getStorageValue(scopedKey('activeVoucher'));
+			if (sc && vouchers.indexOf(sc) < 0) { vouchers.push(sc); }
+		} catch (e) {}
+	} catch (e) {}
+	try {
+		if (typeof localStorage === 'undefined' || localStorage == null) { return; }
+		var kill = [];
+		for (var i = 0; i < localStorage.length; i++) {
+			var k = localStorage.key(i);
+			if (k == null) { continue; }
+			if (fixed.indexOf(k) >= 0) { kill.push(k); continue; }
+			var scopedHit = false;
+			for (var b = 0; b < scopedBases.length; b++) {
+				if (k === scopedBases[b] || k.indexOf(scopedBases[b] + "_") === 0) { kill.push(k); scopedHit = true; break; }
+			}
+			if (scopedHit) { continue; }
+			for (var v = 0; v < vouchers.length; v++) {
+				if (vouchers[v] && (k === vouchers[v] + "remain" ||
+					k === vouchers[v] + "tempValidity" ||
+					k === vouchers[v] + "validity")) { kill.push(k); break; }
+			}
+		}
+		for (var j = 0; j < kill.length; j++) { try { localStorage.removeItem(kill[j]); } catch (e) {} }
+	} catch (e) {}
+}
+
 function macNoColon() {
 	return String(mac).split(":").join("");
+}
+
+// Fetch the router-published ESP MAC (On-Login script writes data/esp.txt).
+// Fire-and-forget: never gates the boot jobs; on arrival re-scope the voucher
+// the same way the multi-vendo vendorIp step does. Missing file (script not
+// installed yet) fails fast to a 404 and keeps venueId/vendorIp scoping.
+function loadEspMac() {
+	$.ajax({ type: "GET", url: "/data/esp.txt?date=" + (new Date().getTime()), timeout: 3000 })
+		.done(function (data) {
+			var m = String(data == null ? "" : data).replace(/[^A-Fa-f0-9]/g, "");
+			if (/^[A-Fa-f0-9]{12}$/.test(m)) {
+				try { espMacSuffix = m.toUpperCase(); } catch (e) {}
+				try {
+					var scopedV = getActiveVoucher();
+					if (scopedV != null && scopedV !== voucher) {
+						voucher = scopedV;
+						if (voucher != "" && $("#voucherInput").length > 0 && !$("#voucherInput").val()) {
+							$('#voucherInput').val(voucher);
+						}
+					}
+				} catch (e) {}
+				try { dbgLog("site scope: ESP " + espMacSuffix, "dbg-ok"); } catch (e) {}
+			}
+		})
+		.fail(function (xhr, status, err) { dbgAjaxErr("espScope", xhr, status, err); });
 }
 
 // ---------- boot loader ----------
@@ -313,7 +390,7 @@ function boot() {
 				"redirectLogin", "ignoreSaveCode", "insertCoinRefreshed",
 				"totalCoinReceived", "reLogin", "selectedVendo"];
 			for (var w = 0; w < wipeKeys.length; w++) { eraseCookie(wipeKeys[w]); }
-			if (typeof localStorage !== 'undefined' && localStorage != null) { localStorage.clear(); }
+			wipePortalStorage();
 			setStorageValue("portalBuild", "r5");
 			voucher = "";
 		}
@@ -326,6 +403,8 @@ function boot() {
 		var scopedV = getActiveVoucher();
 		if (scopedV != null && scopedV !== voucher) { voucher = scopedV; }
 	} catch(e){}
+	// Site scope arrives async (ESP MAC file); re-scope again on arrival.
+	try { loadEspMac(); } catch (e) {}
 	if (voucher != "" && $("#voucherInput").length > 0) {
 		$('#voucherInput').val(voucher);
 	}

@@ -169,6 +169,33 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
     :local x 10;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
     /file set "$HSFilePath/data/$iFileMac" contents="$user#$iValidUntil";
   }
+# Publish ESP MAC so identical portal copies auto-isolate saved vouchers
+# per site (no per-site config.js). Refreshes itself if the ESP is swapped;
+# writes the file only when the hardware changes (flash wear).
+  :local espIp "10.0.0.254";
+  :do { /ping $espIp count=1 } on-error={};
+  :local espArp [/ip arp find address=$espIp];
+  :if ([:len $espArp] > 0) do={
+    :local espMac [/ip arp get ($espArp->0) mac-address];
+    :if ($espMac != "") do={
+      :local espId "";
+      :for i from=0 to=([:len $espMac] - 1) do={
+        :local chr [:pick $espMac $i];
+        :if ($chr = ":") do={ :set $chr "" };
+        :set espId ($espId . $chr);
+      }
+      :local espFile ($HSFilePath . "/data/esp.txt");
+      :local espOld "";
+      :do { :set espOld [/file get [find name=$espFile] contents] } on-error={};
+      :if ($espOld != $espId) do={
+        :if ([/file find name=$espFile] = "") do={
+          /file print file=$espFile where name="dummyfile";
+          :local x 10;:while (($x>0) and ([/file find name=$espFile]="")) do={:set x ($x-1);:delay 1s};
+        }
+        /file set "$espFile" contents="$espId";
+      }
+    }
+  }
 };
 ```
 
@@ -189,7 +216,12 @@ the paste clean; see the original README for the telegram snippet.)
 1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your
    vendo IP (`10.0.0.254` by default).
 2. Upload the `hotspot/` folder contents to the router's
-   `hotspot` directory (Files window, drag and drop).
+   `hotspot` directory (Files window, drag and drop). Overwrite, don't
+   delete the directory first — the On-Login script keeps a published
+   `data/esp.txt` (ESP MAC) there that auto-isolates saved vouchers per site.
+3. Site isolation is automatic via that ESP MAC file: identical portal
+   files on every router, no per-site `config.js` needed. `venueId` is now
+   an optional override — it wins only when changed from the default.
 3. Optional branding: same `config.js` — site ID plus header/footer
    (ships as JuanFiV2, change per site):
 
