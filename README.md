@@ -184,10 +184,15 @@ its storage to. Write-once (never rotates, so saved vouchers survive), exists
 from first boot, needs no reachable vendo and nothing typed per box:
 
 ```bash
-/system script add name="publish-site-id" policy=read,write source={
+/system script add name="publish-site-id" policy=read,write,ftp,test source={
   :local HSFilePath "hotspot";
   :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
   :local siteFile ($HSFilePath . "/data/site-id.txt");
+  # Ensure the data directory exists first: virgin boxes (fresh portal upload,
+  # no logins yet) have no hotspot/data/, and file creation fails without it.
+  :if ([/file find name=($HSFilePath . "/data")] = "") do={
+    :do { /tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/" } on-error={};
+  }
   # Treat a missing file AND an empty one as unwritten: an interrupted first
   # run can leave a 0-byte file behind that later runs would otherwise skip.
   :local siteOld "";
@@ -202,7 +207,7 @@ from first boot, needs no reachable vendo and nothing typed per box:
     }
   }
 };
-/system scheduler add name="publish-site-id" start-time=startup interval=1d policy=read,write on-event="/system script run publish-site-id";
+/system scheduler add name="publish-site-id" start-time=startup interval=1d policy=read,write,ftp,test on-event="/system script run publish-site-id";
 ```
 
 Run `/system script run publish-site-id` once after pasting (or reboot and let
