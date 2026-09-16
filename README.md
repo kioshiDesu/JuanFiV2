@@ -1,32 +1,27 @@
-# JuanFiV2
+# JuanFiV2 Hotspot Portal
 
 > Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2).
-> Fork of the original **JuanFi** by Ivan Julius Alayan —
-> full [original README here](https://github.com/ivanalayan15/JuanFi#readme).
+
+MikroTik hotspot portal + router setup for a coinslot vendo system
+(ESP8266 wireless). Portal files only — no firmware in this repo.
+Tested against original JuanFi ESP firmware
+([original README](https://github.com/ivanalayan15/JuanFi#readme)).
 
 Coinslot vendo system for MikroTik Hotspot (ESP8266 wireless).
-Vouchers look like `1FI` + 5 chars, work from any AP on the same router.
+Vouchers are issued by the vendo firmware and work from any AP on the
+same router.
 
 ## Requirements
 
-- NodeMCU ESP8266 (wireless) + baseboard
+- ESP8266 vendo running JuanFi firmware + baseboard
 - Coinslot, MikroTik router, access point
 - 12V supply for NodeMCU and MikroTik
 
-## 1. Flash the firmware
+## 1. Vendo firmware
 
-Get the ESP8266 bin from the [Releases page](https://github.com/kioshiDesu/JuanFiV2/releases)
-(`JuanFiV2-ESP8266-Wireless-*.zip`; new bins build automatically when a `v*`
-tag is pushed), or compile `JuanFi-nodemcu/` yourself
-with the Arduino IDE (NodeMCU 1.0, ESP8266 core) — only the
-`ESP8266-Telnet-Client` library is needed on top of the core.
-
-ESP8266 with NodeMCU-PyFlasher, flash in this order:
-
-```text
-File 1: JuanFi-FlashFile1.bin at offset 0x000000
-File 2: JuanFi-FlashFile2.bin at offset 0x200000
-```
+Flash the ESP8266 with original JuanFi firmware following its own docs,
+then continue below. This repo only ships the hotspot portal and the
+RouterOS setup that goes with it.
 
 ## 2. First-time vendo setup
 
@@ -245,15 +240,6 @@ while a customer session or coin wait is active. Put your admin password in.
 ```bash
 /system scheduler add interval=1d name="Restart Vendo" on-event="/tool fetch http-method=post url=\"http://10.0.0.254/admin/api/restartSystem\" user=\"admin\" password=\"YOUR_ADMIN_PASSWORD\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=03:00:00;
 ```
-
-## Acknowledgments
-
-Fork of **JuanFi** by **Ivan Julius Alayan** — original repo, website, app,
-diagrams and scripts remain his work:
-[original README](https://github.com/ivanalayan15/JuanFi#readme) ·
-[juanfi.juansystems.com](https://juanfi.juansystems.com/) ·
-[JuanFi Manager app](https://play.google.com/store/apps/details?id=com.juanfi.mobile.admin).
-Diagram updates by Tee Ay, sales script contributions by kristoff.
 
 ## License
 

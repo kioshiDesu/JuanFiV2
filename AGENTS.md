@@ -1,27 +1,20 @@
-# AGENTS.md — JuanFiV2
+# AGENTS.md — JuanFiV2 Hotspot Portal
 
-Coinslot vendo system: ESP8266 firmware (`JuanFi-nodemcu/`) + MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §3–4). No npm/build/test/lint — do not invent commands. Firmware CI lives in `.github/workflows/firmware-release.yml` (runs on `v*` tags and manual dispatch only, never on pushes: compiles ESP8266 with pinned core, zips bins, attaches to the GitHub Release); hardware verification is still careful diff review, no test harness. Local builds use `arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2:eesz=4M2M JuanFi-nodemcu/JuanFi-nodemcu.ino` (needs the `ESP8266-Telnet-Client` library; `src/base64.h` is vendored).
+MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §3–4), tested against original JuanFi ESP firmware. No npm/build/test/lint — do not invent commands. No firmware in this repo (releases + `JuanFi-nodemcu/` removed); hardware verification is careful diff review, no test harness.
 
 ## Layout
 
-- `JuanFi-nodemcu/JuanFi-nodemcu.ino` — entire firmware, single ESP8266-only sketch. Entry points: `setup()`, `loop()`. There is no ESP32/LAN code path; do not reintroduce `#ifdef ESP32`.
-- `JuanFi-nodemcu/data/admin/` — SPIFFS filesystem image flashed alongside the sketch (`system-config.html`, `voucher-generate.html`, `config/system.data`, `config/rates.data`, `js/`). Portal/admin UI reads these at runtime.
 - `hotspot/` — canonical hotspot portal (upload its **contents** to the router's `hotspot` dir), one self-rendering file: `portal.html` holds all UI (login+status+paused views, rates inline table, inline coin/member/QR sections — no modals) and probes `/status` at boot to render the matching view (`?state=` forces one); `login.html` / `status.html` are thin router shells (refresh-timeout + MikroTik vars into `window.*`, CHAP secrets on login, `./assets/js/boot.js` injects the app), `logout.html` is a script-only redirect back to `login` (auto-login lands on status). Edit UI only in `portal.html`. Shared `assets/js/core.js` (`detectState()`/`render()`/`boot()`, focus-mode `showCoinPanel`/`toggleBlock`, 9s failsafe).
-- `README.md` §3–4 — canonical RouterOS scheduler/script + hotspot On-Login/On-Logout snippets. Root `NodeMCU-PyFlasher.exe` flashes ESP8266 (FlashFile1 @ 0x000000, FlashFile2 @ 0x200000).
-- `.agents/skills/` + `skills-lock.json` are local-only (gitignored). Load `arduino-code-generator` or `platformio` for `.ino` work, `routeros-scripting` for `.rsc`/hotspot scripts.
+- `README.md` §3–4 — canonical RouterOS scheduler/script + hotspot On-Login/On-Logout snippets.
+- `.agents/skills/` + `skills-lock.json` are local-only (gitignored). Load `routeros-scripting` for `.rsc`/hotspot scripts.
 
-## Firmware quirks (would break hardware if missed)
+## Vendo API quirks (would break the coin flow if missed)
 
-- Wireless only: `ESP8266WebServer`, WiFi STA; falls back to softAP `JuanFiV2 Setup` at `172.217.28.1` when offline. Always compile with `esp8266:esp8266:nodemcuv2`.
-- `populateSystemConfiguration()` parses `config/system.data` as **positional, 31 `|`-delimited fields**; `populateRates()` parses `rates.data` as `|` rows of `#` columns (`name#price#minutes#validity#dataLimit#profile`). Never reorder/add fields without updating both the parser and `system-config.html`.
-- `handleFileWrite()` silently fails if the target file does not already exist in SPIFFS — new config files must ship in `data/` first.
-- `sendCommand()` drops MikroTik telnet commands >400 chars. Keep generated RouterOS one-liners short.
-- Voucher format is `VOUCHER_PREFIX` (default `1FI`) + 5 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`. Portal ↔ firmware flow is `topUp → checkCoin → useVoucher` (`cancelTopUp` aborts); endpoints enforce single-session via `currentActiveVoucher` + `sessionIp`. Preserve the guards: Basic-auth 5-fail/60s lockout, `isValidVoucherCode`/`isValidKickTarget`, `handleFileRead` `..` traversal block, busy-restart refusal in `handleAdminRestart`.
+- Portal ↔ vendo flow is `topUp → checkCoin → useVoucher` (`cancelTopUp` aborts). Voucher codes are issued by the vendo firmware (e.g. `VCxxxxxx` on the original firmware) — the portal passes them through opaquely, never assume a prefix.
 
-## Previewing the admin UI (no hardware needed)
+## Previewing the portal (no hardware needed)
 
-- Mock server: `node "C:\Users\pisowifi\AppData\Local\Temp\opencode\preview-webadmin.mjs" 8088`, then open `http://localhost:8088/admin`. It serves `data/admin/` and fakes `/admin/api/*` (`dashboard`, `getSystemConfig`, `getRates`, `issuedUsers`); SAVE/kick/generate endpoints reply `ok` without writing. Re-run after editing the HTML — no rebuild.
-- Portal preview: `http://localhost:8088/portal/login|status|logout` serves `hotspot/` with `$(vars)` stubbed and `config.js` rewritten so vendo calls hit the mock engine (`/topUp`, `/checkCoin`, `/useVoucher`, `/cancelTopUp`, `/getRates`, `/data/*.txt` with firmware-identical JSON + greedy rate math). Mock coin sessions are keyed by voucher (phone + PC can test concurrently; same-voucher topUp retry is idempotent). Router login sessions are cookie-based: CONNECT (`/portal/done`) opens one with live countdown, pause keeps it, `erase-cookie` clears it. Simulate coins via `http://localhost:8088/mock` (insert ₱1/₱5/₱10 per session, reset).
+- Mock server: `node "C:\Users\pisowifi\AppData\Local\Temp\opencode\preview-webadmin.mjs" 8088`, then open `http://localhost:8088/portal/login|status|logout`. with `$(vars)` stubbed and `config.js` rewritten so vendo calls hit the mock engine (`/topUp`, `/checkCoin`, `/useVoucher`, `/cancelTopUp`, `/getRates`, `/data/*.txt` with firmware-identical JSON + greedy rate math). Mock coin sessions are keyed by voucher (phone + PC can test concurrently; same-voucher topUp retry is idempotent). Router login sessions are cookie-based: CONNECT (`/portal/done`) opens one with live countdown, pause keeps it, `erase-cookie` clears it. Simulate coins via `http://localhost:8088/mock` (insert ₱1/₱5/₱10 per session, reset).
 - Live browser inspection: global `playwright` MCP is installed (`~/.config/opencode/opencode.jsonc`). After a config change, restart opencode, then use its `browser_navigate` / `browser_snapshot` tools on the localhost URL.
 
 ## Portal + RouterOS gotchas
