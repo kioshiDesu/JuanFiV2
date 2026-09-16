@@ -370,7 +370,7 @@ function detectState() {
 	if (getPausedFlag() == "1") {
 		removePausedFlag();
 	}
-	$.ajax({ type: "GET", url: "/status" }).done(function (data) {
+	$.ajax({ type: "GET", url: "/status", timeout: 3000 }).done(function (data) {
 		var html = String(data);
 		if (html.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") >= 0) {
 			d.resolve("login");
@@ -648,6 +648,7 @@ function cancelCoin() {
 		$.ajax({
 			type: "POST",
 			url: "http://" + vendorIpAddress + "/cancelTopUp",
+			timeout: 5000,
 			data: "voucher=" + voucher + "&mac=" + mac,
 			success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
 			error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
@@ -695,7 +696,8 @@ function loadRates() {
 	$("#ratesBody").html("<p>Loading promo rates…</p>");
 	return $.ajax({
 		type: "GET",
-		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime())
+		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime()),
+		timeout: 5000
 	}).done(function (data) {
 		try { dbgLog("getRates ok (" + String(data).length + " chars): " + String(data).slice(0, 120), "dbg-ok"); } catch (e) { }
 		var rows = String(data).split("|");
@@ -756,7 +758,7 @@ function resumeSession() {
 	var ignoreSaveCode = getStorageValue("ignoreSaveCode") || "0";
 	var insertCoinTrigger = getStorageValue("insertCoinRefreshed");
 	if (ignoreSaveCode != "1" && insertCoinTrigger != "1" && $("#voucherInput").length > 0) {
-		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime() })
+		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
 			.done(function (data) {
 				var parts = String(data).split("#");
 				var fileVoucher = (parts[0] || "").trim();
@@ -803,7 +805,7 @@ function renderExpiration(html) {
 function showValidity() {
 	setBootText("Loading session...");
 	var d = $.Deferred();
-	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime() })
+	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
 		.done(function (data) {
 			if (String(data).length > 50) {
 				if (fallbackValidity()) { d.resolve(); } else { d.reject(); }
@@ -865,6 +867,7 @@ function insertBtnAction() {
 		$.ajax({
 			type: "GET",
 			url: "/status",
+			timeout: 3000,
 			success: function (data) {
 				if (data.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					location.reload();
@@ -897,6 +900,7 @@ function callTopupAPI(retryCount) {
 	currentTopUpXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/topUp",
+		timeout: 5000,
 		data: "voucher=" + voucher + "&mac=" + mac + "&extendTime=" + (isExtend ? "1" : "0"),
 		complete: function(){ currentTopUpXhr = null; },
 		success: function (data) {
@@ -951,6 +955,7 @@ function saveVoucherBtnAction() {
 	$.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
+		timeout: 5000,
 		data: "voucher=" + voucher,
 		success: function (data) {
 			totalCoinReceived = 0;
@@ -1014,6 +1019,7 @@ function checkCoin() {
 	currentCheckCoinXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/checkCoin",
+		timeout: 5000,
 		data: "voucher=" + voucher,
 		success: function (data) {
 			checkCoinFailStreak = 0;
