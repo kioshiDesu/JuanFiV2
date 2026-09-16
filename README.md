@@ -193,7 +193,11 @@ from first boot, needs no reachable vendo and nothing typed per box:
   :local HSFilePath "hotspot";
   :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
   :local siteFile ($HSFilePath . "/data/site-id.txt");
-  :if ([/file find name=$siteFile] = "") do={
+  # Treat a missing file AND an empty one as unwritten: an interrupted first
+  # run can leave a 0-byte file behind that later runs would otherwise skip.
+  :local siteOld "";
+  :do { :set siteOld [/file get [find name=$siteFile] contents] } on-error={};
+  :if ($siteOld = "") do={
     :local sn "";
     :do { :set sn [/system routerboard get serial-number] } on-error={};
     :if ([:len $sn] >= 4) do={
