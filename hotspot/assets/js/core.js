@@ -71,9 +71,10 @@ var insertingCoin = false;
 var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
-// Per-site scope from the router-published ESP MAC (data/esp.txt, written by
-// the On-Login script). Empty until the async boot fetch lands; venueScopeSuffix()
-// falls back to venueId/vendorIp meanwhile.
+// Per-site scope from the router-published site ID (data/site-id.txt, written
+// by the publish-site-id scheduler from the board serial). Empty until the
+// async boot fetch lands; venueScopeSuffix() falls back meanwhile.
+var siteIdSuffix = "";
 
 // Built-in sounds: WebAudio synth + vibration, no MP3 files needed.
 // Works offline; degrades silently where unsupported (e.g. iOS vibration).
@@ -217,13 +218,13 @@ function eraseCookie(name) {
 // neighbour's 1FI code would auto-fill here. Scope by venueId (unique
 // per site) falling back to vendorIp.
 // Scope order: an explicit per-site venueId (operator override) wins;
-// otherwise the router-published ESP MAC auto-isolates identical portal
+// otherwise the router-published site ID auto-isolates identical portal
 // copies across sites sharing one origin/IP; venueId/vendorIp are fallbacks.
 function venueScopeSuffix() {
 	var v = "";
 	try {
 		if (typeof venueId !== 'undefined' && venueId && venueId !== "JUANFIV2") v = venueId;
-		else if (typeof espMacSuffix !== 'undefined' && espMacSuffix) v = espMacSuffix;
+		else if (typeof siteIdSuffix !== 'undefined' && siteIdSuffix) v = siteIdSuffix;
 		else if (typeof venueId !== 'undefined' && venueId) v = venueId;
 		else if (typeof vendorIpAddress !== 'undefined' && vendorIpAddress) v = vendorIpAddress;
 		else if (typeof hotspotAddress !== 'undefined' && hotspotAddress) v = hotspotAddress;
@@ -303,16 +304,17 @@ function macNoColon() {
 	return String(mac).split(":").join("");
 }
 
-// Fetch the router-published ESP MAC (On-Login script writes data/esp.txt).
-// Fire-and-forget: never gates the boot jobs; on arrival re-scope the voucher
-// the same way the multi-vendo vendorIp step does. Missing file (script not
-// installed yet) fails fast to a 404 and keeps venueId/vendorIp scoping.
-function loadEspMac() {
-	$.ajax({ type: "GET", url: "/data/esp.txt?date=" + (new Date().getTime()), timeout: 3000 })
+// Fetch the router-published site ID (publish-site-id scheduler writes
+// data/site-id.txt from the board serial). Fire-and-forget: never gates the
+// boot jobs; on arrival re-scope the voucher the same way the multi-vendo
+// vendorIp step does. Missing file (scheduler not installed yet) fails fast
+// to a 404 and keeps venueId/vendorIp scoping.
+function loadSiteId() {
+	$.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: 3000 })
 		.done(function (data) {
-			var m = String(data == null ? "" : data).replace(/[^A-Fa-f0-9]/g, "");
-			if (/^[A-Fa-f0-9]{12}$/.test(m)) {
-				try { espMacSuffix = m.toUpperCase(); } catch (e) {}
+			var m = String(data == null ? "" : data).replace(/[^A-Za-z0-9]/g, "");
+			if (/^[A-Za-z0-9]{4,32}$/.test(m)) {
+				try { siteIdSuffix = m.toUpperCase(); } catch (e) {}
 				try {
 					var scopedV = getActiveVoucher();
 					if (scopedV != null && scopedV !== voucher) {
@@ -322,10 +324,10 @@ function loadEspMac() {
 						}
 					}
 				} catch (e) {}
-				try { dbgLog("site scope: ESP " + espMacSuffix, "dbg-ok"); } catch (e) {}
+				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
 			}
 		})
-		.fail(function (xhr, status, err) { dbgAjaxErr("espScope", xhr, status, err); });
+		.fail(function (xhr, status, err) { dbgAjaxErr("siteScope", xhr, status, err); });
 }
 
 // ---------- boot loader ----------
@@ -403,8 +405,8 @@ function boot() {
 		var scopedV = getActiveVoucher();
 		if (scopedV != null && scopedV !== voucher) { voucher = scopedV; }
 	} catch(e){}
-	// Site scope arrives async (ESP MAC file); re-scope again on arrival.
-	try { loadEspMac(); } catch (e) {}
+	// Site scope arrives async (site-id file); re-scope again on arrival.
+	try { loadSiteId(); } catch (e) {}
 	if (voucher != "" && $("#voucherInput").length > 0) {
 		$('#voucherInput').val(voucher);
 	}

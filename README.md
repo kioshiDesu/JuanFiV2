@@ -169,33 +169,6 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
     :local x 10;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
     /file set "$HSFilePath/data/$iFileMac" contents="$user#$iValidUntil";
   }
-# Publish ESP MAC so identical portal copies auto-isolate saved vouchers
-# per site (no per-site config.js). Refreshes itself if the ESP is swapped;
-# writes the file only when the hardware changes (flash wear).
-  :local espIp "10.0.0.254";
-  :do { /ping $espIp count=1 } on-error={};
-  :local espArp [/ip arp find address=$espIp];
-  :if ([:len $espArp] > 0) do={
-    :local espMac [/ip arp get ($espArp->0) mac-address];
-    :if ($espMac != "") do={
-      :local espId "";
-      :for i from=0 to=([:len $espMac] - 1) do={
-        :local chr [:pick $espMac $i];
-        :if ($chr = ":") do={ :set $chr "" };
-        :set espId ($espId . $chr);
-      }
-      :local espFile ($HSFilePath . "/data/esp.txt");
-      :local espOld "";
-      :do { :set espOld [/file get [find name=$espFile] contents] } on-error={};
-      :if ($espOld != $espId) do={
-        :if ([/file find name=$espFile] = "") do={
-          /file print file=$espFile where name="dummyfile";
-          :local x 10;:while (($x>0) and ([/file find name=$espFile]="")) do={:set x ($x-1);:delay 1s};
-        }
-        /file set "$espFile" contents="$espId";
-      }
-    }
-  }
 };
 ```
 
@@ -207,6 +180,37 @@ On Logout script (same profile):
 }
 ```
 
+## 4b. Site ID publisher (scheduler, one paste per router)
+
+Identical portal files on every router still need one per-site value so saved
+vouchers don't leak across neighbouring sites sharing the `10.0.0.x` origin.
+This publishes the board serial to `data/site-id.txt`, which the portal scopes
+its storage to. Write-once (never rotates, so saved vouchers survive), exists
+from first boot, needs no reachable vendo and nothing typed per box:
+
+```bash
+/system script add name="publish-site-id" policy=read,write source={
+  :local HSFilePath "hotspot";
+  :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
+  :local siteFile ($HSFilePath . "/data/site-id.txt");
+  :if ([/file find name=$siteFile] = "") do={
+    :local sn "";
+    :do { :set sn [/system routerboard get serial-number] } on-error={};
+    :if ([:len $sn] >= 4) do={
+      /file print file=$siteFile where name="dummyfile";
+      :local x 10;:while (($x>0) and ([/file find name=$siteFile]="")) do={:set x ($x-1);:delay 1s};
+      /file set "$siteFile" contents="$sn";
+    }
+  }
+};
+/system scheduler add name="publish-site-id" start-time=startup interval=1d policy=read,write on-event="/system script run publish-site-id";
+```
+
+Run `/system script run publish-site-id` once after pasting (or reboot and let
+startup do it). Boards without a serial (CHR/x86) get no file — set an explicit
+`venueId` in `config.js` on those instead. Paste-test the `get serial-number`
+and `/file get [find ...]` lines on one live box before fleet rollout.
+
 Optional telegram sales alerts: set `isTelegram` to 1 and fill `iTBotToken` /
 `iTGrChatID` at the top of the login script. (Token block omitted here to keep
 the paste clean; see the original README for the telegram snippet.)
@@ -217,9 +221,9 @@ the paste clean; see the original README for the telegram snippet.)
    vendo IP (`10.0.0.254` by default).
 2. Upload the `hotspot/` folder contents to the router's
    `hotspot` directory (Files window, drag and drop). Overwrite, don't
-   delete the directory first — the On-Login script keeps a published
-   `data/esp.txt` (ESP MAC) there that auto-isolates saved vouchers per site.
-3. Site isolation is automatic via that ESP MAC file: identical portal
+   delete the directory first — the scheduler keeps a published
+   `data/site-id.txt` (board serial) there that auto-isolates saved vouchers per site.
+3. Site isolation is automatic via that site ID file: identical portal
    files on every router, no per-site `config.js` needed. `venueId` is now
    an optional override — it wins only when changed from the default.
 3. Optional branding: same `config.js` — site ID plus header/footer
