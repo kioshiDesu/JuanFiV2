@@ -205,6 +205,19 @@ Run `/system script run publish-site-id` once after pasting (or reboot and let
 startup do it). Boards without a serial (CHR/x86) get no file — the portal
 then falls back to vendorIp scoping, which is fine for single sites.
 
+Order matters — hotspot first, script second:
+
+1. Hotspot server exists and portal files are uploaded (so `hotspot/` and
+   `hotspot/data/` are present; a first customer login also creates `data/`).
+2. Paste the script + scheduler above, then run it once manually.
+3. Verify: `/file print where name="hotspot/data/site-id.txt"` must show
+   `contents=` with your board serial (Files window shows the text).
+   Empty or missing = the run failed; check the log for script errors.
+4. Confirm on a phone: the portal footer tag shows the serial. If it shows
+   `10_0_0_254` instead, the portal can't see the file (usually the script
+   ran before `hotspot/data/` existed) — fix the dir and re-run; the
+   snippet rewrites empty files by itself.
+
 Optional telegram sales alerts: set `isTelegram` to 1 and fill `iTBotToken` /
 `iTGrChatID` at the top of the login script. (Token block omitted here to keep
 the paste clean; see the original README for the telegram snippet.)

@@ -319,7 +319,10 @@ function loadSiteId() {
 				try { renderSiteTag(); } catch (e) {}
 			}
 		})
-		.fail(function (xhr, status, err) { dbgAjaxErr("siteScope", xhr, status, err); });
+		.fail(function (xhr, status, err) {
+			dbgAjaxErr("siteScope", xhr, status, err);
+			try { dbgLog("site-id missing, fallback scope in use"); } catch (e) { }
+		});
 }
 
 // ---------- boot loader ----------
