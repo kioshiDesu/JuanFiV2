@@ -17,15 +17,22 @@ var errorCodeMap = {
 	'invalid.request': 'Invalid request, please try again'
 };
 
-// ---------- console debug log (F12 console only, nothing injected into body) ----------
+// ---------- console debug log (nothing injected into body) ----------
+// Every portal flow logs here; the ring buffer always fills (retrieve with
+// copyDebugLog() in devtools), but console output only happens when the
+// portalDebug switch in config.js is true — customer consoles stay clean.
 var __dbgLines = [];
 function __dbgTime() {
 	try { return new Date().toLocaleTimeString(); } catch (e) { return ""; }
 }
+function dbgOn() {
+	try { return typeof portalDebug !== 'undefined' && !!portalDebug; } catch (e) { return false; }
+}
 function dbgLog(msg, cls) {
 	var line = "[" + __dbgTime() + "] " + String(msg == null ? "" : msg);
 	__dbgLines.push(line);
-	if (__dbgLines.length > 80) { __dbgLines = __dbgLines.slice(-80); }
+	if (__dbgLines.length > 150) { __dbgLines = __dbgLines.slice(-150); }
+	if (!dbgOn()) { return; }
 	try {
 		if (cls == "dbg-err") { console.error(line); }
 		else { console.log(line); }
@@ -45,7 +52,7 @@ function dbgAjaxErr(tag, xhr, status, err) {
 }
 function clearDebugLog() {
 	__dbgLines = [];
-	try { console.clear(); } catch (e) { }
+	if (dbgOn()) { try { console.clear(); } catch (e) { } }
 	dbgLog("debug cleared");
 }
 function copyDebugLog() {
@@ -416,6 +423,7 @@ function boot() {
 
 	var bootT0 = (new Date()).getTime();
 	timedStep("Detecting session", detectState()).done(function (state) {
+		try { dbgLog("boot state=" + state); } catch (e) { }
 		render(state);
 		var jobs = [timedStep("Loading promo rates", loadRates())];
 		if (state == "login") {
@@ -426,6 +434,7 @@ function boot() {
 		// jQuery promises settle fail or success — either way reveal the portal.
 		$.when.apply($, jobs).always(function () {
 			setBootText("Ready (" + __stepSecs(bootT0) + ")");
+			try { dbgLog("boot ready (" + __stepSecs(bootT0) + ")"); } catch (e) { }
 			hideBoot();
 		});
 	});
@@ -464,6 +473,7 @@ function detectState() {
 	try {
 		var force = new URLSearchParams(location.search).get("state");
 		if (force == "login" || force == "status" || force == "paused") {
+			try { dbgLog("state forced: " + force); } catch (e) { }
 			d.resolve(force);
 			return d.promise();
 		}
@@ -473,10 +483,12 @@ function detectState() {
 	// renders via pause() itself (no reload), or ?state=paused for testing.
 	if (getPausedFlag() == "1") {
 		removePausedFlag();
+		try { dbgLog("paused flag dropped on reload"); } catch (e) { }
 	}
 	$.ajax({ type: "GET", url: "/status", timeout: 3000 }).done(function (data) {
 		var html = String(data);
 		if (html.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") >= 0) {
+			try { dbgLog("detect: login"); } catch (e) { }
 			d.resolve("login");
 		} else {
 			// Logged in: lift live session facts out of the status page itself.
@@ -489,9 +501,11 @@ function detectState() {
 				}
 				if (facts.sessiontime) { window.sessiontime = facts.sessiontime; }
 			} catch (e) {}
+			try { dbgLog("detect: status" + (voucher ? " voucher-len=" + voucher.length : " no-voucher")); } catch (e) { }
 			d.resolve("status");
 		}
 	}).fail(function () {
+		try { dbgLog("detect: /status unreachable, assuming login"); } catch (e) { }
 		d.resolve("login");
 	});
 	return d.promise();
@@ -499,6 +513,7 @@ function detectState() {
 
 function render(state) {
 	setPortalState(state);
+	try { dbgLog("render: " + state); } catch (e) { }
 	var pill = '';
 	if (state == "login") {
 		pill = '<span class="pill pill-off"><span class="dot"></span>Offline</span>';
@@ -759,6 +774,7 @@ function cancelCoin() {
 	timer = null;
 	insertingCoin = false;
 	sfxStopLoop();
+	try { dbgLog("cancel: received=" + totalCoinReceived); } catch (e) { }
 	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} currentTopUpXhr = null; }
 	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch(e){} currentCheckCoinXhr = null; }
 	$("#loaderDiv").attr("class", "spinner hidden");
@@ -864,6 +880,7 @@ function resumeSession() {
 		removePausedFlag();
 		removeActiveVoucher();
 		voucher = "";
+		try { dbgLog("resume: rejected by loginError, voucher cleared", "dbg-err"); } catch (e) { }
 		$.toast({ title: 'Error', content: "Invalid voucher, please make sure voucher is valid", type: 'error', delay: 5000 });
 		d.resolve();
 		return d.promise();
@@ -886,11 +903,13 @@ function resumeSession() {
 				// itself in on every visit to the login page.
 				if (fileVoucher == "" || (validUntil != null && validUntil.getTime() < new Date().getTime())) {
 					removeActiveVoucher();
+					try { dbgLog("resume: stale session file, skipping auto-connect"); } catch (e) { }
 					d.resolve();
 					return;
 				}
 				voucher = fileVoucher;
 				$('#voucherInput').val(voucher);
+				try { dbgLog("resume: auto-connect len=" + fileVoucher.length); } catch (e) { }
 				$("#connectBtn").click();
 			})
 			.always(function () { d.resolve(); });
@@ -926,19 +945,24 @@ function showValidity() {
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
 		.done(function (data) {
 			if (String(data).length > 50) {
+				try { dbgLog("validity: long body, fallback"); } catch (e) { }
 				if (fallbackValidity()) { d.resolve(); } else { d.reject(); }
 				return;
 			}
 			var t = parseValidity(String(data).split("#")[1]);
 			if (t == null) {
+				try { dbgLog("validity: unparseable, No Expiration"); } catch (e) { }
 				renderExpiration("No Expiration");
 				d.resolve();
 				return;
 			}
+			try { dbgLog("validity: file " + t.toLocaleString()); } catch (e) { }
 			renderExpiration(t.toLocaleString());
 			d.resolve();
 		})
-		.fail(function () { if (fallbackValidity()) { d.resolve(); } else { d.reject(); } });
+		.fail(function () {
+			try { dbgLog("validity: fetch failed, fallback"); } catch (e) { }
+			if (fallbackValidity()) { d.resolve(); } else { d.reject(); } });
 	return d.promise();
 }
 
@@ -969,6 +993,7 @@ function insertBtnAction() {
 	removeStorageValue("ignoreSaveCode");
 	setStorageValue('insertCoinRefreshed', "0");
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
+	try { dbgLog("insert: type=" + $("#saveVoucherButton").attr('data-save-type') + " page=" + PAGE); } catch (e) { }
 	$("#progressDiv").css('width', '100%');
 	$("#progressDiv").removeClass("time-half time-low").addClass("time-ok");
 	$("#progressDiv").html("");
@@ -988,12 +1013,16 @@ function insertBtnAction() {
 			timeout: 3000,
 			success: function (data) {
 				if (data.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
+					try { dbgLog("insert: already logged in, bouncing to status"); } catch (e) { }
 					location.reload();
 				} else {
 					callTopupAPI(0);
 				}
 			},
-			error: function () { callTopupAPI(0); }
+			error: function () {
+				try { dbgLog("insert: status probe failed, topping up"); } catch (e) { }
+				callTopupAPI(0);
+			}
 		});
 	} else {
 		callTopupAPI(0);
@@ -1004,6 +1033,7 @@ function insertBtnAction() {
 function callTopupAPI(retryCount) {
 	$('#cncl').html("Cancel");
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
+	try { dbgLog("topUp start retry=" + retryCount + " extend=" + (isExtend ? "1" : "0")); } catch (e) { }
 
 	if (retryCount === 0 && !isExtend && totalCoinReceived == 0) {
 		var storedVoucher = getActiveVoucher();
@@ -1064,6 +1094,7 @@ function callTopupAPI(retryCount) {
 function saveVoucherBtnAction() {
 	$("#loaderDiv").attr("class", "spinner");
 	setActiveVoucher( voucher);
+	try { dbgLog("useVoucher start type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
 	removeStorageValue("totalCoinReceived");
 	$('#voucherInput').val(voucher);
 
@@ -1112,6 +1143,7 @@ function autoLoginAfterUseVoucher() {
 		// time-left never picks up the extended limit. End the
 		// session like pause/resume does; boot auto-logs back
 		// in with the extended voucher for a fresh countdown.
+		try { dbgLog("autoLogin: extend path, ending session"); } catch (e) { }
 		setReLoginFlag();
 		setTimeout(function () {
 			try { document.logout.submit(); }
@@ -1120,6 +1152,7 @@ function autoLoginAfterUseVoucher() {
 	} else {
 		// Fresh purchase on login page: auto-login with the new voucher
 		// so the customer never has to click CONNECT manually.
+		try { dbgLog("autoLogin: purchase path, doLogin in 3s"); } catch (e) { }
 		setTimeout(function () {
 			try { doLogin(); } catch (e) { newLogin(); }
 		}, 3000);
@@ -1165,9 +1198,11 @@ function checkCoin() {
 				if (remainTime == 0) {
 					closeCoinModal();
 					if (totalCoinReceived > 0) {
+						try { dbgLog("checkCoin: wait expired with coins=" + totalCoinReceived + ", auto-login", "dbg-ok"); } catch (e) { }
 						$.toast({ title: 'Success', content: 'Coin slot expired!, but was able to succesfully process the coin ' + totalCoinReceived + ", will do auto login shortly", type: 'info', delay: 5000 });
 						setTimeout(autoLoginAfterCoin, 3000);
 					} else {
+						try { dbgLog("checkCoin: wait expired, no coins", "dbg-err"); } catch (e) { }
 						notifyCoinSlotError('coins.wait.expired');
 					}
 				} else {
@@ -1183,8 +1218,10 @@ function checkCoin() {
 				// Session cleared on the vendo side (manual cancel).
 				closeCoinModal();
 				if (totalCoinReceived == 0) {
+					try { dbgLog("checkCoin: slot cleared, no coins", "dbg-err"); } catch (e) { }
 					notifyCoinSlotError("coinslot.cancelled");
 				} else {
+					try { dbgLog("checkCoin: slot cleared with coins=" + totalCoinReceived + ", auto-login", "dbg-ok"); } catch (e) { }
 					$.toast({ title: 'Success', content: 'Coin slot cancelled!, but was able to succesfully process the coin ' + totalCoinReceived + ", will do auto login shortly", type: 'info', delay: 5000 });
 					setTimeout(autoLoginAfterCoin, 3000);
 				}
@@ -1224,6 +1261,7 @@ function closeCoinModal() {
 }
 
 function autoLoginAfterCoin() {
+	try { dbgLog("autoLoginAfterCoin: type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
 	if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
 		setReLoginFlag();
 		document.logout.submit();
@@ -1233,6 +1271,7 @@ function autoLoginAfterCoin() {
 }
 
 function newLogin() {
+	try { dbgLog("newLogin: reload"); } catch (e) { }
 	location.reload();
 }
 
@@ -1242,6 +1281,7 @@ function pause() {
 	var vc = getActiveVoucher();
 	setPausedFlag();
 	setStorageValue(vc + "remain", $("#remainTime").html());
+	try { dbgLog("pause: remain saved"); } catch (e) { }
 	// Freeze any auto-reload while pausing, then render paused instantly.
 	insertingCoin = true;
 	render("paused");
@@ -1255,6 +1295,7 @@ function pause() {
 
 function resume() {
 	var vc = getActiveVoucher() || voucher;
+	try { dbgLog("resume: " + (vc ? "relogin len=" + vc.length : "no voucher, reload")); } catch (e) { }
 	removePausedFlag();
 	insertingCoin = false;
 	removeActiveVoucher();

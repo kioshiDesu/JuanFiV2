@@ -13,7 +13,7 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<script src="assets/js/config.js?v=29"></script>
+	<script src="assets/js/config.js?v=30"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -172,7 +172,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=61"></script>
+		<script src="assets/js/core.js?v=62"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -186,9 +186,11 @@
 			function doLogin() {
 				var vc = $("#voucherInput").val() || window.currentVoucher || "";
 				if (vc == "") {
+					try { dbgLog("doLogin: empty voucher"); } catch (e) { }
 					$.toast({ title: 'Error', content: 'Please enter your voucher code first', type: 'error', delay: 3000 });
 					return false;
 				}
+				try { dbgLog("doLogin: submit chap=" + (!!window.chapId) + " len=" + vc.length); } catch (e) { }
 				setActiveVoucher(vc);
 				mergeTempValidity(vc);
 				document.sendin.username.value = vc;
@@ -204,6 +206,7 @@
 			// URL with CHAP hashing when offered (plain password otherwise).
 			// Wired via onsubmit on the member form above.
 			function doLoginMember() {
+				try { dbgLog("doLoginMember: submit chap=" + (!!window.chapId)); } catch (e) { }
 				document.sendin.username.value = document.login.username.value;
 				if (window.chapId) {
 					document.sendin.password.value = hexMD5(window.chapId + document.login.password.value + window.chapChallenge);
@@ -224,9 +227,11 @@
 					}
 					var expireDate = new Date(currentExpireDate.getTime() + parseInt(tempValidity) * 60000);
 					if (expireDate.getTime() < new Date().getTime()) {
+						try { dbgLog("validity cleared (expired temp)"); } catch (e) { }
 						removeStorageValue(vc + "validity");
 						removeStorageValue(vc + "tempValidity");
 					} else {
+						try { dbgLog("validity merged +" + tempValidity + "m"); } catch (e) { }
 						setStorageValue(vc + "validity", expireDate.getTime() + "");
 						removeStorageValue(vc + "tempValidity");
 					}

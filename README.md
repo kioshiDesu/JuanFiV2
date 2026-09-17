@@ -23,20 +23,11 @@ Flash the ESP8266 with original JuanFi firmware following its own docs,
 then continue below. This repo only ships the hotspot portal and the
 RouterOS setup that goes with it.
 
-## 2. First-time vendo setup
+## 2. Network assumptions
 
-1. Power on, connect to WiFi SSID `JuanFiV2 Setup` (no password).
-2. Open `http://172.217.28.1/login`.
-3. Log in with the defaults, then fill in your system config + promo rates:
-
-```text
-Admin user : admin
-Admin pass : admin
-MikroTik API: pisonet / abc123  (create the same user on the router, step 4)
-Vendo IP   : 10.0.0.254   Mask: 255.255.0.0   Gateway/DNS: 10.0.0.1
-```
-
-Save and let it restart. Change the admin password after first login.
+The setup below assumes the vendo on `10.0.0.254` (`/16`) with the router
+at `10.0.0.1`, and a MikroTik API user the vendo logs in with
+(`pisonet` / `abc123` — change both sides together).
 
 ## 3. MikroTik setup
 
@@ -54,7 +45,7 @@ Give the vendo a static lease: IP -> DHCP Server -> Leases, find `10.0.0.254`,
 Make Static. Then Hotspot -> IP Bindings:
 add the vendo MAC/IP as Bypassed (Server: all).
 
-Create the API user the vendo logs in with (must match step 2):
+Create the API user the vendo logs in with (must match §2):
 
 ```bash
 /user add name=pisonet password=abc123 group=full disabled=no
@@ -237,15 +228,6 @@ the paste clean; see the original README for the telegram snippet.)
 var brandHeaderHtml = "BRO<em>BRO</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
-```
-
-## 6. Nightly reboot (optional)
-
-Reboots the vendo at 3am. It answers `{"status":"busy"}` and skips the reboot
-while a customer session or coin wait is active. Put your admin password in.
-
-```bash
-/system scheduler add interval=1d name="Restart Vendo" on-event="/tool fetch http-method=post url=\"http://10.0.0.254/admin/api/restartSystem\" user=\"admin\" password=\"YOUR_ADMIN_PASSWORD\"" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=Sep/28/2021 start-time=03:00:00;
 ```
 
 ## License

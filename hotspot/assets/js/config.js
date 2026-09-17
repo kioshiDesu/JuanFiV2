@@ -13,6 +13,11 @@ var multiVendoAddresses = [
 
 var vendorIpAddress = "10.0.0.254"; //ESP Address
 
+// Support switch: true = verbose console log for every portal flow
+// (boot, session, coin, login, pause). Buffer always fills regardless,
+// so copyDebugLog() in devtools works even when this is false.
+var portalDebug = false;
+
 // Branding — header + footer (change per site without touching portal.html)
 var brandHeaderHtml = "BRO<em>BRO</em>";
 var footerBrandText = "@NETBRO";
