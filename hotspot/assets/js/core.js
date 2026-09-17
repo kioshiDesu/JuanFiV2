@@ -763,6 +763,7 @@ function cancelCoin() {
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
+	coinToastKey = null;
 	sfxStopLoop();
 	try { dbgLog("cancel: received=" + totalCoinReceived); } catch (e) { }
 	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} currentTopUpXhr = null; }
@@ -982,6 +983,7 @@ function insertBtnAction() {
 	// No double-submit: one coin session at a time (second tap = busy error).
 	if (insertingCoin) { return false; }
 	insertingCoin = true;
+	coinToastKey = null;
 	removeStorageValue("ignoreSaveCode");
 	setStorageValue('insertCoinRefreshed', "0");
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
@@ -1156,6 +1158,15 @@ function autoLoginAfterUseVoucher() {
 var checkCoinFailStreak = 0;
 var currentTopUpXhr = null;
 var currentCheckCoinXhr = null;
+// One toast per coin-state transition: checkCoin ticks every second, so a
+// bare toast call here would stack one per poll while verifying.
+var coinToastKey = null;
+function coinToastOnce(key, opts) {
+	if (coinToastKey === key) { return; }
+	coinToastKey = key;
+	try { dbgLog("coin notice: " + key); } catch (e) { }
+	try { $.toast(opts); } catch (e) { }
+}
 function checkCoin() {
 	// Skip the tick while a poll is still in flight — aborting it can kill
 	// the very response carrying status:true/newCoin (ESP is single-threaded
@@ -1168,7 +1179,7 @@ function checkCoin() {
 		data: { voucher: voucher },
 		success: function (data) {
 			checkCoinFailStreak = 0;
-			$("#noticeDiv").attr('style', 'display: none');
+			coinToastKey = null;
 			if (data.status == "true") {
 			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
 			totalCoinReceived = parseInt(data.totalCoin);
@@ -1223,9 +1234,9 @@ function checkCoin() {
 				// Transient: coin pulse is being verified on the ESP.
 				// Keep polling — killing the timer here is what forced a
 				// re-tap to reveal already-latched coins.
-				$("#noticeDiv").attr('style', 'display: block');
-				$("#noticeText").html("Verifying, please wait..");
+				coinToastOnce("reading", { title: 'Verifying coin', content: 'Verifying coin, please wait..', type: 'info', delay: 2500 });
 			} else {
+				coinToastKey = null;
 				try { dbgLog("checkCoin end errorCode=" + data.errorCode, "dbg-err"); } catch (e) { }
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
@@ -1238,8 +1249,7 @@ function checkCoin() {
 			console.log('checkCoin error (' + status + '), streak ' + checkCoinFailStreak);
 			dbgAjaxErr("checkCoin streak=" + checkCoinFailStreak, xhr, status, err);
 			if (checkCoinFailStreak >= 5) {
-				$("#noticeDiv").attr('style', 'display: block');
-				$("#noticeText").html("ESP unreachable — check power &amp; WiFi, then tap Cancel to retry.");
+				coinToastOnce("unreachable", { title: 'Connection lost', content: 'ESP unreachable — check power & WiFi, then tap Cancel to retry.', type: 'warning', delay: 4000 });
 			}
 		},
 		complete: function(){ currentCheckCoinXhr = null; }
@@ -1248,6 +1258,7 @@ function checkCoin() {
 
 function closeCoinModal() {
 	sfxStopLoop();
+	coinToastKey = null;
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;

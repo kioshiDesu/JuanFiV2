@@ -162,6 +162,10 @@
     0%, 100% { opacity: 1; }
     50% { opacity: .35; }
 }
+/* Countdown bar glides per poll instead of jumping. */
+#progressDiv {
+    transition: width 1s linear;
+}
 .clientline {
     color: #5b6570;
     font-size: 11px;
