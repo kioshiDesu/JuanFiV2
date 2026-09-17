@@ -83,59 +83,47 @@ var bootDone = false;
 // async boot fetch lands; venueScopeSuffix() falls back meanwhile.
 var siteIdSuffix = "";
 
-// Built-in sounds: WebAudio synth + vibration, no MP3 files needed.
-// Works offline; degrades silently where unsupported (e.g. iOS vibration).
-var sfxCtx = null;
-var sfxLoopTimer = null;
-function sfxEnsure() {
-	try {
-		if (sfxCtx == null) {
-			var AC = window.AudioContext || window.webkitAudioContext;
-			if (!AC) { return null; }
-			sfxCtx = new AC();
-		}
-		if (sfxCtx.state == "suspended") { sfxCtx.resume(); }
-		return sfxCtx;
-	} catch (e) { return null; }
-}
-function sfxTone(freq, durMs, type, vol, delayMs) {
-	var ctx = sfxEnsure();
-	if (!ctx) { return; }
-	try {
-		var t = ctx.currentTime + (delayMs || 0) / 1000;
-		var o = ctx.createOscillator();
-		var g = ctx.createGain();
-		o.type = type || "sine";
-		o.frequency.value = freq;
-		g.gain.setValueAtTime(0.0001, t);
-		g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.02);
-		g.gain.exponentialRampToValueAtTime(0.0001, t + durMs / 1000);
-		o.connect(g);
-		g.connect(ctx.destination);
-		o.start(t);
-		o.stop(t + durMs / 1000 + 0.05);
-	} catch (e) { }
-}
+// Sounds: named MP3 files (assets/sounds/) + vibration. Files are
+// pre-amplified; playback stays at full volume. Works offline (same-origin
+// files, no network); degrades silently where unsupported (e.g. autoplay
+// blocked long after the last tap, iOS vibration).
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-// Gentle waiting chime while the customer inserts coins.
-function sfxChime() {
-	sfxTone(990, 90, "sine", 0.24);
+// Named sound files (assets/sounds/): silent no-op when unavailable.
+var sfxAudio = {};
+function sfxPlayFile(name, src, loop, fallback) {
+	try {
+		var a = sfxAudio[name];
+		if (!a) {
+			a = new Audio(src);
+			a.preload = "auto";
+			sfxAudio[name] = a;
+		}
+		a.loop = !!loop;
+		if (!loop) { try { a.currentTime = 0; } catch (e) {} }
+		var p = a.play();
+		if (p && typeof p.catch === "function") {
+			p.catch(function () { try { fallback && fallback(); } catch (e) {} });
+		}
+	} catch (e) {
+		try { fallback && fallback(); } catch (e2) {}
+	}
 }
 function sfxStartLoop() {
 	sfxStopLoop();
-	sfxChime();
-	sfxLoopTimer = setInterval(sfxChime, 500);
+	sfxPlayFile("insert", "assets/sounds/insertcoinbg.mp3?v=1", true, null);
 }
-// Per-coin blip + haptic tick.
+// Per-coin sting + haptic tick (success sting stays on Done only).
 function coinBlip() {
-	sfxTone(1568, 120, "square", 0.16);
-	sfxTone(2093, 150, "square", 0.12, 90);
+	sfxPlayFile("inserted", "assets/sounds/insertedcoin.mp3?v=1", false, null);
 	sfxVibrate(40);
 }
 function sfxStopLoop() {
-	if (sfxLoopTimer != null) { clearInterval(sfxLoopTimer); sfxLoopTimer = null; }
+	try {
+		var a = sfxAudio["insert"];
+		if (a) { a.pause(); try { a.currentTime = 0; } catch (e) {} }
+	} catch (e) {}
 	sfxVibrate(0);
 }
 
@@ -612,8 +600,7 @@ function startCountdown() {
 			warned1 = true;
 			$.toast({ title: 'Almost out', content: '1 minute remaining! Tap EXTEND TIME now or you will be logged out', type: 'warning', delay: 8000 });
 			try {
-				sfxTone(880, 120, "square", 0.14);
-				sfxTone(880, 120, "square", 0.14, 200);
+				sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null);
 			} catch (e) { }
 		}
 		if (time <= 0) {
@@ -779,6 +766,8 @@ function cancelCoin() {
 	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch(e){} currentCheckCoinXhr = null; }
 	$("#loaderDiv").attr("class", "spinner hidden");
 	if (totalCoinReceived == 0) {
+		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled', type: 'info', delay: 3000 });
+		try { sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null); } catch (e) { }
 		$.ajax({
 			type: "POST",
 			url: "http://" + vendorIpAddress + "/cancelTopUp",
@@ -1113,6 +1102,7 @@ function saveVoucherBtnAction() {
 			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
 		if (data.status == "true") {
 			setStorageValue(voucher + "tempValidity", data.validity);
+			try { sfxPlayFile("success", "assets/sounds/success.mp3?v=1", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
 		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
@@ -1120,6 +1110,7 @@ function saveVoucherBtnAction() {
 			// registered the voucher and added the time itself (then cleared
 			// its session, hence "busy"). The purchase is safe — tempValidity
 			// was stored by the checkCoin polls — so log in normally.
+			try { sfxPlayFile("success", "assets/sounds/success.mp3?v=1", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
 		} else {
@@ -1311,6 +1302,9 @@ function resume() {
 
 function notifyCoinSlotError(errorCode) {
 	try { dbgLog("portal error: " + (errorCodeMap[errorCode] || ("Request failed (" + errorCode + ")")), "dbg-err"); } catch (e) { }
+	try {
+		sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null);
+	} catch (e) { }
 	$.toast({ title: 'Error', content: errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again'), type: 'error', delay: 5000 });
 }
 
