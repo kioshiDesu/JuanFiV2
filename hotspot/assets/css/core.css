@@ -62,7 +62,28 @@
     to { transform: rotate(360deg); }
 }
 
-#ratesSection { margin-top: 8px; }
+#ratesSection { margin-top: 18px; }
+/* Promo rates table: centered, full grid lines, dark bold header. */
+#ratesBody table {
+    width: 100%;
+    border: 1px solid #485460;
+    border-collapse: collapse;
+}
+#ratesBody th,
+#ratesBody td {
+    text-align: center;
+    border-top: none;
+    border-bottom: 1px solid #485460;
+    padding: 8px 6px;
+}
+#ratesBody tbody tr:last-child td {
+    border-bottom: none;
+}
+#ratesBody thead th {
+    font-weight: 800;
+    background: rgba(0, 0, 0, .28);
+    color: #fff;
+}
 #ratesSection .panelTitle {
     display: block;
     font-weight: 800;

@@ -416,7 +416,7 @@ function boot() {
 	timedStep("Detecting session", detectState()).done(function (state) {
 		try { dbgLog("boot state=" + state); } catch (e) { }
 		render(state);
-		var jobs = [timedStep("Loading promo rates", loadRates())];
+		var jobs = [timedStep("Loading Wi-Fi rates", loadRates())];
 		if (state == "login") {
 			jobs.push(timedStep("Checking session", resumeSession()));
 		} else {
@@ -819,8 +819,8 @@ function humanDuration(mins) {
 }
 
 function loadRates() {
-	setBootText("Loading promo rates...");
-	$("#ratesBody").html("<p>Loading promo rates…</p>");
+	setBootText("Loading Wi-Fi rates...");
+	$("#ratesBody").html("<p>Loading Wi-Fi rates…</p>");
 	return $.ajax({
 		type: "GET",
 		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime()),
@@ -835,7 +835,7 @@ function loadRates() {
 			if (c.length >= 4 && String(c[0]).trim() != "") { usable++; }
 		}
 		if (usable == 0) {
-			$("#ratesBody").html("<p>No promo rates configured on this vendo yet.</p>");
+			$("#ratesBody").html("<p>No Wi-Fi rates configured on this vendo yet.</p>");
 			return;
 		}
 		var html = "<div class='table-responsive'><table class='table table-striped'>";
@@ -932,6 +932,19 @@ function renderExpiration(html) {
 	$("#expirationTimePaused").html(html);
 }
 
+// Relative expiry for customers: "3 days left" / "5 hours left" / "12 mins left".
+function formatExpiryLeft(t) {
+	var diff = t.getTime() - new Date().getTime();
+	if (diff <= 0) { return "expired"; }
+	var mins = Math.floor(diff / 60000);
+	if (mins < 1) { return "less than a minute left"; }
+	if (mins < 90) { return mins + (mins == 1 ? " min left" : " mins left"); }
+	var hours = Math.floor(mins / 60);
+	if (hours < 48) { return hours + (hours == 1 ? " hour left" : " hours left"); }
+	var days = Math.floor(hours / 24);
+	return days + (days == 1 ? " day left" : " days left");
+}
+
 function showValidity() {
 	setBootText("Loading session...");
 	var d = $.Deferred();
@@ -942,16 +955,16 @@ function showValidity() {
 				if (fallbackValidity()) { d.resolve(); } else { d.reject(); }
 				return;
 			}
-			var t = parseValidity(String(data).split("#")[1]);
-			if (t == null) {
-				try { dbgLog("validity: unparseable, No Expiration"); } catch (e) { }
-				renderExpiration("No Expiration");
-				d.resolve();
-				return;
-			}
-			try { dbgLog("validity: file " + t.toLocaleString()); } catch (e) { }
-			renderExpiration(t.toLocaleString());
+		var t = parseValidity(String(data).split("#")[1]);
+		if (t == null) {
+			try { dbgLog("validity: unparseable, No expiry"); } catch (e) { }
+			renderExpiration("No expiry");
 			d.resolve();
+			return;
+		}
+		try { dbgLog("validity: file " + t.toLocaleString()); } catch (e) { }
+		renderExpiration(formatExpiryLeft(t));
+		d.resolve();
 		})
 		.fail(function () {
 			try { dbgLog("validity: fetch failed, fallback"); } catch (e) { }
@@ -970,7 +983,7 @@ function fallbackValidity() {
 			renderExpiration("Not Available");
 			return false;
 		}
-		renderExpiration(t.toLocaleString());
+		renderExpiration(formatExpiryLeft(t));
 		return true;
 	}
 	renderExpiration("Not Available");

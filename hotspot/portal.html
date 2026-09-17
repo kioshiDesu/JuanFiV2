@@ -7,7 +7,7 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=35">
+	<link rel="stylesheet" href="assets/css/core.css?v=37">
 	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=27">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -103,7 +103,7 @@
 			<div class="vouchline">Voucher <span id="statusVoucher"></span></div>
 		</div>
 		<ul class="stat-list">
-			<li id="expireRow"><span class="k">Expiration Time</span><span class="v" id="expirationTime"></span></li>
+			<li id="expireRow"><span class="k">Expiration</span><span class="v" id="expirationTime"></span></li>
 		</ul>
 
 		<div class="btnrow">
@@ -128,7 +128,7 @@
 	</div>
 
 	<div id="ratesSection">
-		<span class="panelTitle">Promo Rates</span>
+		<span class="panelTitle">Wi-Fi Rates</span>
 		<div id="ratesBody"></div>
 	</div>
 
@@ -166,7 +166,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=66"></script>
+		<script src="assets/js/core.js?v=68"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
