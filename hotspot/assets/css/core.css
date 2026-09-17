@@ -30,10 +30,14 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 14px;
-    margin: 0;
-    padding: 0;
+    gap: 12px;
+    padding: 2px;
     text-align: center;
+    transition: opacity .45s ease;
+}
+#bootLoader.boot-fade {
+    opacity: 0;
+    pointer-events: none;
 }
 #bootText {
     color: #a3a7ad;
@@ -187,8 +191,69 @@
 #progressDiv {
     transition: width 1s linear;
 }
-.clientline {
+/* Segmented countdown boxes: number on top, unit label inside. */
+#remainTime.timeboxes,
+#pauseRemainTime.timeboxes {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+.tbox {
+    min-width: 76px;
+    padding: 10px 8px 8px 8px;
+    border: 1px solid #485460;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, .25);
+    text-align: center;
+    white-space: normal;
+}
+.tbox .tnum {
+    display: block;
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+.tbox .tlab {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #a3a7ad;
+}
+.tsep {
     color: #5b6570;
+    font-weight: 800;
+    font-size: 24px;
+    line-height: 1;
+    padding-bottom: 16px;
+}
+#remainTime.time-warn .tnum {
+    color: #f5a623;
+}
+#remainTime.time-low .tnum {
+    color: #e74c3c;
+}
+@media (max-width: 380px) {
+    .tbox {
+        min-width: 60px;
+        padding: 8px 5px 6px 5px;
+    }
+    .tbox .tnum {
+        font-size: 28px;
+    }
+    .tsep {
+        font-size: 20px;
+        padding-bottom: 14px;
+    }
+}
+.clientline {
+    color: #8a93a0;
     font-size: 11px;
     padding: 0 2px 6px 2px;
     font-variant-numeric: tabular-nums;
@@ -242,7 +307,7 @@
 .hero .vouchline {
     color: #dcdde1;
     font-size: 13px;
-    margin-top: 4px;
+    margin-top: 10px;
     font-variant-numeric: tabular-nums;
 }
 .hero .vouchline span {

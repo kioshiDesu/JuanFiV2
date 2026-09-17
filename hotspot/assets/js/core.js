@@ -334,16 +334,21 @@ function setBootText(t) {
 function hideBoot() {
 	if (bootDone) { return; }
 	bootDone = true;
-	$("#bootLoader").attr("style", "display: none");
+	// Fade the loader instead of blinking it away; reveal the app at once
+	// so the fade dissolves over real content, then drop the overlay.
 	$("#app").attr("style", "display: block");
-	// The countdown was sized while hidden (zero widths, so the shrink loop
-	// never ran) — refit now that measurements are real, or first paint
-	// overflows small screens until the next 1s tick fixes it.
-	try {
-		__fitCache = {};
-		fitCountdown("#remainTime");
-		fitCountdown("#pauseRemainTime");
-	} catch (e) { }
+	try { $("#bootLoader").addClass("boot-fade"); } catch (e) {}
+	setTimeout(function () {
+		$("#bootLoader").attr("style", "display: none");
+		// The countdown was sized while hidden (zero widths, so the shrink loop
+		// never ran) — refit now that measurements are real, or first paint
+		// overflows small screens until the next 1s tick fixes it.
+		try {
+			__fitCache = {};
+			fitCountdown("#remainTime");
+			fitCountdown("#pauseRemainTime");
+		} catch (e) { }
+	}, 450);
 }
 
 // Boot progress: wrap a step's promise so the loader line reads
@@ -543,6 +548,22 @@ function compactDhms(seconds) {
 	return p(m) + "m " + p(s) + "s";
 }
 
+// Segmented countdown boxes: always Day Hour Min Sec, joined with colons,
+// each with a small unit label inside. Zero boxes stay visible ("00 Days")
+// so the layout never shifts as time runs down.
+function tbox(n, one, many) {
+	var num = (n < 10 ? "0" : "") + n;
+	return '<span class="tbox"><span class="tnum">' + num + '</span><span class="tlab">' + (n == 1 ? one : many) + "</span></span>";
+}
+function boxesDhms(seconds) {
+	var t = Math.max(0, parseInt(seconds || 0));
+	var d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600);
+	var m = Math.floor(t % 3600 / 60), s = t % 60;
+	var sep = '<span class="tsep">:</span>';
+	return [tbox(d, "Day", "Days"), tbox(h, "Hour", "Hours"),
+		tbox(m, "Min", "Mins"), tbox(s, "Sec", "Secs")].join(sep);
+}
+
 // Shrink a hero countdown until it fits (long hour counts clip the
 // trailing "s" on 320px phones). Resets to the stylesheet size first
 // so shorter values grow back; re-runs on rotate/resize.
@@ -583,13 +604,13 @@ function startCountdown() {
 	time = parseInt(time);
 	var total = time;
 	var warned5 = false, warned1 = false;
-	$("#remainTime").html(compactDhms(time));
+	$("#remainTime").html(boxesDhms(time));
 	paintCountdownUrgency(time);
 	fitCountdown("#remainTime");
 	if (window.remainingTimer != null) { clearInterval(window.remainingTimer); }
 	window.remainingTimer = setInterval(function () {
 		time--;
-		$("#remainTime").html(compactDhms(time));
+		$("#remainTime").html(boxesDhms(time));
 		paintCountdownUrgency(time);
 		fitCountdown("#remainTime");
 		// One-shot low-time notices (in-page: no permission needed, works
@@ -735,8 +756,6 @@ function showCoinPanel() {
 		// NOTE: hide #statusHero by id — the coin panel carries its own
 		// .hero block once moved in, and a descendant selector would kill it.
 		$("#statusHero").attr("style", "display: none");
-		$("#view-status .stat-list").attr("style", "display: none");
-		$("#expireRow").attr("style", "display: none");
 		$("#view-status .btnrow").attr("style", "display: none");
 	} else {
 		$("#insertBtn").attr("style", "display: none");
@@ -752,9 +771,7 @@ function showCoinPanel() {
 function restoreCoinChrome() {
 	document.body.classList.remove("coin-focus");
 	$("#statusHero").attr("style", "");
-	$("#view-status .stat-list").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
-	$("#expireRow").attr("style", "");
 	$("#voucherBlock").attr("style", "");
 	$("#memberSection").attr("style", "");
 }
@@ -845,7 +862,7 @@ function loadRates() {
 			if (rows[r] == "") { continue; }
 			var c = rows[r].split("#");
 			if (c.length < 4 || String(c[0]).trim() == "") { continue; }
-			html += "<tr><td>" + escHtml(c[0]) + "</td>";
+			html += "<tr><td>" + escHtml(rateDisplay(c[0])) + "</td>";
 			html += "<td>" + humanDuration(c[2]) + "</td>";
 			html += "<td>" + humanDuration(c[3]) + "</td>";
 			html += "</tr>";
@@ -860,6 +877,15 @@ function loadRates() {
 
 function escHtml(s) {
 	return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Rate cell: pull the number out of labels like "1 pesos" / "P10" and show
+// it with a peso sign ("₱1"); verbatim for numberless names ("UNLI").
+function rateDisplay(raw) {
+	var t = String(raw == null ? "" : raw).trim();
+	var m = t.match(/(\d+(?:\.\d+)?)/);
+	if (m) { return "₱" + m[1]; }
+	return t;
 }
 
 // ---------- session resume (login page) ----------

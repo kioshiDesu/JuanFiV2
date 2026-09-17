@@ -7,7 +7,7 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=37">
+	<link rel="stylesheet" href="assets/css/core.css?v=45">
 	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=27">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -99,12 +99,9 @@
 	<div id="view-status" style="display: none">
 		<div class="hero" id="statusHero">
 			<div class="sub">Remaining Time</div>
-			<div class="big odometer" id="remainTime"></div>
-			<div class="vouchline">Voucher <span id="statusVoucher"></span></div>
+			<div class="big odometer timeboxes" id="remainTime"></div>
+			<div class="vouchline">Voucher <span id="statusVoucher"></span> &bull; Expires <span id="expirationTime"></span></div>
 		</div>
-		<ul class="stat-list">
-			<li id="expireRow"><span class="k">Expiration</span><span class="v" id="expirationTime"></span></li>
-		</ul>
 
 		<div class="btnrow">
 			<button type="button" id="extendBtn" onclick="insertBtnAction(); return false" class="btn btn-success">EXTEND TIME</button>
@@ -116,7 +113,7 @@
 	<div id="view-paused" style="display: none">
 		<div class="hero">
 			<div class="sub">Paused</div>
-			<div class="big" id="pauseRemainTime"></div>
+			<div class="big timeboxes" id="pauseRemainTime"></div>
 			<div class="vouchline">Voucher <span id="pausedVoucher"></span> &bull; Expires <span id="expirationTimePaused"></span></div>
 		</div>
 
@@ -166,7 +163,7 @@
 		<form name="logout" action="/portal/logout" style="display:none"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=68"></script>
+		<script src="assets/js/core.js?v=74"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
