@@ -1398,5 +1398,5 @@ function secondsToDhms(seconds) {
 	var m = Math.floor(seconds % 3600 / 60);
 	var s = Math.floor(seconds % 60);
 	var dDisplay = d > 0 ? d + (d == 1 ? " Day " : " Days ") : "";
-	return dDisplay + " " + h + "h : " + m + "m : " + s + "s";
+	return (dDisplay ? dDisplay + " " : "") + h + "h : " + m + "m : " + s + "s";
 }
