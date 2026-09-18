@@ -1126,7 +1126,6 @@ function callTopupAPI(retryCount) {
 			}
 		}, error: function (xhr, status, err) {
 			// ESP dead / timeout: retry quickly, then show unreachable error
-			if (status === "timeout") { console.log("topUp timeout, retry " + retryCount); }
 			dbgAjaxErr("topUp retry=" + retryCount, xhr, status, err);
 			setTimeout(function () {
 				if (retryCount < 3) {
@@ -1308,7 +1307,6 @@ function checkCoin() {
 		}, error: function (xhr, status, err) {
 			if (status === "abort") return;
 			checkCoinFailStreak++;
-			console.log('checkCoin error (' + status + '), streak ' + checkCoinFailStreak);
 			dbgAjaxErr("checkCoin streak=" + checkCoinFailStreak, xhr, status, err);
 			if (checkCoinFailStreak >= 5) {
 				coinToastOnce("unreachable", { title: 'Connection lost', content: 'ESP unreachable — check power & WiFi, then tap Cancel to retry.', type: 'warning', delay: 4000 });
