@@ -1,3 +1,8 @@
+// Portal release version — single source of truth. Bump on every portal
+// change and mirror it into every first-party ?v= URL (portal.html +
+// router shells); customer phones then refetch exactly on release.
+var PORTAL_VERSION = "1";
+
 var isMultiVendo = false;
 var multiVendoOption = 0;
 
