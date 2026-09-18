@@ -469,6 +469,13 @@ body.coin-focus #ratesSection {
     position: relative;
     z-index: 1600;
 }
+body.coin-focus #ratesSection {
+    /* Opaque card in the page bg: the section paints above the veil, but
+       its transparent gaps would still show the darkened page through it. */
+    background: #3d4044;
+    border-radius: 10px;
+    padding: 10px 10px 12px 10px;
+}
 
 hr.foot-hr {
     border: none;
