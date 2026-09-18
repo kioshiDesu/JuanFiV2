@@ -1220,10 +1220,11 @@ var currentCheckCoinXhr = null;
 // bare toast call here would stack one per poll while verifying.
 var coinToastKey = null;
 function coinToastOnce(key, opts) {
-	if (coinToastKey === key) { return; }
+	if (coinToastKey === key) { return false; }
 	coinToastKey = key;
 	try { dbgLog("coin notice: " + key); } catch (e) { }
 	try { $.toast(opts); } catch (e) { }
+	return true;
 }
 function checkCoin() {
 	// Skip the tick while a poll is still in flight — aborting it can kill
@@ -1382,8 +1383,12 @@ function notifyCoinSlotError(errorCode) {
 }
 
 function notifyCoinSuccess(coin) {
-	$.toast({ title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 });
-	coinBlip();
+	// checkCoin polls every second and the ESP may repeat status:true for
+	// the same coin — key by running total so each coin announces (and
+	// blips) exactly once, repeats swallowed.
+	if (coinToastOnce("coin-" + totalCoinReceived, { title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 })) {
+		coinBlip();
+	}
 }
 
 function secondsToDhms(seconds) {
