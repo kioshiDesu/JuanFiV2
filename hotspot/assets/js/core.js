@@ -930,9 +930,7 @@ function resumeSession() {
 		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
 		fitCountdown("#pauseRemainTime");
 	}
-	var ignoreSaveCode = getStorageValue("ignoreSaveCode") || "0";
-	var insertCoinTrigger = getStorageValue("insertCoinRefreshed");
-	if (ignoreSaveCode != "1" && insertCoinTrigger != "1" && $("#voucherInput").length > 0) {
+	if ($("#voucherInput").length > 0) {
 		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
 			.done(function (data) {
 				var parts = String(data).split("#");
@@ -1044,8 +1042,6 @@ function insertBtnAction() {
 	if (insertingCoin) { return false; }
 	insertingCoin = true;
 	coinToastKey = null;
-	removeStorageValue("ignoreSaveCode");
-	setStorageValue('insertCoinRefreshed', "0");
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
 	try { dbgLog("insert: type=" + $("#saveVoucherButton").attr('data-save-type') + " page=" + PAGE); } catch (e) { }
 	$("#progressDiv").css('width', '100%');
@@ -1149,7 +1145,6 @@ function saveVoucherBtnAction() {
 	$("#loaderDiv").attr("class", "spinner");
 	setActiveVoucher( voucher);
 	try { dbgLog("useVoucher start type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
-	removeStorageValue("totalCoinReceived");
 	$('#voucherInput').val(voucher);
 
 	clearInterval(timer);
@@ -1250,9 +1245,8 @@ function checkCoin() {
 			$('#totalCoin').html(data.totalCoin);
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded)));
 			$('#voucherInput').val(voucher);
-				setActiveVoucher( voucher);
-				setStorageValue('totalCoinReceived', totalCoinReceived);
-				setStorageValue(voucher + "tempValidity", data.validity);
+			setActiveVoucher( voucher);
+			setStorageValue(voucher + "tempValidity", data.validity);
 				notifyCoinSuccess(data.newCoin);
 			} else if (data.errorCode == "coin.not.inserted") {
 				setStorageValue(voucher + "tempValidity", data.validity);
@@ -1372,7 +1366,6 @@ function resume() {
 	removePausedFlag();
 	insertingCoin = false;
 	removeActiveVoucher();
-	removeStorageValue("ignoreSaveCode");
 	if (vc) { removeStorageValue(vc + "remain"); }
 	if (!vc) { location.reload(); return; }
 	// Re-login directly: no reload, no login-page flash.
