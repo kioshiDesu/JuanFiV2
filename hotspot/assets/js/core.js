@@ -10,6 +10,7 @@ var errorCodeMap = {
 	'coin.is.reading': 'Verifying coin, please wait..',
 	'coinslot.cancelled': 'Coinslot was cancelled',
 	'coinslot.busy': 'Coin slot is busy',
+	'session.expired': 'Coin session expired, tap INSERT COIN to start over',
 	'coin.slot.banned': 'You have been banned from using coin slot, due to multiple request for insert coin, please try again later!',
 	'coin.slot.notavailable': 'Coin slot is not available as of the moment, Please try again later',
 	'no.internet.detected': 'No internet connection as of the moment, Please try again later',
@@ -777,27 +778,47 @@ function restoreCoinChrome() {
 }
 
 function cancelCoin() {
+	// Coins in the slot? Confirm first — cancelling forfeits them, and a
+	// stray tap used to silently strand paid credit (next topUp starts a
+	// fresh voucher and abandons this one on the ESP).
+	var forfeited = 0;
+	if (totalCoinReceived > 0) {
+		var ok = false;
+		try { ok = window.confirm("₱" + totalCoinReceived + " inserted — cancelling forfeits it.\n\nOK = forfeit, Cancel = keep going (then tap Done to claim)."); } catch (e) { ok = false; }
+		if (!ok) {
+			try { dbgLog("cancel: kept session with coins=" + totalCoinReceived); } catch (e) { }
+			return;
+		}
+		forfeited = totalCoinReceived;
+		try { dbgLog("cancel: forfeited coins=" + forfeited); } catch (e) { }
+	}
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
 	coinToastKey = null;
 	sfxStopLoop();
-	try { dbgLog("cancel: received=" + totalCoinReceived); } catch (e) { }
+	try { dbgLog("cancel: received=" + totalCoinReceived + " forfeited=" + forfeited); } catch (e) { }
 	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} currentTopUpXhr = null; }
 	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch(e){} currentCheckCoinXhr = null; }
 	$("#loaderDiv").attr("class", "spinner hidden");
-	if (totalCoinReceived == 0) {
+	if (forfeited > 0) {
+		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled — ₱' + forfeited + ' forfeited', type: 'info', delay: 3000 });
+	} else {
 		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled', type: 'info', delay: 3000 });
-		try { sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null); } catch (e) { }
-		$.ajax({
-			type: "POST",
-			url: "http://" + vendorIpAddress + "/cancelTopUp",
-			timeout: 5000,
-			data: { voucher: voucher, mac: mac },
-			success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
-			error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
-		});
 	}
+	try { sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null); } catch (e) { }
+	// Always release the ESP slot — including after a forfeit — so the next
+	// customer never opens against our abandoned session (busy recovery
+	// paths already cover a slot that stays held).
+	$.ajax({
+		type: "POST",
+		url: "http://" + vendorIpAddress + "/cancelTopUp",
+		timeout: 5000,
+		data: { voucher: voucher, mac: mac },
+		success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
+		error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
+	});
+	totalCoinReceived = 0;
 	render(STATE);
 }
 
@@ -1159,9 +1180,13 @@ function saveVoucherBtnAction() {
 			autoLoginAfterUseVoucher();
 		} else {
 			notifyCoinSlotError(data.errorCode);
+			$("#saveVoucherButton").prop('disabled', false);
+			$("#cncl").prop('disabled', false);
 		}
 		}, error: function (jqXHR, status, err) {
 			$("#loaderDiv").attr("class", "spinner hidden");
+			$("#saveVoucherButton").prop('disabled', false);
+			$("#cncl").prop('disabled', false);
 			dbgAjaxErr("useVoucher", jqXHR, status, err);
 			if (status === "timeout") {
 				$.toast({ title: 'Error', content: 'ESP unreachable — check that the vendo is powered on and WiFi connected', type: 'error', delay: 5000 });
@@ -1240,11 +1265,15 @@ function checkCoin() {
 				$('#voucherInput').val(voucher);
 			}
 				if (remainTime == 0) {
-					closeCoinModal();
 					if (totalCoinReceived > 0) {
-						try { dbgLog("checkCoin: wait expired with coins=" + totalCoinReceived + ", auto-login", "dbg-ok"); } catch (e) { }
-						$.toast({ title: 'Success', content: 'Coin slot expired!, but was able to succesfully process the coin ' + totalCoinReceived + ", will do auto login shortly", type: 'info', delay: 5000 });
-						setTimeout(autoLoginAfterCoin, 3000);
+						// Wait ran out with money in: finalize the purchase the
+						// same way Done does (POST /useVoucher, then auto-login)
+						// instead of just reloading and hoping the ESP filed it.
+						try { dbgLog("checkCoin: wait expired with coins=" + totalCoinReceived + ", auto-finalizing", "dbg-ok"); } catch (e) { }
+						$.toast({ title: 'Time is up', content: 'Confirming your purchase of ' + totalCoinReceived + ' peso(s)...', type: 'info', delay: 4000 });
+						$("#saveVoucherButton").prop('disabled', true);
+						$("#cncl").prop('disabled', true);
+						saveVoucherBtnAction();
 					} else {
 						try { dbgLog("checkCoin: wait expired, no coins", "dbg-err"); } catch (e) { }
 						notifyCoinSlotError('coins.wait.expired');
