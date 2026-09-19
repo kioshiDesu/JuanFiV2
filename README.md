@@ -2,14 +2,12 @@
 
 > Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2).
 
-MikroTik hotspot portal + router setup for a coinslot vendo system
-(ESP8266 wireless). Portal files only — no firmware in this repo.
-Tested against original JuanFi ESP firmware
-([original README](https://github.com/ivanalayan15/JuanFi#readme)).
+MikroTik hotspot portal for a coinslot vendo system (ESP8266 wireless).
+Portal files only — no firmware in this repo. Tested against original
+JuanFi ESP firmware ([original README](https://github.com/ivanalayan15/JuanFi#readme)).
 
-Coinslot vendo system for MikroTik Hotspot (ESP8266 wireless).
 Vouchers are issued by the vendo firmware and work from any AP on the
-same router.
+same router. Default network: `10.0.0.0/16` (vendo `.254`, router `.1`).
 
 ## Requirements
 
@@ -19,20 +17,10 @@ same router.
 
 ## 1. Vendo firmware
 
-Flash the ESP8266 with original JuanFi firmware following its own docs,
-then continue below. This repo only ships the hotspot portal and the
-RouterOS setup that goes with it.
+Flash the ESP8266 with original JuanFi firmware following its own docs.
+This repo only ships the hotspot portal and RouterOS setup scripts.
 
-## 2. Network assumptions
-
-The setup below assumes the vendo on `10.0.0.254` (`/16`) with the router
-at `10.0.0.1`, and a MikroTik API user the vendo logs in with
-(`pisonet` / `abc123` — change both sides together).
-
-## 3. MikroTik setup
-
-Set up a hotspot server first, then paste each block into the MikroTik terminal
-(New Terminal). Order matters.
+## 2. Network setup
 
 Let the vendo talk to the router (vendo at `10.0.0.254`):
 
@@ -41,68 +29,53 @@ Let the vendo talk to the router (vendo at `10.0.0.254`):
 /ip firewall filter add action=accept chain=input place-before=0 src-address=10.0.0.254 comment="JuanFi vendo"
 ```
 
-Give the vendo a static lease: IP -> DHCP Server -> Leases, find `10.0.0.254`,
-Make Static. Then Hotspot -> IP Bindings:
-add the vendo MAC/IP as Bypassed (Server: all).
-
-Create the API user the vendo logs in with (must match §2):
+Give the vendo a static DHCP lease, then add its MAC/IP as Bypassed under
+Hotspot → IP Bindings (Server: all). Create the API user the vendo logs
+in with (`pisonet` / `abc123` — must match both sides):
 
 ```bash
 /user add name=pisonet password=abc123 group=full disabled=no
 ```
 
-### Router clock (fixes 1970-time voucher issues)
+### Router clock
 
-RouterOS v6:
+Fixes 1970-time voucher issues. Uses raw IPs (Google Public NTP) so the
+clock syncs even before DNS is up:
 
 ```bash
+# RouterOS v6
 /system ntp client set enabled=yes primary-ntp=216.239.35.8 secondary-ntp=216.239.35.4
-```
-
-RouterOS v7 equivalent:
-
-```bash
+# RouterOS v7
 /system ntp client set enabled=yes servers=216.239.35.8,216.239.35.4
 ```
 
-Raw IPs on purpose (Google Public NTP): no DNS lookup needed, so the
-clock syncs even when DNS isn't up yet at boot.
+### Hotspot profile tuning
 
-### Hotspot server + user profile tuning
-
-Winbox: Hotspot -> Server Profiles -> your profile -> **Login** tab:
+Winbox: Hotspot → Server Profiles → your profile → **Login** tab:
 HTTP Cookie Lifetime `7d`, tick **Login by MAC Cookie**, MAC Cookie
-Timeout `30d`. Hotspot -> **User Profiles** -> `default` (the profile
-vendo users land on unless `VOUCHER_PROFILE` says otherwise):
-Idle Timeout `none` (leave blank), Keepalive Timeout `30s`,
-Status Autorefresh `1m`.
+Timeout `30d`. Enable **HTTP CHAP + HTTP PAP only** (never HTTPS login —
+browsers block plain-HTTP vendo calls as mixed content).
 
-Same via terminal (replace `hsprof1` if your server profile is named
-differently; check your current login methods first with
-`/ip hotspot profile print` and keep them, just adding `mac-cookie`):
+Hotspot → **User Profiles** → `default`: Idle Timeout `none`,
+Keepalive Timeout `30s`, Status Autorefresh `1m`.
 
 ```bash
 /ip hotspot profile set [find name="hsprof1"] http-cookie-lifetime=7d mac-cookie-timeout=30d login-by=cookie,http-chap,http-pap,mac-cookie
 /ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m
 ```
 
-Note: the status page's own autorefresh counts as traffic, so while the
-page is open the session looks active — with autorefresh (`1m`) longer
-than keepalive (`30s`), idle expiry still works once the page is closed.
-If idle users never expire at all, check the defconf FastTrack rule first
-(fasttracked traffic skips idle accounting).
+Note: the status page's autorefresh counts as traffic. With autorefresh
+(`1m`) longer than keepalive (`30s`), idle expiry still works once the
+page is closed. If idle users never expire, check the defconf FastTrack
+firewall rule first (fasttracked traffic skips idle accounting).
 
-## 4. Hotspot login script (On Login)
+## 3. Hotspot login script (On Login)
 
-Hotspot -> Server Profiles -> your profile -> Login tab -> On Login.
-Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
-`hotspot` on hAP lite). No cloud tracking, no random-MAC sync in this version.
+Hotspot → Server Profiles → your profile → Login tab → On Login.
+Set `HSFilePath` to `flash/hotspot` on hEX/hAP ax, `hotspot` on hAP lite.
 
 ```bash
-### hotspot folder for HEX put flash/hotspot for haplite put hotspot only
 :local HSFilePath "hotspot";
-
-# Get User Data
 :local aUsrNote [/ip hotspot user get $user comment];
 :local aUsrNote [:toarray $aUsrNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
@@ -111,7 +84,6 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
 :local iTimeMin [/ip hotspot user get $user limit-uptime];
 :local iUserReg [/system scheduler find name=$user];
 
-# Check User Data
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
   /ip hotspot user set $user comment="";
   :local iFileMac;
@@ -121,14 +93,12 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
     :if ($chr = ":") do={ :set $chr "" }
     :set iFileMac ($iFileMac . $chr)
   }
-# Extend User
   :if (($iUserReg!="") and ($iExtCode=1)) do={
     :local iTimeInt [/system scheduler get $user interval];
     :set iTimeInt ($iTimeInt+$iUsrTime);
     :if ($iTimeMin>$iTimeInt) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
     /system scheduler set $user interval=$iTimeInt;
   }
-# ADD User
   :local iDateBeg [/system clock get date];
   :local iTimeBeg [/system clock get time];
   :if ($iUserReg="") do={
@@ -145,7 +115,6 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
     } on-error={ log error "( $user ) /system scheduler add => ERROR ADD!" };
     :local x 10;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };
-# Save Data File
   :if ([/file find name="$HSFilePath/data"]="") do={
     :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/"} on-error={ };
   }
@@ -158,7 +127,7 @@ Paste this whole block (set `HSFilePath` to `flash/hotspot` on hEX/hAP ax,
 };
 ```
 
-On Logout script (same profile):
+On Logout (same profile):
 
 ```bash
 :if ($cause="session timeout") do={
@@ -166,26 +135,19 @@ On Logout script (same profile):
 }
 ```
 
-## 4b. Site ID publisher (scheduler, one paste per router)
+## 4. Site ID publisher
 
-Identical portal files on every router still need one per-site value so saved
-vouchers don't leak across neighbouring sites sharing the `10.0.0.x` origin.
-This publishes the board serial to `data/site-id.txt`, which the portal scopes
-its storage to. Write-once (never rotates, so saved vouchers survive), exists
-from first boot, needs no reachable vendo and nothing typed per box:
+Publishes the board serial to `data/site-id.txt` so saved vouchers are
+scoped per site. Write-once, runs at startup, needs no reachable vendo:
 
 ```bash
 /system script add name="publish-site-id" policy=read,write,ftp,test source={
   :local HSFilePath "hotspot";
   :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
   :local siteFile ($HSFilePath . "/data/site-id.txt");
-  # Ensure the data directory exists first: virgin boxes (fresh portal upload,
-  # no logins yet) have no hotspot/data/, and file creation fails without it.
   :if ([/file find name=($HSFilePath . "/data")] = "") do={
     :do { /tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/" } on-error={};
   }
-  # Treat a missing file AND an empty one as unwritten: an interrupted first
-  # run can leave a 0-byte file behind that later runs would otherwise skip.
   :local siteOld "";
   :do { :set siteOld [/file get [find name=$siteFile] contents] } on-error={};
   :if ($siteOld = "") do={
@@ -201,47 +163,28 @@ from first boot, needs no reachable vendo and nothing typed per box:
 /system scheduler add name="publish-site-id" start-time=startup interval=1d policy=read,write,ftp,test on-event="/system script run publish-site-id";
 ```
 
-Run `/system script run publish-site-id` once after pasting (or reboot and let
-startup do it). Boards without a serial (CHR/x86) get no file — the portal
-then falls back to vendorIp scoping, which is fine for single sites.
-
-Order matters — hotspot first, script second:
-
-1. Hotspot server exists and portal files are uploaded (so `hotspot/` and
-   `hotspot/data/` are present; a first customer login also creates `data/`).
-2. Paste the script + scheduler above, then run it once manually.
-3. Verify: `/file print where name="hotspot/data/site-id.txt"` must show
-   `contents=` with your board serial (Files window shows the text).
-   Empty or missing = the run failed; check the log for script errors.
-4. Confirm on a phone: the portal footer tag shows the serial. If it shows
-   `10_0_0_254` instead, the portal can't see the file (usually the script
-   ran before `hotspot/data/` existed) — fix the dir and re-run; the
-   snippet rewrites empty files by itself.
-
-Optional telegram sales alerts: set `isTelegram` to 1 and fill `iTBotToken` /
-`iTGrChatID` at the top of the login script. (Token block omitted here to keep
-the paste clean; see the original README for the telegram snippet.)
+Run `/system script run publish-site-id` once after pasting. Verify:
+`/file print where name="hotspot/data/site-id.txt"` must show your board
+serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
 
 ## 5. Portal files
 
-1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your
-   vendo IP (`10.0.0.254` by default).
-2. Upload the `hotspot/` folder contents to the router's
-   `hotspot` directory (Files window, drag and drop). Overwrite, don't
-   delete the directory first — the scheduler keeps a published
-   `data/site-id.txt` (board serial) there that auto-isolates saved vouchers per site.
-3. Site isolation is automatic via that site ID file (board serial):
-   no per-site config needed for isolation. Branding (`brandHeaderHtml`
-   etc.) is still per-site display — set the homeowner name on each
-   router's copy; it never affects isolation.
-4. Optional branding: same `config.js` — header (homeowner) + footer
-   (your company):
+1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your vendo
+   IP (`10.0.0.254` by default).
+2. Upload the `hotspot/` folder contents to the router's `hotspot`
+   directory (overwrite, don't delete — the scheduler keeps
+   `data/site-id.txt` there).
+3. Optional branding in `config.js`:
 
 ```js
 var brandHeaderHtml = "BRO<em>BRO</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
+
+Bump `PORTAL_VERSION` in `config.js` and matching `?v=N` asset query
+strings on every portal change so phones don't serve stale JS. Vendored
+libs stay pinned at `?v=26`.
 
 ## License
 
