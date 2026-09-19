@@ -101,11 +101,19 @@ function sfxPlayFile(name, src, loop, fallback) {
 			a.preload = "auto";
 			sfxAudio[name] = a;
 		}
-		a.loop = !!loop;
-		if (!loop) { try { a.currentTime = 0; } catch (e) {} }
-		var p = a.play();
-		if (p && typeof p.catch === "function") {
-			p.catch(function () { try { fallback && fallback(); } catch (e) {} });
+		if (loop) {
+			a.loop = true;
+			var p = a.play();
+			if (p && typeof p.catch === "function") {
+				p.catch(function () { try { fallback && fallback(); } catch (e) {} });
+			}
+		} else {
+			var c = a.cloneNode(true);
+			c.loop = false;
+			var p = c.play();
+			if (p && typeof p.catch === "function") {
+				p.catch(function () { try { fallback && fallback(); } catch (e) {} });
+			}
 		}
 	} catch (e) {
 		try { fallback && fallback(); } catch (e2) {}
@@ -362,15 +370,48 @@ function __stepSecs(t0) {
 	try { return (((new Date()).getTime() - t0) / 1000).toFixed(1) + "s"; }
 	catch (e) { return ""; }
 }
-function timedStep(label, promise) {
+var __bootActive = null;
+var __bootLog = [];
+function __renderBoot() {
+	var parts = __bootLog.slice();
+	if (__bootActive) { parts.push(__bootActive); }
+	setBootText(parts.join("<br>"));
+}
+function timedStep(label, promise, soft) {
 	var t0 = (new Date()).getTime();
-	setBootText(label + "...");
-	if (!promise || typeof promise.always !== "function") { return promise; }
+	var settled = false;
+	__bootActive = label + "...";
+	__renderBoot();
+	var tick = setInterval(function () {
+		if (!settled) {
+			__bootActive = label + "... " + __stepSecs(t0);
+			__renderBoot();
+		}
+	}, 100);
+	if (!promise || typeof promise.always !== "function") {
+		setTimeout(function () {
+			settled = true;
+			clearInterval(tick);
+			__bootActive = null;
+			__bootLog.push(label + "... " + __stepSecs(t0) + " ...done");
+			__renderBoot();
+		}, 500);
+		return promise;
+	}
 	promise.always(function () {
-		var ok = true;
-		try { ok = (typeof promise.state === "function") ? promise.state() == "resolved" : true; }
-		catch (e) { }
-		setBootText(label + "... " + __stepSecs(t0) + (ok ? " ...done" : " ...fail"));
+		settled = true;
+		clearInterval(tick);
+		var elapsed = (new Date()).getTime() - t0;
+		var secs = __stepSecs(t0);
+		var delay = Math.max(0, 500 - elapsed);
+		setTimeout(function () {
+			var ok = true;
+			try { ok = (typeof promise.state === "function") ? promise.state() == "resolved" : true; }
+			catch (e) { }
+			__bootActive = null;
+			__bootLog.push(label + "... " + secs + ((ok || soft) ? " ...done" : " ...fail"));
+			__renderBoot();
+		}, delay);
 	});
 	return promise;
 }
@@ -421,20 +462,20 @@ function boot() {
 	}, 9000);
 
 	var bootT0 = (new Date()).getTime();
-	timedStep("Detecting session", detectState()).done(function (state) {
+timedStep("Detecting session", detectState(), true).done(function (state) {
 		try { dbgLog("boot state=" + state); } catch (e) { }
 		render(state);
-		var jobs = [timedStep("Loading Wi-Fi rates", loadRates())];
+		var jobs = [timedStep("Loading Wi-Fi rates", loadRates(), true)];
 		if (state == "login") {
-			jobs.push(timedStep("Checking session", resumeSession()));
+			jobs.push(timedStep("Checking session", resumeSession(), true));
 		} else {
-			jobs.push(timedStep("Loading session", showValidity()));
+			jobs.push(timedStep("Loading session", showValidity(), true));
 		}
 		// jQuery promises settle fail or success — either way reveal the portal.
 		$.when.apply($, jobs).always(function () {
 			setBootText("Ready (" + __stepSecs(bootT0) + ")");
 			try { dbgLog("boot ready (" + __stepSecs(bootT0) + ")"); } catch (e) { }
-			hideBoot();
+			setTimeout(hideBoot, 500);
 		});
 	});
 }

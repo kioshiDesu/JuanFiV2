@@ -9,7 +9,7 @@
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
 	<link rel="stylesheet" href="assets/css/core.css?v=1">
 	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=1">
-	<title>JuanFiV2 Portal</title>
+	<title>HOTSPOT Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -21,7 +21,7 @@
 		// standalone (preview) falls back to the samples below.
 		window.PAGE = window.PAGE || "login";
 		window.mac = window.mac || "AA:BB:CC:DD:EE:FF";
-		window.uIp = window.uIp || "10.0.0.50";
+		window.uIp = window.uIp || "10.0.0.1";
 		window.loginError = window.loginError || "";
 		window.hotspotAddress = window.hotspotAddress || "10.0.0.1";
 		window.interfaceName = window.interfaceName || "bridge-hotspot";
@@ -44,8 +44,8 @@
 
 <div id="bootLoader">
 	<div class="spinner-ring"></div>
-	<div><b id="bootBrand">JuanFiV2</b></div>
-	<div id="bootText">Starting…</div>
+	<div><b id="bootBrand">Loading your data…</b></div>
+	<div id="bootText"></div>
 </div>
 
 <div id="app" style="display: none">
@@ -57,7 +57,7 @@
 		</div>
 		<span id="connPill"></span>
 	</header>
-	<div class="clientline"><span id="clientIp">10.0.0.50</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
+	<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
 
 	<div id="vendoSelectDiv" style="margin-top: 8px">
 		<select class="form-control" name="vendoSelected" id="vendoSelected">
@@ -70,13 +70,11 @@
 			<div id="coinSlot-login"></div>
 		</div>
 
-					<div id="voucherBlock">
-			<label for="voucherInput" class="form-text text-muted" style="padding: 5px">VOUCHER</label>
+					<div id="voucherBlock" style="margin-top: 15px;">
 			<div class="voucher-pill">
-				<input type="text" class="form-control" id="voucherInput" aria-describedby="voucherHelp" placeholder="Voucher here…" autocomplete="off" spellcheck="false">
+				<input type="text" class="form-control" id="voucherInput" placeholder="Voucher here…" autocomplete="off" spellcheck="false">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
-			<small id="voucherHelp" class="form-text text-muted" style="padding: 5px">Please enter voucher code if have existing</small>
 		</div>
 
 		<div id="memberSection">
@@ -133,7 +131,7 @@
 	<div id="coinPanel" style="display: none">
 		<div class="hero">
 			<div class="sub" id="coinPanelTitle">Please insert the coin</div>
-			<div class="big"><span id="totalCoin">0</span><span class="cur">.00 Php</span></div>
+			<div class="big"><span id="totalCoin">0</span><span class="cur"> Php</span></div>
 			<div class="vouchline">Time <span id="totalTime"></span></div>
 			<div class="vouchline">Your code is <span id="codeGenerated" style="color: #4cd137">*****</span></div>
 		</div>
