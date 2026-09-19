@@ -108,9 +108,23 @@
     color: #fff;
 }
 .panelTitle.toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    padding: 0;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
     cursor: pointer;
     -webkit-user-select: none;
     user-select: none;
+}
+.panelTitle.toggle:focus-visible {
+    outline: 2px solid #4cd137;
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 /* Single-column kiosk layout: one phone screen per state. */

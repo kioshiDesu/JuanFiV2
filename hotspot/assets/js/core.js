@@ -7,7 +7,7 @@
 var errorCodeMap = {
 	'coins.wait.expired': 'Coin slot expired',
 	'coin.not.inserted': 'Coin not inserted',
-	'coin.is.reading': 'Verifying coin, please wait..',
+	'coin.is.reading': 'Verifying coin, please wait…',
 	'coinslot.cancelled': 'Coinslot was cancelled',
 	'coinslot.busy': 'Coin slot is busy',
 	'session.expired': 'Coin session expired, tap INSERT COIN to start over',
@@ -139,6 +139,8 @@ function sfxStopLoop() {
 		if (!box) {
 			box = document.createElement("div");
 			box.id = "juanfi-toasts";
+			box.setAttribute("role", "alert");
+			box.setAttribute("aria-live", "polite");
 			document.body.appendChild(box);
 		}
 		var el = document.createElement("div");
@@ -1278,6 +1280,7 @@ function checkCoin() {
 					$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded)));
 					var bar = $("#progressDiv");
 					bar.css('width', percent + '%');
+					bar.attr('aria-valuenow', percent);
 					bar.removeClass("time-ok time-half time-low");
 					bar.addClass(percent > 50 ? "time-ok" : (percent >= 25 ? "time-half" : "time-low"));
 					bar.html(remainTime + "s");
