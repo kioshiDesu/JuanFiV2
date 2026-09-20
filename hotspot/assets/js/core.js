@@ -121,11 +121,11 @@ function sfxPlayFile(name, src, loop, fallback) {
 }
 function sfxStartLoop() {
 	sfxStopLoop();
-	sfxPlayFile("insert", "assets/sounds/insertcoinbg.mp3?v=1", true, null);
+	sfxPlayFile("insert", "assets/sounds/insertcoinbg.mp3", true, null);
 }
 // Per-coin sting + haptic tick (success sting stays on Done only).
 function coinBlip() {
-	sfxPlayFile("inserted", "assets/sounds/insertedcoin.mp3?v=1", false, null);
+	sfxPlayFile("inserted", "assets/sounds/insertedcoin.mp3", false, null);
 	sfxVibrate(40);
 }
 function sfxStopLoop() {
@@ -251,6 +251,25 @@ function setActiveVoucher(v) {
 	return setStorageValue(scopedKey('activeVoucher'), v);
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
+function healVoucherScope() {
+	var cur = getActiveVoucher();
+	if (cur && cur !== "") { return cur; }
+	try {
+		if (typeof localStorage === 'undefined' || localStorage == null) { return ""; }
+		var best = ""; var bestTs = 0; var prefix = "activeVoucher_"; var tsPrefix = "activeVoucher_ts_";
+		for (var i = 0; i < localStorage.length; i++) {
+			var k = localStorage.key(i);
+			if (k == null || k.indexOf(prefix) !== 0 || k === "activeVoucher") { continue; }
+			var v = localStorage.getItem(k);
+			if (!v || v === "") { continue; }
+			var suffix = k.substring(prefix.length);
+			var ts = parseInt(localStorage.getItem(tsPrefix + suffix), 10) || 0;
+			if (ts > bestTs || (ts === bestTs && !best)) { bestTs = ts; best = v; }
+		}
+		if (best) { setActiveVoucher(best); return best; }
+	} catch (e) {}
+	return "";
+}
 function getPausedFlag() { return getStorageValue(scopedKey('isPaused')); }
 function setPausedFlag() { return setStorageValue(scopedKey('isPaused'), "1"); }
 function removePausedFlag() { return removeStorageValue(scopedKey('isPaused')); }
@@ -447,6 +466,7 @@ function boot() {
 	// Re-scope voucher after vendorIp is resolved (multi-vendo selects it)
 	try {
 		var scopedV = getActiveVoucher();
+		if (!scopedV || scopedV === "") { scopedV = healVoucherScope(); }
 		if (scopedV != null && scopedV !== voucher) { voucher = scopedV; }
 	} catch(e){}
 	// Site scope arrives async (site-id file); re-scope again on arrival.
@@ -668,7 +688,7 @@ function startCountdown() {
 			warned1 = true;
 			$.toast({ title: 'Almost out', content: '1 minute remaining! Tap EXTEND TIME now or you will be logged out', type: 'warning', delay: 8000 });
 			try {
-				sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null);
+				sfxPlayFile("error", "assets/sounds/error.mp3", false, null);
 			} catch (e) { }
 		}
 		if (time <= 0) {
@@ -751,7 +771,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (typeof PORTAL_VERSION !== 'undefined' && PORTAL_VERSION) $("#portalVer").text("v" + PORTAL_VERSION); } catch (e) {}
+		try { $("#portalVer").text(""); } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -850,7 +870,7 @@ function cancelCoin() {
 	} else {
 		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled', type: 'info', delay: 3000 });
 	}
-	try { sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null); } catch (e) { }
+	try { sfxPlayFile("error", "assets/sounds/error.mp3", false, null); } catch (e) { }
 	// Always release the ESP slot — including after a forfeit — so the next
 	// customer never opens against our abandoned session (busy recovery
 	// paths already cover a slot that stays held).
@@ -1205,7 +1225,7 @@ function saveVoucherBtnAction() {
 			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
 		if (data.status == "true") {
 			setStorageValue(voucher + "tempValidity", data.validity);
-			try { sfxPlayFile("success", "assets/sounds/success.mp3?v=1", false, null); } catch (e) { }
+			try { sfxPlayFile("success", "assets/sounds/success.mp3", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
 		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
@@ -1213,7 +1233,7 @@ function saveVoucherBtnAction() {
 			// registered the voucher and added the time itself (then cleared
 			// its session, hence "busy"). The purchase is safe — tempValidity
 			// was stored by the checkCoin polls — so log in normally.
-			try { sfxPlayFile("success", "assets/sounds/success.mp3?v=1", false, null); } catch (e) { }
+			try { sfxPlayFile("success", "assets/sounds/success.mp3", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
 		} else {
@@ -1422,7 +1442,7 @@ function resume() {
 function notifyCoinSlotError(errorCode) {
 	try { dbgLog("portal error: " + (errorCodeMap[errorCode] || ("Request failed (" + errorCode + ")")), "dbg-err"); } catch (e) { }
 	try {
-		sfxPlayFile("error", "assets/sounds/error.mp3?v=1", false, null);
+		sfxPlayFile("error", "assets/sounds/error.mp3", false, null);
 	} catch (e) { }
 	$.toast({ title: 'Error', content: errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again'), type: 'error', delay: 5000 });
 }
