@@ -1218,9 +1218,12 @@ function resumeSession() {
 					d.resolve();
 					return;
 				}
-				voucher = fileVoucher;
-				$('#voucherInput').val(voucher);
-				try { dbgLog("resume: auto-connect queued len=" + fileVoucher.length); } catch (e) { }
+			voucher = fileVoucher;
+			$('#voucherInput').val(voucher);
+			// Show remain on the login view BEFORE submit closes the
+			// captive tab — status countdown is unreadable after close.
+			try { $("#knownRemain").text(fileVoucher + " — " + formatExpiryLeft(validUntil)).show(); } catch (e) {}
+			try { dbgLog("resume: auto-connect queued len=" + fileVoucher.length); } catch (e) { }
 				try { markAutoLoginTried(); } catch (e) {}
 				queueAutoLogin(function () { $("#connectBtn").click(); });
 			})
