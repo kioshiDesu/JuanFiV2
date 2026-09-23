@@ -145,24 +145,6 @@ user comment, On-Login below accumulates it here — same as upstream):
   /system script set todayincome source="$iDayTot";
   :local iMonTot ([:tonum [/system script get monthlyincome source]] + $iSaleAmt);
   /system script set monthlyincome source="$iMonTot";
-# ntfy per-sale ping (router-side, fires even with the buyer page
-# closed — 0 = off). Use a hard-to-guess topic: anyone holding the
-# topic URL can read it.
-  :local isNtfy 0;
-  :local iNtfyTopic "REPLACE-ME";
-  :if ($isNtfy=1) do={
-    :local iUActive [/ip hotspot active print count-only];
-    :local iHost $address;
-    :do {
-      :local leaseId [/ip dhcp-server lease find address=$address];
-      :if ([:len $leaseId] > 0) do={
-        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
-        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
-      }
-    } on-error={};
-    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive");
-    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
-  }
 # Telegram per-sale ping (same layout, permanent history — 0 = off).
   :local isTelegram 0;
   :local iTBotToken "REPLACE-ME";
@@ -200,6 +182,30 @@ minutes are preserved, not forfeited):
 :if ($cause="session timeout") do={
   /system scheduler set [find name="$user"] interval=5s;
 }
+```
+
+### Optional: ntfy per-sale ping (instead of telegram)
+
+Paste at the end of the On-Login script, inside the main `if` (uses
+its vars). Use a hard-to-guess topic: anyone holding the topic URL
+can read it:
+
+```bash
+  :local isNtfy 0;
+  :local iNtfyTopic "REPLACE-ME";
+  :if ($isNtfy=1) do={
+    :local iUActive [/ip hotspot active print count-only];
+    :local iHost $address;
+    :do {
+      :local leaseId [/ip dhcp-server lease find address=$address];
+      :if ([:len $leaseId] > 0) do={
+        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
+        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
+      }
+    } on-error={};
+    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive");
+    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
+  }
 ```
 
 ### Sales digest → ntfy (optional)
