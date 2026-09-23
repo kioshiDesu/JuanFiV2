@@ -85,7 +85,9 @@ var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
 // Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
-// ~1s after the loader clears — customers see the portal before it submits.
+// after the loader clears — pause view + remain secs stay readable a few
+// beats before it submits and the OS captive tab closes itself.
+var AUTO_LOGIN_DWELL_MS = 4000;
 window.__pendingAutoLogin = null;
 function queueAutoLogin(fn) {
 	window.__pendingAutoLogin = fn;
@@ -95,7 +97,7 @@ function queueAutoLogin(fn) {
 function drainAutoLogin() {
 	var fn = window.__pendingAutoLogin;
 	window.__pendingAutoLogin = null;
-	if (fn) { setTimeout(function () { try { fn(); } catch (e) {} }, 1000); }
+	if (fn) { setTimeout(function () { try { fn(); } catch (e) {} }, AUTO_LOGIN_DWELL_MS); }
 }
 // Per-site scope from the router-published site ID (data/site-id.txt, written
 // by the publish-site-id scheduler from the board serial). Empty until the
