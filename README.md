@@ -73,7 +73,15 @@ user comment, On-Login below accumulates it here — same as upstream):
 ```bash
 /system script add name=todayincome source="0" policy=read,write comment="vendo income";
 /system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
-/system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script set todayincome source=\"0\"" policy=read,write comment="vendo income";
+/system script add name=day-report policy=read,write,ftp source={
+  :local iTBotToken "REPLACE-ME";
+  :local iTGrChatID "REPLACE-ME";
+  :local day ([:tonum [/system script get todayincome source]]);
+  :local msg ("day closed: P" . $day . "%20%23daily");
+  :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$msg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
+  /system script set todayincome source="0";
+};
+/system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script run day-report" policy=read,write,ftp comment="vendo income";
 /system script add name=month-report policy=read,write,ftp source={
   :local iTBotToken "REPLACE-ME";
   :local iTGrChatID "REPLACE-ME";
@@ -331,6 +339,14 @@ var footerSubText = "INTERNET SERVICES";
    (`multiVendoOption = 0`) needs it; auto modes resolve silently.
 5. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
+6. Coin-insert pings (optional): set `tgCoinAlerts = true` plus
+   `tgBotToken`/`tgChatId` in `config.js`. The buying phone sends one
+   telegram message per inserted coin (deduped by running total).
+   Pre-login phones are offline, so pass telegram through the wall:
+
+```bash
+/ip hotspot walled-garden add dst-host=api.telegram.org action=allow disabled=no comment="telegram coin pings"
+```
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
