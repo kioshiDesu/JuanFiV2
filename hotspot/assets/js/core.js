@@ -1164,6 +1164,11 @@ function resumeSession() {
 			voucher = "";
 			try { dbgLog("resume: uptime exhausted, voucher cleared", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Expired', content: "This code has used up all its time", type: 'error', delay: 5000 });
+		} else if (loginErrLower.indexOf("invalid username or password") !== -1 || loginErrLower.indexOf("wrong password") !== -1) {
+			// Member typo (errors.txt invalid-username) — not a voucher
+			// problem, so say so; nothing saved to clear.
+			try { dbgLog("resume: member bad credentials", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Login failed', content: "Wrong username or password — check and try again", type: 'error', delay: 5000 });
 		} else {
 			removeActiveVoucher();
 			voucher = "";
