@@ -1222,7 +1222,13 @@ function resumeSession() {
 			$('#voucherInput').val(voucher);
 			// Show remain on the login view BEFORE submit closes the
 			// captive tab — status countdown is unreadable after close.
-			try { $("#knownRemain").text(fileVoucher + " — " + formatExpiryLeft(validUntil)).show(); } catch (e) {}
+			// Prefer paused uptime secs over wall-clock expiry: paused
+			// codes keep time banked, validity keeps ticking.
+			try {
+				var rSecs = parseInt(getVouchValue(fileVoucher, "remain"), 10);
+				var rTxt = (isFinite(rSecs) && rSecs >= 0) ? compactDhms(rSecs) + " left" : formatExpiryLeft(validUntil);
+				$("#knownRemain").text(fileVoucher + " — " + rTxt).show();
+			} catch (e) {}
 			try { dbgLog("resume: auto-connect queued len=" + fileVoucher.length); } catch (e) { }
 				try { markAutoLoginTried(); } catch (e) {}
 				queueAutoLogin(function () { $("#connectBtn").click(); });
