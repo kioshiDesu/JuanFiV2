@@ -87,7 +87,7 @@ var bootDone = false;
 // Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
 // after the loader clears — pause view + remain secs stay readable a few
 // beats before it submits and the OS captive tab closes itself.
-var AUTO_LOGIN_DWELL_MS = 4000;
+var AUTO_LOGIN_DWELL_MS = 2500;
 window.__pendingAutoLogin = null;
 function queueAutoLogin(fn) {
 	window.__pendingAutoLogin = fn;
