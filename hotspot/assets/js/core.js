@@ -85,9 +85,13 @@ var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
 // Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
-// after the loader clears — pause view + remain secs stay readable a few
-// beats before it submits and the OS captive tab closes itself.
-var AUTO_LOGIN_DWELL_MS = 2500;
+// after the loader clears. Nothing submits silently: the resume path flips
+// to the paused view (remain secs readable) with a visible auto-connect
+// countdown + CONNECT NOW / CANCEL — the OS captive tab closes on submit,
+// so remain must be readable BEFORE it fires.
+var AUTO_LOGIN_DWELL_MS = 500;
+var AUTO_CONNECT_SECS = 10;
+var __autoConnTimer = null;
 window.__pendingAutoLogin = null;
 function queueAutoLogin(fn) {
 	window.__pendingAutoLogin = fn;
@@ -98,6 +102,33 @@ function drainAutoLogin() {
 	var fn = window.__pendingAutoLogin;
 	window.__pendingAutoLogin = null;
 	if (fn) { setTimeout(function () { try { fn(); } catch (e) {} }, AUTO_LOGIN_DWELL_MS); }
+}
+// Visible auto-connect: paused view + countdown; CANCEL leaves manual RESUME.
+function startAutoConnect(submitFn) {
+	try { render("paused"); } catch (e) {}
+	try { markAutoLoginTried(); } catch (e) {} // render() clears it; keep one-shot
+	var secs = AUTO_CONNECT_SECS;
+	function stop() {
+		if (__autoConnTimer) { clearInterval(__autoConnTimer); __autoConnTimer = null; }
+		try { $("#autoConnBar").hide(); } catch (e) {}
+	}
+	function tick() {
+		if (secs <= 0) { stop(); try { submitFn(); } catch (e) {} return; }
+		try { $("#autoConnText").text("Connecting in " + secs + "s — your time above"); } catch (e) {}
+		secs--;
+	}
+	stop();
+	try {
+		$("#autoConnBar").show();
+		$("#autoConnNow").off("click").on("click", function () { stop(); try { submitFn(); } catch (e) {} });
+		$("#autoConnCancel").off("click").on("click", function () {
+			stop();
+			try { clearAutoLoginTried(); } catch (e) {} // re-offer on next load
+			try { $.toast({ title: "Auto-connect off", content: "Tap RESUME SESSION when ready", type: "info", delay: 4000 }); } catch (e) {}
+		});
+	} catch (e) {}
+	tick();
+	__autoConnTimer = setInterval(tick, 1000);
 }
 // Per-site scope from the router-published site ID (data/site-id.txt, written
 // by the publish-site-id scheduler from the board serial). Empty until the
@@ -1222,7 +1253,7 @@ function resumeSession() {
 				$('#voucherInput').val(voucher);
 				try { dbgLog("resume: auto-connect queued len=" + fileVoucher.length); } catch (e) { }
 				try { markAutoLoginTried(); } catch (e) {}
-				queueAutoLogin(function () { $("#connectBtn").click(); });
+				queueAutoLogin(function () { startAutoConnect(function () { $("#connectBtn").click(); }); });
 			})
 			.always(function () { d.resolve(); });
 	} else {
