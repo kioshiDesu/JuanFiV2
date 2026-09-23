@@ -87,7 +87,7 @@ var bootDone = false;
 // Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
 // after the loader clears — pause view + remain secs stay readable a few
 // beats before it submits and the OS captive tab closes itself.
-var AUTO_LOGIN_DWELL_MS = 2500;
+var AUTO_LOGIN_DWELL_MS = 2000;
 window.__pendingAutoLogin = null;
 function queueAutoLogin(fn) {
 	window.__pendingAutoLogin = fn;
@@ -1220,15 +1220,6 @@ function resumeSession() {
 				}
 			voucher = fileVoucher;
 			$('#voucherInput').val(voucher);
-			// Show remain on the login view BEFORE submit closes the
-			// captive tab — status countdown is unreadable after close.
-			// Prefer paused uptime secs over wall-clock expiry: paused
-			// codes keep time banked, validity keeps ticking.
-			try {
-				var rSecs = parseInt(getVouchValue(fileVoucher, "remain"), 10);
-				var rTxt = (isFinite(rSecs) && rSecs >= 0) ? compactDhms(rSecs) + " left" : formatExpiryLeft(validUntil);
-				$("#knownRemain").text(fileVoucher + " — " + rTxt).show();
-			} catch (e) {}
 			try { dbgLog("resume: auto-connect queued len=" + fileVoucher.length); } catch (e) { }
 				try { markAutoLoginTried(); } catch (e) {}
 				queueAutoLogin(function () { $("#connectBtn").click(); });
