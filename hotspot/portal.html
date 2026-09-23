@@ -55,7 +55,6 @@
 		<div class="brandmark">
 			<span class="brand-big" id="brandHeader">JuanFi<em>V2</em></span>
 		</div>
-		<span id="connPill"></span>
 	</header>
 	<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
 
@@ -78,15 +77,25 @@
 		</div>
 
 		<div id="memberSection">
-			<button type="button" class="panelTitle toggle" id="memberSectionBodyHead" onclick="toggleBlock('memberSectionBody'); return false;">Member Login &#9656;</button>
+			<button type="button" class="panelTitle toggle member-toggle" id="memberSectionBodyHead" onclick="toggleBlock('memberSectionBody'); return false;">
+				<span class="member-text">
+					<span class="member-title">Member Login</span>
+					<span class="member-hint">Have an account? Sign in</span>
+				</span>
+				<span class="member-chev">&#9656;</span>
+			</button>
 			<div id="memberSectionBody" style="display: none">
-			<div class="memdiv" style="text-align: center">
+			<div class="memdiv">
 			<form name="login" action="/portal/done" method="post" onsubmit="return doLoginMember()">
-				<label for="memberUsername" style="float: left; color: #a4b0be">Username</label><br>
-				<input name="username" id="memberUsername" type="text" autocomplete="username" spellcheck="false" /><br>
-				<label for="memberPassword" style="float: left; color: #a4b0be">Password</label><br>
-				<input name="password" id="memberPassword" type="password" autocomplete="current-password" /><br>
-				<button class="btn btn-primary" type="submit" value="Connect" style="width: 50%">Login</button>
+				<div class="memfield">
+					<label for="memberUsername">Username</label>
+					<input name="username" id="memberUsername" type="text" autocomplete="username" spellcheck="false" />
+				</div>
+				<div class="memfield">
+					<label for="memberPassword">Password</label>
+					<input name="password" id="memberPassword" type="password" autocomplete="current-password" />
+				</div>
+				<button class="btn btn-primary memlogin" type="submit" value="Connect">Login</button>
 			</form>
 			</div>
 			</div>
@@ -180,6 +189,7 @@
 					return false;
 				}
 				try { dbgLog("doLogin: submit chap=" + (!!window.chapId) + " len=" + vc.length); } catch (e) { }
+				try { if (typeof markAutoLoginTried === "function") { markAutoLoginTried(); } } catch (e) { }
 				setActiveVoucher(vc);
 				mergeTempValidity(vc);
 				document.sendin.username.value = vc;

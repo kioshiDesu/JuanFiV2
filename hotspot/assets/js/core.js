@@ -277,6 +277,61 @@ function getReLoginFlag() { return getStorageValue(scopedKey('reLogin')); }
 function setReLoginFlag() { return setStorageValue(scopedKey('reLogin'), "1"); }
 function removeReLoginFlag() { return removeStorageValue(scopedKey('reLogin')); }
 
+// ---------- session-scoped auto-login guard (one shot per tab) ----------
+// sessionStorage survives reloads in the same tab but dies with the tab,
+// so an auto-login submit that lands back on login (bad voucher, slow
+// router) won't re-submit forever. Cleared on status render (login
+// succeeded), so a later expiry can auto-login again in the same tab.
+var __memSession = {};
+function setSessionValue(key, value) {
+	try {
+		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
+			sessionStorage.setItem(key, value);
+			return;
+		}
+	} catch (e) {}
+	try { __memSession[key] = String(value); } catch (e) {}
+}
+function getSessionValue(key) {
+	try {
+		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
+			var v = sessionStorage.getItem(key);
+			if (v != null) { return v; }
+		}
+	} catch (e) {}
+	try { if (key in __memSession) { return __memSession[key]; } } catch (e) {}
+	return null;
+}
+function removeSessionValue(key) {
+	try {
+		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
+			sessionStorage.removeItem(key);
+		}
+	} catch (e) {}
+	try { delete __memSession[key]; } catch (e) {}
+}
+function autoLoginTried() { return getSessionValue(scopedKey('autoLoginTried')) === '1'; }
+function markAutoLoginTried() { setSessionValue(scopedKey('autoLoginTried'), '1'); }
+function clearAutoLoginTried() {
+	try { removeSessionValue(scopedKey('autoLoginTried')); } catch (e) {}
+	try { removeSessionValue('autoLoginTried'); } catch (e) {}
+	try {
+		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
+			var kill = [];
+			for (var i = 0; i < sessionStorage.length; i++) {
+				var k = sessionStorage.key(i);
+				if (k != null && k.indexOf('autoLoginTried') === 0) { kill.push(k); }
+			}
+			for (var j = 0; j < kill.length; j++) { sessionStorage.removeItem(kill[j]); }
+		}
+	} catch (e) {}
+	try {
+		for (var m in __memSession) {
+			if (m.indexOf('autoLoginTried') === 0) { delete __memSession[m]; }
+		}
+	} catch (e) {}
+}
+
 // Scoped migration wipe: removes only portal-owned keys. Never
 // localStorage.clear() — that would nuke foreign data stored by any other
 // app on this hotspot origin. Covers legacy bare keys, venue-scoped keys
@@ -381,57 +436,42 @@ function hideBoot() {
 	}, 450);
 }
 
-// Boot progress: wrap a step's promise so the loader line reads
-// "Label... 0.4s ...done" on success or "Label... 0.4s ...fail" when the
-// data behind it didn't load. Steps run in parallel, last one to settle
-// owns the line — each result is still visible as it lands.
+// Boot progress: simple counter under the brand name ("Loading... 1/3").
+// Step labels and timings stay in the debug buffer only — the loader
+// line just counts settled steps so customers see progress, not logs.
 function __stepSecs(t0) {
 	try { return (((new Date()).getTime() - t0) / 1000).toFixed(1) + "s"; }
 	catch (e) { return ""; }
 }
-var __bootActive = null;
-var __bootLog = [];
+var __bootTotal = 0;
+var __bootDoneCount = 0;
 function __renderBoot() {
-	var parts = __bootLog.slice();
-	if (__bootActive) { parts.push(__bootActive); }
-	setBootText(parts.join("<br>"));
+	setBootText("Loading... " + __bootDoneCount + "/" + __bootTotal);
+}
+function __bootSettle(label, t0, promise, soft) {
+	__bootDoneCount++;
+	__renderBoot();
+	try {
+		var ok = (promise && typeof promise.state === "function") ? promise.state() == "resolved" : true;
+		dbgLog("boot step " + label + " " + ((ok || soft) ? "done" : "fail") + " (" + __stepSecs(t0) + ")");
+	} catch (e) {}
 }
 function timedStep(label, promise, soft) {
 	var t0 = (new Date()).getTime();
-	var settled = false;
-	__bootActive = label + "...";
+	__bootTotal++;
 	__renderBoot();
-	var tick = setInterval(function () {
-		if (!settled) {
-			__bootActive = label + "... " + __stepSecs(t0);
-			__renderBoot();
-		}
-	}, 100);
 	if (!promise || typeof promise.always !== "function") {
-		setTimeout(function () {
-			settled = true;
-			clearInterval(tick);
-			__bootActive = null;
-			__bootLog.push(label + "... " + __stepSecs(t0) + " ...done");
-			__renderBoot();
-		}, 500);
+		setTimeout(function () { __bootSettle(label, t0, promise, soft); }, 500);
 		return promise;
 	}
-	promise.always(function () {
-		settled = true;
-		clearInterval(tick);
-		var elapsed = (new Date()).getTime() - t0;
-		var secs = __stepSecs(t0);
-		var delay = Math.max(0, 500 - elapsed);
-		setTimeout(function () {
-			var ok = true;
-			try { ok = (typeof promise.state === "function") ? promise.state() == "resolved" : true; }
-			catch (e) { }
-			__bootActive = null;
-			__bootLog.push(label + "... " + secs + ((ok || soft) ? " ...done" : " ...fail"));
-			__renderBoot();
-		}, delay);
-	});
+	var elapsed0 = (new Date()).getTime() - t0;
+	var delay0 = Math.max(0, 500 - elapsed0);
+	setTimeout(function () {
+		try {
+			if (promise.state && promise.state() != "pending") { __bootSettle(label, t0, promise, soft); return; }
+		} catch (e) {}
+		promise.always(function () { __bootSettle(label, t0, promise, soft); });
+	}, delay0);
 	return promise;
 }
 
@@ -444,6 +484,7 @@ function boot() {
 		// voucher into the input or doLogin has nothing to submit.
 		var sv = getActiveVoucher();
 		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
+		try { markAutoLoginTried(); } catch (e) {}
 		doLogin();
 		return;
 	}
@@ -475,9 +516,8 @@ function boot() {
 		$('#voucherInput').val(voucher);
 	}
 	// Failsafe: never trap the customer behind the loader (dead vendo, no net).
-	// Says so honestly instead of pretending everything is ready.
 	setTimeout(function () {
-		setBootText("Taking longer than usual — showing what loaded so far.");
+		setBootText("Loading... taking longer than usual.");
 		hideBoot();
 	}, 9000);
 
@@ -493,7 +533,6 @@ timedStep("Detecting session", detectState(), true).done(function (state) {
 		}
 		// jQuery promises settle fail or success — either way reveal the portal.
 		$.when.apply($, jobs).always(function () {
-			setBootText("Ready (" + __stepSecs(bootT0) + ")");
 			try { dbgLog("boot ready (" + __stepSecs(bootT0) + ")"); } catch (e) { }
 			setTimeout(hideBoot, 500);
 		});
@@ -574,18 +613,11 @@ function detectState() {
 function render(state) {
 	setPortalState(state);
 	try { dbgLog("render: " + state); } catch (e) { }
-	var pill = '';
+	// Login succeeded (status/paused views): arm the next auto-login.
+	try { if (state != "login") { clearAutoLoginTried(); } } catch (e) {}
 	if (state == "login") {
-		pill = '<span class="pill pill-off"><span class="dot"></span>Offline</span>';
-		$("#connPill").html(pill);
 		return;
 	}
-	if (state == "status") {
-		pill = '<span class="pill pill-on"><span class="dot"></span>Connected</span>';
-	} else {
-		pill = '<span class="pill pill-pause"><span class="dot"></span>Paused</span>';
-	}
-	$("#connPill").html(pill);
 	if (state == "status") {
 		$("#statusVoucher").text(voucher);
 		startCountdown();
@@ -921,7 +953,6 @@ function humanDuration(mins) {
 }
 
 function loadRates() {
-	setBootText("Loading Wi-Fi rates...");
 	$("#ratesBody").html("<p>Loading Wi-Fi rates…</p>");
 	return $.ajax({
 		type: "GET",
@@ -976,19 +1007,45 @@ function rateDisplay(raw) {
 // ---------- session resume (login page) ----------
 
 function resumeSession() {
-	setBootText("Checking session...");
 	var d = $.Deferred();
 	// Single-file portal keeps all views in the DOM: only auto-connect on login state.
 	if (typeof STATE !== 'undefined' && STATE != "login") { d.resolve(); return d.promise(); }
+	// Router rejection lands back here with loginError set — show it
+	// BEFORE the one-shot guard below, or a failed submit (which marks
+	// tried before posting) would swallow its own error toast.
 	if (loginError != "" && voucher != "") {
 		removePausedFlag();
-		removeActiveVoucher();
-		voucher = "";
-		try { dbgLog("resume: rejected by loginError, voucher cleared", "dbg-err"); } catch (e) { }
-		$.toast({ title: 'Error', content: "Invalid voucher, please make sure voucher is valid", type: 'error', delay: 5000 });
+		try { markAutoLoginTried(); } catch (e) {}
+		var loginErrLower = String(loginError).toLowerCase();
+		if (loginErrLower.indexOf("no more sessions") !== -1 || loginErrLower.indexOf("session limit") !== -1 || loginErrLower.indexOf("simultaneous") !== -1) {
+			// Code valid but online elsewhere (shared-users=1) — keep it
+			// so retry is one tap instead of retyping.
+			try { $('#voucherInput').val(voucher); } catch (e) {}
+			try { dbgLog("resume: code in use elsewhere, voucher kept", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'In use', content: "This code is online on another device — pause it there or wait 30s, then tap CONNECT to retry", type: 'warning', delay: 8000 });
+		} else if (loginErrLower.indexOf("uptime limit") !== -1) {
+			removeActiveVoucher();
+			voucher = "";
+			try { dbgLog("resume: uptime exhausted, voucher cleared", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Expired', content: "This code has used up all its time", type: 'error', delay: 5000 });
+		} else {
+			removeActiveVoucher();
+			voucher = "";
+			try { dbgLog("resume: rejected by loginError, voucher cleared", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Error', content: "Invalid voucher, please make sure voucher is valid", type: 'error', delay: 5000 });
+		}
 		d.resolve();
 		return d.promise();
 	}
+	// One-shot per tab: a reload after a failed submit lands back here
+	// with the same session file — without this the page re-submits forever.
+	try {
+		if (autoLoginTried()) {
+			dbgLog("resume: already tried this tab, skipping auto-login");
+			d.resolve();
+			return d.promise();
+		}
+	} catch (e) {}
 	var isPaused = getPausedFlag();
 	if (isPaused == "1") {
 		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
@@ -1012,6 +1069,7 @@ function resumeSession() {
 				voucher = fileVoucher;
 				$('#voucherInput').val(voucher);
 				try { dbgLog("resume: auto-connect len=" + fileVoucher.length); } catch (e) { }
+				try { markAutoLoginTried(); } catch (e) {}
 				$("#connectBtn").click();
 			})
 			.always(function () { d.resolve(); });
@@ -1055,7 +1113,6 @@ function formatExpiryLeft(t) {
 }
 
 function showValidity() {
-	setBootText("Loading session...");
 	var d = $.Deferred();
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
 		.done(function (data) {

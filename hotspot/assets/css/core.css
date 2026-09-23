@@ -42,6 +42,7 @@
 #bootText {
     color: #a3a7ad;
     font-size: 14px;
+    font-variant-numeric: tabular-nums;
 }
 .spinner-ring {
     width: 64px;
@@ -126,6 +127,44 @@
     outline-offset: 2px;
     border-radius: 2px;
 }
+/* Member toggle card: full-width tap target with title, hint, chevron. */
+#memberSection .member-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 56px;
+    padding: 10px 14px;
+    border: 1px solid rgba(164, 176, 190, .25);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .03);
+    text-transform: none;
+    letter-spacing: normal;
+    margin: 10px 0 0 0;
+}
+#memberSection .member-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+#memberSection .member-title {
+    font-size: 15px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #fff;
+}
+#memberSection .member-hint {
+    font-size: 12px;
+    font-weight: 400;
+    color: #a4b0be;
+}
+#memberSection .member-chev {
+    flex-shrink: 0;
+    font-size: 16px;
+    color: #a4b0be;
+}
 
 /* Single-column kiosk layout: one phone screen per state. */
 .portal {
@@ -150,10 +189,7 @@
     font-size: 26px;
 }
 /* Homeowner names vary in length and must never truncate: shrink + wrap
-   on narrow phones, pill keeps its full text beside it. */
-#connPill {
-    flex-shrink: 0;
-}
+   on narrow phones. */
 @media (max-width: 380px) {
     .topbar .brand-big {
         font-size: 20px;
@@ -162,44 +198,6 @@
 }
 .topbar .brand-sub {
     display: none;
-}
-#connPill .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 10px 3px 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: #fff;
-    white-space: nowrap;
-}
-#connPill .pill .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-}
-#connPill .pill-on {
-    background: rgba(76, 209, 55, .16);
-    color: #4cd137;
-}
-#connPill .pill-on .dot {
-    animation: pulseDot 1.6s infinite;
-}
-#connPill .pill-pause {
-    background: rgba(255, 168, 0, .16);
-    color: #ffa800;
-}
-#connPill .pill-off {
-    background: rgba(164, 176, 190, .16);
-    color: #a4b0be;
-}
-@keyframes pulseDot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .35; }
 }
 /* Countdown bar glides per poll instead of jumping. */
 #progressDiv {
@@ -276,9 +274,9 @@
     background: none;
     border: none;
     border-radius: 0;
-    padding: 6px 0;
+    padding: 16px 0;
     text-align: center;
-    margin: 4px 0 10px 0;
+    margin: 10px 0 16px 0;
 }
 .hero .big {
     font-size: clamp(30px, 11vw, 44px);
@@ -374,7 +372,7 @@
     margin-bottom: 2px;
 }
 .hero #insertBtn {
-    margin-top: 10px;
+    margin-top: 28px;
 }
 .btnrow {
     display: flex;
@@ -403,7 +401,7 @@
     overflow: hidden;
     width: 132px;
     height: 132px;
-    margin: 10px auto 4px auto;
+    margin: 28px auto 22px auto;
     padding: 0;
     border-radius: 50%;
     border: 6px dashed rgba(121, 85, 0, .55);
