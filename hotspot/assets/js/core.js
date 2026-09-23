@@ -1,5 +1,5 @@
-// JuanFiV2 portal core — one-page app shared by login.html / status.html / logout.html.
-// Each page sets PAGE ("login"|"status"|"logout") plus its MikroTik vars
+// JuanFiV2 portal core — one-page app shared by login.html / status.html.
+// Each page sets PAGE ("login"|"status") plus its MikroTik vars
 // (mac, uIp, hotspotAddress, interfaceName, loginError) before this loads,
 // then calls boot() on document ready. Boot shows a loading screen, preloads
 // promo rates + session data, then reveals the page.
@@ -79,7 +79,7 @@ var voucher = (function(){ try { var k = scopedKey('activeVoucher'); var v = get
 if (voucher == null) { voucher = ""; }
 // Portal state: "login" | "status" | "paused". Router pages preset PAGE;
 // portal.html (single-file) switches it live via setPortalState().
-var STATE = (typeof PAGE !== 'undefined') ? (PAGE === 'logout' ? 'paused' : PAGE) : 'login';
+var STATE = (typeof PAGE !== 'undefined') ? PAGE : 'login';
 var insertingCoin = false;
 var totalCoinReceived = 0;
 var timer = null;
@@ -736,20 +736,6 @@ function render(state) {
 	}
 }
 
-// Compact countdown, biggest units first; seconds always shown.
-// fitCountdown() shrinks long values to fit instead of clipping them.
-function compactDhms(seconds) {
-	seconds = Math.max(0, Number(seconds) || 0);
-	var d = Math.floor(seconds / 86400);
-	var h = Math.floor(seconds % 86400 / 3600);
-	var m = Math.floor(seconds % 3600 / 60);
-	var s = Math.floor(seconds % 60);
-	function p(n) { return (n < 10 ? "0" : "") + n; }
-	if (d > 0) { return d + "d " + p(h) + "h " + p(m) + "m " + p(s) + "s"; }
-	if (h > 0) { return h + "h " + p(m) + "m " + p(s) + "s"; }
-	return p(m) + "m " + p(s) + "s";
-}
-
 // Segmented countdown boxes: always Day Hour Min Sec, joined with colons,
 // each with a small unit label inside. Zero boxes stay visible ("00 Days")
 // so the layout never shifts as time runs down.
@@ -933,7 +919,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v4"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v5"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

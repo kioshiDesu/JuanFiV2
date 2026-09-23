@@ -98,7 +98,6 @@
     margin-bottom: 6px;
     color: #fff;
 }
-#coinPanel .panelTitle,
 #memberSection .panelTitle {
     display: block;
     font-weight: 800;
@@ -195,9 +194,6 @@
         font-size: 20px;
         line-height: 1.1;
     }
-}
-.topbar .brand-sub {
-    display: none;
 }
 /* Countdown bar glides per poll instead of jumping. */
 #progressDiv {
@@ -461,10 +457,6 @@
     font-weight: 700;
 }
 
-.input-bottom-space-20px {
-    margin-bottom: 20px;
-}
-
 /* Coin focus: dim everything under a veil except the coin panel + rates. */
 #coinDim {
     position: fixed;
@@ -519,41 +511,11 @@ hr.foot-hr {
 #totalCoin, #totalTime,
 #remainTime, #pauseRemainTime,
 #expirationTime, #expirationTimePaused,
-#codeGenerated, .stat-list .v,
+#codeGenerated,
 #ratesBody .table td {
     font-variant-numeric: tabular-nums;
 }
 
-/* Dashboard list rows (no cards). */
-.stat-list {
-    list-style: none;
-    margin: 6px 0 4px 0;
-    padding: 0;
-}
-.stat-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 2px;
-    border-bottom: 1px solid #485460;
-    color: #fff;
-    font-size: 14px;
-}
-.stat-list li:last-child {
-    border-bottom: none;
-}
-.stat-list .k {
-    color: #c9cfd7;
-    font-weight: 600;
-    white-space: nowrap;
-}
-.stat-list .v {
-    font-weight: 700;
-    text-align: right;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
 #ratesBody .table {
 	margin-bottom: 6px;
 	font-size: 13px;

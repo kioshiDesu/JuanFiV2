@@ -33,28 +33,6 @@ body {
 	color: #c9cfd7;
 }
 
-.blinking1{
-    animation:blinkingText1 1.2s infinite;
-}
-@keyframes blinkingText1{
-    0%{     color: red;    }
-    49%{    color: red; }
-    60%{    color: transparent; }
-    99%{    color:transparent;  }
-    100%{   color: red;    }
-}
-
-.blinking2{
-    animation:blinkingText2 1.2s infinite;
-}
-@keyframes blinkingText2{
-    0%{     color: #4cd137;    }
-    49%{    color: #4cd137; }
-    60%{    color: transparent; }
-    99%{    color:transparent;  }
-    100%{   color: #4cd137;    }
-}
-
 #vendoSelectDiv {
 	display: none;
 	margin: 10px 0;
