@@ -78,7 +78,7 @@ user comment, On-Login below accumulates it here — same as upstream):
   :local iTBotToken "REPLACE-ME";
   :local iTGrChatID "REPLACE-ME";
   :local mon ([:tonum [/system script get monthlyincome source]]);
-  :local msg ("month closed: P" . $mon);
+  :local msg ("month closed: P" . $mon . "%20%23monthly");
   :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$msg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
   /system script set monthlyincome source="0";
 };
@@ -160,12 +160,18 @@ user comment, On-Login below accumulates it here — same as upstream):
         :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
       }
     } on-error={};
-    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive");
+    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A%23sale");
     :do {/tool fetch url=("https://api.telegram.org/bot" . $iTBotToken . "/sendMessage?chat_id=" . $iTGrChatID . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
   }
 };
 }
 ```
+
+Bot hardening (BotFather): `/setjoingroups` → Disable — send-only bot,
+nobody can add it to random groups. Leave `/setprivacy` default; the bot
+never reads messages. Tags above (`#sale`, `#monthly`) are tappable
+filters in the DM. Secretary Mode is Business-account automation —
+irrelevant here, no updates are ever handled.
 
 Policy is the minimum that runs the cleanup (`ftp` for `/file`,
 `read,write,test` for user/scheduler/file ops) — the old
@@ -204,7 +210,7 @@ can read it:
         :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
       }
     } on-error={};
-    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive");
+    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive #sale");
     :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
   }
 ```
