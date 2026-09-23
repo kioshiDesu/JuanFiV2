@@ -4,13 +4,13 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-		<link rel="stylesheet" href="assets/css/core.css?v=7">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=7">
+		<link rel="stylesheet" href="assets/css/core.css?v=8">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=8">
 	<title>JuanFiV2 Login Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<script src="assets/js/config.js?v=7"></script>
+	<script src="assets/js/config.js?v=8"></script>
 	<script>
 		// Client facts for the single-file portal (portal.html renders the UI).
 		window.PAGE = "login";
@@ -26,10 +26,9 @@
 	<script>
 		window.chapId = "$(chap-id)";
 		window.chapChallenge = "$(chap-challenge)";
-		window.loginOrig = "$(link-orig)";
 	</script>
 	$(endif)
-	<script src="assets/js/boot.js?v=7"></script>
+	<script src="assets/js/boot.js?v=8"></script>
 </head>
 
 <body id="loginBody">
@@ -50,6 +49,13 @@ $(if error)
 	try { window.loginError = document.getElementById("loginErr").textContent || ""; } catch (e) {}
 </script>
 $(endif)
+
+<!-- $(link-orig) is the pre-login URL the router redirects to after a
+     successful login. textContent read, never inlined (URL metachars). -->
+<span id="loginDst" style="display:none">$(link-orig)</span>
+<script>
+	try { window.loginDst = document.getElementById("loginDst").textContent || ""; } catch (e) {}
+</script>
 
 </body>
 

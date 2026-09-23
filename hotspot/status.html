@@ -3,13 +3,13 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-		<link rel="stylesheet" href="assets/css/core.css?v=7">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=7">
+		<link rel="stylesheet" href="assets/css/core.css?v=8">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=8">
 	<title>JuanFiV2 - Status</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<script src="assets/js/config.js?v=7"></script>
+	<script src="assets/js/config.js?v=8"></script>
 	<script>
 		// Client facts for the single-file portal (portal.html renders the UI).
 		window.PAGE = "status";
@@ -28,20 +28,21 @@
 	<script>
 		window.chapId = "$(chap-id)";
 		window.chapChallenge = "$(chap-challenge)";
-		window.loginOrig = "$(link-orig)";
 	</script>
 	$(endif)
-	<script src="assets/js/boot.js?v=7"></script>
+	<script src="assets/js/boot.js?v=8"></script>
 </head>
 
 <!-- $(username) is user-controlled: never inline in JS/attributes (quote
      breakout). textContent read keeps quotes inert; attribute set via JS. -->
 <body id="loginBody" data-session-time="$(session-time-left-secs)">
 <span id="curV" style="display:none">$(username)</span>
+<span id="loginDst" style="display:none">$(link-orig)</span>
 <script>
 	try {
 		window.currentVoucher = document.getElementById("curV").textContent || "";
 		document.getElementById("loginBody").setAttribute("data-current-voucher", window.currentVoucher);
+		window.loginDst = document.getElementById("loginDst").textContent || "";
 	} catch (e) {}
 </script>
 

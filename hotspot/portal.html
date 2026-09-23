@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=7">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=7">
+	<link rel="stylesheet" href="assets/css/core.css?v=8">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=8">
 	<title>HOTSPOT Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#1a1a2e">
-	<script src="assets/js/config.js?v=7"></script>
+	<script src="assets/js/config.js?v=8"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -159,18 +159,19 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="opacity:.65;font-size:10px;"></span>
-			<span class="brand-sub" id="portalVer" style="opacity:.65;font-size:10px;">v7</span>
+			<span class="brand-sub" id="portalVer" style="opacity:.65;font-size:10px;">v8</span>
 		</div>
 	</div>
 
-		<form name="sendin" action="/portal/done" method="post" style="display:none" aria-hidden="true">
-			<input type="hidden" name="username" />
-			<input type="hidden" name="password" />
+	<form name="sendin" action="/portal/done" method="post" style="display:none" aria-hidden="true">
+		<input type="hidden" name="username" />
+		<input type="hidden" name="password" />
+		<input type="hidden" name="dst" />
 		</form>
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=7"></script>
+		<script src="assets/js/core.js?v=8"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -190,9 +191,12 @@
 				}
 				try { dbgLog("doLogin: submit chap=" + (!!window.chapId) + " len=" + vc.length); } catch (e) { }
 				try { if (typeof markAutoLoginTried === "function") { markAutoLoginTried(); } } catch (e) { }
-				setActiveVoucher(vc);
-				mergeTempValidity(vc);
-				document.sendin.username.value = vc;
+			setActiveVoucher(vc);
+			mergeTempValidity(vc);
+			document.sendin.username.value = vc;
+			// Post-login landing: router redirects to the pre-login URL
+			// (stock dst behavior). Empty = router default (status page).
+			try { document.sendin.dst.value = window.loginDst || ""; } catch (e) {}
 				if (window.chapId && typeof hexMD5 === "undefined") {
 					try { dbgLog("doLogin: md5 missing"); } catch (e) { }
 					$.toast({ title: 'Error', content: 'Login library failed to load, please reload and try again', type: 'error', delay: 3000 });
@@ -210,8 +214,9 @@
 			// URL with CHAP hashing when offered (plain password otherwise).
 			// Wired via onsubmit on the member form above.
 			function doLoginMember() {
-				try { dbgLog("doLoginMember: submit chap=" + (!!window.chapId)); } catch (e) { }
-				document.sendin.username.value = document.login.username.value;
+			try { dbgLog("doLoginMember: submit chap=" + (!!window.chapId)); } catch (e) { }
+			document.sendin.username.value = document.login.username.value;
+			try { document.sendin.dst.value = window.loginDst || ""; } catch (e) {}
 				if (window.chapId && typeof hexMD5 === "undefined") {
 					try { dbgLog("doLoginMember: md5 missing"); } catch (e) { }
 					$.toast({ title: 'Error', content: 'Login library failed to load, please reload and try again', type: 'error', delay: 3000 });

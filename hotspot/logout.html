@@ -2,18 +2,60 @@
 <html lang="en">
 
 <head>
+	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
+	<link rel="stylesheet" href="assets/css/core.css?v=8">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=8">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta http-equiv="refresh" content="1; url=login">
-	<title>JuanFiV2</title>
-	<script>
-		// Logout is a pass-through: hand back to login, which auto-connects
-		// any saved voucher (or erases the cookie on cancel) and lands on status.
-		window.location.replace("login");
-	</script>
+	<title>JuanFiV2 - Logged out</title>
 </head>
 
-<body>
+<!-- Router vars are user-adjacent ($(username) is typed at login): never
+     inline them in JS strings or attributes — spans + textContent below. -->
+<body id="loginBody">
+<span id="loU" style="display:none">$(username)</span>
+<span id="loUp" style="display:none">$(uptime)</span>
+<span id="loIn" style="display:none">$(bytes-in-nice)</span>
+<span id="loOut" style="display:none">$(bytes-out-nice)</span>
+<span id="loLink" style="display:none">$(link-login)</span>
+
+<div class="portal">
+	<div class="hero">
+		<div class="sub">Logged out</div>
+		<div class="vouchline">Voucher <span id="loUser"></span></div>
+	</div>
+
+	<div class="vouchline">Session <span id="loUptime"></span></div>
+	<div class="vouchline">Uploaded <span id="loUp"></span> &bull; Downloaded <span id="loDown"></span></div>
+
+	<div class="btnrow">
+		<a id="loLogin" href="login" class="btn btn-info btn-block" style="display: block; width: 100%;">LOG IN AGAIN</a>
+	</div>
+
+	<div class="pausenote">Returning to login in <span id="loCount">10</span>s — your saved code auto-connects there.</div>
+</div>
+
+<script>
+(function () {
+	function t(id) { try { return document.getElementById(id).textContent || ""; } catch (e) { return ""; } }
+	try {
+		document.getElementById("loUser").textContent = t("loU");
+		document.getElementById("loUptime").textContent = t("loUp");
+		document.getElementById("loUp").textContent = t("loIn");
+		document.getElementById("loDown").textContent = t("loOut");
+		var link = t("loLink") || "login";
+		document.getElementById("loLogin").href = link;
+		var n = 10;
+		var el = document.getElementById("loCount");
+		var iv = setInterval(function () {
+			n--;
+			if (n <= 0) { clearInterval(iv); window.location.replace(link); return; }
+			try { el.textContent = n; } catch (e) {}
+		}, 1000);
+	} catch (e) {}
+})();
+</script>
+
 </body>
 
 </html>
