@@ -73,21 +73,26 @@ user comment, On-Login below accumulates it here — same as upstream):
 ```bash
 /system script add name=todayincome source="0" policy=read,write comment="vendo income";
 /system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
+:global tgBotToken "REPLACE-ME";
+:global tgChatId "REPLACE-ME";
+(Set once — day/month-report, On-Login, tg-cmd all read these globals.
+Rotate the token here and every script follows. Portal coin pings keep
+their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
 /system script add name=day-report policy=read,write,ftp source={
-  :local iTBotToken "REPLACE-ME";
-  :local iTGrChatID "REPLACE-ME";
+  :global tgBotToken;
+  :global tgChatId;
   :local day ([:tonum [/system script get todayincome source]]);
   :local msg ("day closed: P" . $day . "%20%23daily");
-  :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$msg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
+  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$msg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
   /system script set todayincome source="0";
 };
 /system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script run day-report" policy=read,write,ftp comment="vendo income";
 /system script add name=month-report policy=read,write,ftp source={
-  :local iTBotToken "REPLACE-ME";
-  :local iTGrChatID "REPLACE-ME";
+  :global tgBotToken;
+  :global tgChatId;
   :local mon ([:tonum [/system script get monthlyincome source]]);
   :local msg ("month closed: P" . $mon . "%20%23monthly");
-  :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$msg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
+  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$msg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
   /system script set monthlyincome source="0";
 };
 /system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script run month-report" policy=read,write,ftp comment="vendo income";
@@ -156,8 +161,8 @@ user comment, On-Login below accumulates it here — same as upstream):
   /system script set monthlyincome source="$iMonTot";
 # Telegram per-sale ping (same layout, permanent history — 0 = off).
   :local isTelegram 0;
-  :local iTBotToken "REPLACE-ME";
-  :local iTGrChatID "REPLACE-ME";
+  :global tgBotToken;
+  :global tgChatId;
   :if ($isTelegram=1) do={
     :local iUActive [/ip hotspot active print count-only];
     :local iHost $address;
@@ -169,7 +174,7 @@ user comment, On-Login below accumulates it here — same as upstream):
       }
     } on-error={};
     :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A%23sale");
-    :do {/tool fetch url=("https://api.telegram.org/bot" . $iTBotToken . "/sendMessage?chat_id=" . $iTGrChatID . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
+    :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
   }
 };
 }
@@ -235,8 +240,8 @@ the replies:
 
 ```bash
 /system script add name=tg-cmd policy=read,write,ftp source={
-  :local token "REPLACE-ME";
-  :local chat "REPLACE-ME";
+  :global tgBotToken;
+  :global tgChatId;
   :local vendo [/system identity get name];
   :local xv "";
   :for i from=0 to=([:len $vendo]-1) do={
@@ -250,7 +255,7 @@ the replies:
   :local fresh no;
   :do { :set off [/file get ("$HSFilePath/data/tg-offset.txt") contents]; } on-error={ :set fresh yes; };
   :local data "";
-  :do { :set data ([/tool fetch url=("https://api.telegram.org/bot" . $token . "/getUpdates?timeout=20&offset=" . $off) output=user as-value]->"data"); } on-error={ :log warning "tg-cmd: poll failed"; };
+  :do { :set data ([/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/getUpdates?timeout=20&offset=" . $off) output=user as-value]->"data"); } on-error={ :log warning "tg-cmd: poll failed"; };
   :if ($data != "") do={
     :local maxId [:tonum $off];
     :local pos 0;
@@ -266,15 +271,15 @@ the replies:
     }
     /file print file=("$HSFilePath/data/tg-offset.txt") where name="dummyfile";
     /file set ("$HSFilePath/data/tg-offset.txt") contents=[:tostr ($maxId+1)];
-    :if (($fresh=no) and ([:find $data ("\"id\":" . $chat)] >= 0)) do={
+    :if (($fresh=no) and ([:find $data ("\"id\":" . $tgChatId)] >= 0)) do={
       :if ([:find $data "/daily"] >= 0) do={
         :local day ([:tonum [/system script get todayincome source]]);
         :local act [:len [/ip hotspot active find]];
-        :do {/tool fetch url=("https://api.telegram.org/bot" . $token . "/sendMessage?chat_id=" . $chat . "&text=" . $xv . "%20daily:%20P" . $day . "%20online:%20" . $act) keep-result=no} on-error={};
+        :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $xv . "%20daily:%20P" . $day . "%20online:%20" . $act) keep-result=no} on-error={};
       }
       :if ([:find $data "/monthly"] >= 0) do={
         :local mon ([:tonum [/system script get monthlyincome source]]);
-        :do {/tool fetch url=("https://api.telegram.org/bot" . $token . "/sendMessage?chat_id=" . $chat . "&text=" . $xv . "%20month:%20P" . $mon) keep-result=no} on-error={};
+        :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $xv . "%20month:%20P" . $mon) keep-result=no} on-error={};
       }
     }
   }
