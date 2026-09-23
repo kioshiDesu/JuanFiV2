@@ -9,12 +9,19 @@
    <meta http-equiv="X-UA-Compatible" content="IE=edge">
    <meta http-equiv="refresh" content="1; url=$(link-status)">
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-   <script>
-         var error = "$(error)"; 
-         if (error == "customer $(username) has reached uptime limit") { 
-               window.location.href = "./login.html"; 
-         }
-   </script> 
+    <span id="aloginErr" style="display:none">$(error)</span>
+    <span id="aloginUser" style="display:none">$(username)</span>
+    <script>
+          // textContent reads: $(error)/$(username) never sit in a JS
+          // string, so quotes in vouchers can't break out.
+          var error = "";
+          try { error = document.getElementById("aloginErr").textContent || ""; } catch (e) {}
+          var aun = "";
+          try { aun = document.getElementById("aloginUser").textContent || ""; } catch (e) {}
+          if (error == "customer " + aun + " has reached uptime limit") {
+                window.location.href = "./login.html";
+          }
+    </script> 
    
          $(if chap-id)
          <form name="sendin" action="$(link-login-only)" method="post">

@@ -19,7 +19,7 @@
 		window.hotspotAddress = "$(server-address)";
 		window.interfaceName = "$(interface-name)";
 		window.sessiontime = "$(session-time-left-secs)";
-		window.currentVoucher = "$(username)";
+		window.currentVoucher = "";
 		window.loginAction = "$(link-login-only)";
 		window.logoutAction = "$(link-logout)";
 		window.name = "hotspot_status";
@@ -27,7 +27,16 @@
 	<script src="assets/js/boot.js"></script>
 </head>
 
-<body id="loginBody" data-current-voucher="$(username)" data-session-time="$(session-time-left-secs)">
+<!-- $(username) is user-controlled: never inline in JS/attributes (quote
+     breakout). textContent read keeps quotes inert; attribute set via JS. -->
+<body id="loginBody" data-session-time="$(session-time-left-secs)">
+<span id="curV" style="display:none">$(username)</span>
+<script>
+	try {
+		window.currentVoucher = document.getElementById("curV").textContent || "";
+		document.getElementById("loginBody").setAttribute("data-current-voucher", window.currentVoucher);
+	} catch (e) {}
+</script>
 
 <div id="bootLoader">
 	<div class="spinner-ring"></div>

@@ -251,31 +251,22 @@ function setActiveVoucher(v) {
 	return setStorageValue(scopedKey('activeVoucher'), v);
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
-function healVoucherScope() {
-	var cur = getActiveVoucher();
-	if (cur && cur !== "") { return cur; }
-	try {
-		if (typeof localStorage === 'undefined' || localStorage == null) { return ""; }
-		var best = ""; var bestTs = 0; var prefix = "activeVoucher_"; var tsPrefix = "activeVoucher_ts_";
-		for (var i = 0; i < localStorage.length; i++) {
-			var k = localStorage.key(i);
-			if (k == null || k.indexOf(prefix) !== 0 || k === "activeVoucher") { continue; }
-			var v = localStorage.getItem(k);
-			if (!v || v === "") { continue; }
-			var suffix = k.substring(prefix.length);
-			var ts = parseInt(localStorage.getItem(tsPrefix + suffix), 10) || 0;
-			if (ts > bestTs || (ts === bestTs && !best)) { bestTs = ts; best = v; }
-		}
-		if (best) { setActiveVoucher(best); return best; }
-	} catch (e) {}
-	return "";
-}
+// Per-voucher keys (remain/tempValidity/validity) are venue-scoped like
+// activeVoucher itself, or the same VCxxxxxx code collides across
+// neighbouring vendos. Null-safe: empty voucher yields null, wrappers no-op.
+function vKey(vc, suffix) { return (vc ? scopedKey(vc + suffix) : null); }
+function getVouchValue(vc, suffix) { var k = vKey(vc, suffix); return k ? getStorageValue(k) : null; }
+function setVouchValue(vc, suffix, val) { var k = vKey(vc, suffix); if (k) { setStorageValue(k, val); } }
+function removeVouchValue(vc, suffix) { var k = vKey(vc, suffix); if (k) { removeStorageValue(k); } }
 function getPausedFlag() { return getStorageValue(scopedKey('isPaused')); }
 function setPausedFlag() { return setStorageValue(scopedKey('isPaused'), "1"); }
 function removePausedFlag() { return removeStorageValue(scopedKey('isPaused')); }
-function getReLoginFlag() { return getStorageValue(scopedKey('reLogin')); }
-function setReLoginFlag() { return setStorageValue(scopedKey('reLogin'), "1"); }
-function removeReLoginFlag() { return removeStorageValue(scopedKey('reLogin')); }
+// Deliberately UNSCOPED (like autoLoginTried): set before logout and read
+// after reload, potentially under a different site scope. Scoped reads used
+// to miss and strand the extend flow on the login page.
+function getReLoginFlag() { return getStorageValue('reLogin'); }
+function setReLoginFlag() { return setStorageValue('reLogin', "1"); }
+function removeReLoginFlag() { return removeStorageValue('reLogin'); }
 
 // ---------- session-scoped auto-login guard (one shot per tab) ----------
 // sessionStorage survives reloads in the same tab but dies with the tab,
@@ -283,6 +274,10 @@ function removeReLoginFlag() { return removeStorageValue(scopedKey('reLogin')); 
 // router) won't re-submit forever. Cleared on status render (login
 // succeeded), so a later expiry can auto-login again in the same tab.
 var __memSession = {};
+// Fallback chain: sessionStorage → persistent storage (localStorage/cookie
+// via setStorageValue) → memory. Memory-only used to die on reload, looping
+// auto-login forever in private mode; the persistent layer survives reload
+// and is cleared on status render like the primary path.
 function setSessionValue(key, value) {
 	try {
 		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
@@ -290,6 +285,7 @@ function setSessionValue(key, value) {
 			return;
 		}
 	} catch (e) {}
+	try { setStorageValue(key, value); return; } catch (e) {}
 	try { __memSession[key] = String(value); } catch (e) {}
 }
 function getSessionValue(key) {
@@ -299,6 +295,7 @@ function getSessionValue(key) {
 			if (v != null) { return v; }
 		}
 	} catch (e) {}
+	try { var s = getStorageValue(key); if (s != null) { return s; } } catch (e) {}
 	try { if (key in __memSession) { return __memSession[key]; } } catch (e) {}
 	return null;
 }
@@ -308,10 +305,14 @@ function removeSessionValue(key) {
 			sessionStorage.removeItem(key);
 		}
 	} catch (e) {}
+	try { removeStorageValue(key); } catch (e) {}
 	try { delete __memSession[key]; } catch (e) {}
 }
-function autoLoginTried() { return getSessionValue(scopedKey('autoLoginTried')) === '1'; }
-function markAutoLoginTried() { setSessionValue(scopedKey('autoLoginTried'), '1'); }
+// Deliberately UNSCOPED: one-shot per tab, no venue aspect. Scoping by
+// siteIdSuffix used to mark under one key and check under another when the
+// async site-id arrived mid-boot, bypassing the guard.
+function autoLoginTried() { return getSessionValue('autoLoginTried') === '1'; }
+function markAutoLoginTried() { setSessionValue('autoLoginTried', '1'); }
 function clearAutoLoginTried() {
 	try { removeSessionValue(scopedKey('autoLoginTried')); } catch (e) {}
 	try { removeSessionValue('autoLoginTried'); } catch (e) {}
@@ -367,9 +368,17 @@ function wipePortalStorage() {
 			}
 			if (scopedHit) { continue; }
 			for (var v = 0; v < vouchers.length; v++) {
-				if (vouchers[v] && (k === vouchers[v] + "remain" ||
-					k === vouchers[v] + "tempValidity" ||
-					k === vouchers[v] + "validity")) { kill.push(k); break; }
+				// Bare legacy keys plus venue-scoped variants
+				// (<voucher><suffix>_<scope>).
+				var hit = false;
+				if (vouchers[v]) {
+					var tails = ["remain", "tempValidity", "validity"];
+					for (var t = 0; t < tails.length; t++) {
+						var base = vouchers[v] + tails[t];
+						if (k === base || k.indexOf(base + "_") === 0) { hit = true; break; }
+					}
+				}
+				if (hit) { kill.push(k); break; }
 			}
 		}
 		for (var j = 0; j < kill.length; j++) { try { localStorage.removeItem(kill[j]); } catch (e) {} }
@@ -391,15 +400,18 @@ function loadSiteId() {
 			var m = String(data == null ? "" : data).replace(/[^A-Za-z0-9]/g, "");
 			if (/^[A-Za-z0-9]{4,32}$/.test(m)) {
 				try { siteIdSuffix = m.toUpperCase(); } catch (e) {}
-				try {
-					var scopedV = getActiveVoucher();
-					if (scopedV != null && scopedV !== voucher) {
-						voucher = scopedV;
-						if (voucher != "" && $("#voucherInput").length > 0 && !$("#voucherInput").val()) {
-							$('#voucherInput').val(voucher);
-						}
+			try {
+				// Truthy only: a new scope with no voucher yields "" —
+				// adopting it would wipe the vendorIp-scoped code and
+				// poison later keys ("nullremain", vc.length throws).
+				var scopedV = getActiveVoucher();
+				if (scopedV && scopedV !== voucher) {
+					voucher = scopedV;
+					if ($("#voucherInput").length > 0 && !$("#voucherInput").val()) {
+						$('#voucherInput').val(voucher);
 					}
-				} catch (e) {}
+				}
+			} catch (e) {}
 				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
 				try { renderSiteTag(); } catch (e) {}
 			}
@@ -476,18 +488,6 @@ function timedStep(label, promise, soft) {
 }
 
 function boot() {
-	// Re-login after an extend that outlived its session (set by autoLoginAfterCoin).
-	// Runs here — not in the shell — because doLogin only exists after injection.
-	if (getReLoginFlag() == '1') {
-		removeReLoginFlag();
-		// A logout/reload wipes the page but not storage: restore the
-		// voucher into the input or doLogin has nothing to submit.
-		var sv = getActiveVoucher();
-		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
-		try { markAutoLoginTried(); } catch (e) {}
-		doLogin();
-		return;
-	}
 	// One-way storage migration: stale flags from older portal builds used to
 	// wedge pause/cancel/auto-login (clearing browser data fixed it by hand).
 	try {
@@ -507,9 +507,23 @@ function boot() {
 	// Re-scope voucher after vendorIp is resolved (multi-vendo selects it)
 	try {
 		var scopedV = getActiveVoucher();
-		if (!scopedV || scopedV === "") { scopedV = healVoucherScope(); }
-		if (scopedV != null && scopedV !== voucher) { voucher = scopedV; }
+		if (scopedV && scopedV !== voucher) { voucher = scopedV; }
 	} catch(e){}
+	// Re-login after an extend that outlived its session (set by
+	// autoLoginAfterCoin). Runs AFTER applyFlags (multi-vendo vendorIp
+	// select) and the re-scope above — reading the flag earlier used a
+	// different scope than the write and stranded extends on login.
+	// Runs here, not in the shell, because doLogin only exists after injection.
+	if (getReLoginFlag() == '1') {
+		removeReLoginFlag();
+		// A logout/reload wipes the page but not storage: restore the
+		// voucher into the input or doLogin has nothing to submit.
+		var sv = getActiveVoucher();
+		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
+		try { markAutoLoginTried(); } catch (e) {}
+		doLogin();
+		return;
+	}
 	// Site scope arrives async (site-id file); re-scope again on arrival.
 	try { loadSiteId(); } catch (e) {}
 	if (voucher != "" && $("#voucherInput").length > 0) {
@@ -547,17 +561,25 @@ function parseStatusFacts(html) {
 	var facts = { voucher: "", sessiontime: "" };
 	try {
 		var doc = new DOMParser().parseFromString(String(html), "text/html");
+		// Shells carry the voucher as span text (never inline JS/attrs —
+		// quotes in vouchers stay inert). Attribute second (legacy shells).
+		try {
+			var cvEl = doc.getElementById("curV");
+			if (cvEl && cvEl.textContent) { facts.voucher = cvEl.textContent; }
+		} catch (e2) {}
 		var root = doc.getElementById("loginBody") || doc.body;
 		if (root) {
-			var cv = root.getAttribute("data-current-voucher");
+			if (!facts.voucher) {
+				var cv = root.getAttribute("data-current-voucher");
+				if (cv) { facts.voucher = cv; }
+			}
 			var st = root.getAttribute("data-session-time");
-			if (cv) { facts.voucher = cv; }
 			if (st) { facts.sessiontime = st; }
 			if (facts.voucher || facts.sessiontime) { return facts; }
 		}
 	} catch (e) {}
 	try {
-		var m = String(html).match(/(?:var|window\.)currentVoucher\s*=\s*"([^"]*)"/);
+		var m = String(html).match(/<span id="curV"[^>]*>([^<]*)<\/span>/);
 		if (m) { facts.voucher = m[1]; }
 		var t = String(html).match(/(?:var|window\.)sessiontime\s*=\s*"([^"]*)"/);
 		if (t) { facts.sessiontime = t[1]; }
@@ -610,6 +632,14 @@ function detectState() {
 	return d.promise();
 }
 
+// Paused-time restore: seconds from storage → locally-built boxes. Never
+// .html() stored markup; garbage/negative renders a dash, not attacker HTML.
+function renderStoredRemain(sel, vc) {
+	var secs = parseInt(getVouchValue(vc, "remain"), 10);
+	$(sel).html(isNaN(secs) || secs < 0 ? "—" : boxesDhms(secs));
+	fitCountdown(sel);
+}
+
 function render(state) {
 	setPortalState(state);
 	try { dbgLog("render: " + state); } catch (e) { }
@@ -625,8 +655,7 @@ function render(state) {
 	}
 	if (state == "paused") {
 		$("#pausedVoucher").text(voucher);
-		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
-		fitCountdown("#pauseRemainTime");
+		renderStoredRemain("#pauseRemainTime", voucher);
 	}
 }
 
@@ -698,6 +727,7 @@ function startCountdown() {
 		return;
 	}
 	time = parseInt(time);
+	window.__remainSecs = time;
 	var total = time;
 	var warned5 = false, warned1 = false;
 	$("#remainTime").html(boxesDhms(time));
@@ -706,6 +736,7 @@ function startCountdown() {
 	if (window.remainingTimer != null) { clearInterval(window.remainingTimer); }
 	window.remainingTimer = setInterval(function () {
 		time--;
+		window.__remainSecs = time;
 		$("#remainTime").html(boxesDhms(time));
 		paintCountdownUrgency(time);
 		fitCountdown("#remainTime");
@@ -726,7 +757,10 @@ function startCountdown() {
 		if (time <= 0) {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
 			clearInterval(window.remainingTimer);
-			setTimeout(function () { document.logout.submit(); }, 6000);
+			// Tracked so pause() can disarm it: tapping pause inside the
+			// 6s window used to show paused UI while logout still fired.
+			try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); } } catch (e) {}
+			window.__logoutTimer = setTimeout(function () { document.logout.submit(); }, 6000);
 		}
 	}, 1000);
 }
@@ -793,10 +827,25 @@ function applyFlags() {
 		$("#vendoSelectDiv").attr("style", "display: none");
 	}
 
-	// Branding from config.js — keep portal.html generic
+	// Branding from config.js — keep portal.html generic. Operator-edited
+	// value: allow <em> only, strip everything else so a per-site edit
+	// can't inject script/img handlers via .html().
+	function brandSafe(html) {
+		var tmp = document.createElement("div");
+		tmp.innerHTML = String(html == null ? "" : html);
+		var out = "";
+		var nodes = tmp.childNodes;
+		for (var bi = 0; bi < nodes.length; bi++) {
+			var n = nodes[bi];
+			if (n.nodeType === 3) { out += n.nodeValue; }
+			else if (n.nodeType === 1 && n.tagName === "EM") { out += "<em>" + n.textContent + "</em>"; }
+			else if (n.nodeType === 1) { out += n.textContent; }
+		}
+		return out;
+	}
 	try {
 		if (typeof brandHeaderHtml !== 'undefined' && brandHeaderHtml) {
-			$("#brandHeader").html(brandHeaderHtml);
+			$("#brandHeader").html(brandSafe(brandHeaderHtml));
 			var plain = brandHeaderHtml.replace(/<[^>]*>/g, "");
 			$("#bootBrand").text(plain);
 			document.title = plain + " Portal";
@@ -888,14 +937,17 @@ function cancelCoin() {
 		forfeited = totalCoinReceived;
 		try { dbgLog("cancel: forfeited coins=" + forfeited); } catch (e) { }
 	}
+	topUpGen++;
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
+	window.__useVoucherBusy = false;
 	coinToastKey = null;
 	sfxStopLoop();
 	try { dbgLog("cancel: received=" + totalCoinReceived + " forfeited=" + forfeited); } catch (e) { }
 	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} currentTopUpXhr = null; }
 	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch(e){} currentCheckCoinXhr = null; }
+	if (currentUseVoucherXhr) { try { currentUseVoucherXhr.abort(); } catch(e){} currentUseVoucherXhr = null; }
 	$("#loaderDiv").attr("class", "spinner hidden");
 	if (forfeited > 0) {
 		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled — ₱' + forfeited + ' forfeited', type: 'info', delay: 3000 });
@@ -906,11 +958,13 @@ function cancelCoin() {
 	// Always release the ESP slot — including after a forfeit — so the next
 	// customer never opens against our abandoned session (busy recovery
 	// paths already cover a slot that stays held).
+	var cancelVc = voucher;
+	try { if (window.__cancelVoucher) { cancelVc = window.__cancelVoucher; } } catch (e) {}
 	$.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/cancelTopUp",
 		timeout: 5000,
-		data: { voucher: voucher, mac: mac },
+		data: { voucher: cancelVc, mac: mac },
 		success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
 		error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
 	});
@@ -1048,8 +1102,7 @@ function resumeSession() {
 	} catch (e) {}
 	var isPaused = getPausedFlag();
 	if (isPaused == "1") {
-		$("#pauseRemainTime").html(getStorageValue(voucher + "remain"));
-		fitCountdown("#pauseRemainTime");
+		renderStoredRemain("#pauseRemainTime", voucher);
 	}
 	if ($("#voucherInput").length > 0) {
 		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
@@ -1140,12 +1193,12 @@ function showValidity() {
 
 // Returns true when some expiry could be shown, false when nothing loaded.
 function fallbackValidity() {
-	var validity = getStorageValue(voucher + "validity");
+	var validity = getVouchValue(voucher, "validity");
 	if (validity != null) {
 		var t = new Date(parseInt(validity));
 		if (t.getTime() < new Date().getTime()) {
-			removeStorageValue(voucher + "validity");
-			removeStorageValue(voucher + "tempValidity");
+			removeVouchValue(voucher, "validity");
+			removeVouchValue(voucher, "tempValidity");
 			renderExpiration("Not Available");
 			return false;
 		}
@@ -1158,9 +1211,14 @@ function fallbackValidity() {
 
 // ---------- coin flow ----------
 
+// Coin-session generation: bumped on every fresh insert AND every cancel.
+// topUp retries captured an old generation never fire — without this a
+// retry timer outlives cancelCoin and resurrects a dead session.
+var topUpGen = 0;
 function insertBtnAction() {
 	// No double-submit: one coin session at a time (second tap = busy error).
 	if (insertingCoin) { return false; }
+	topUpGen++;
 	insertingCoin = true;
 	coinToastKey = null;
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
@@ -1201,7 +1259,10 @@ function insertBtnAction() {
 	return false;
 }
 
-function callTopupAPI(retryCount) {
+function callTopupAPI(retryCount, gen) {
+	if (typeof gen === 'undefined') { gen = topUpGen; }
+	// Stale generation (cancelled/superseded while in flight): never retry.
+	if (gen !== topUpGen) { return; }
 	$('#cncl').html("Cancel");
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
 	try { dbgLog("topUp start retry=" + retryCount + " extend=" + (isExtend ? "1" : "0")); } catch (e) { }
@@ -1225,9 +1286,14 @@ function callTopupAPI(retryCount) {
 		success: function (data) {
 			$("#loaderDiv").attr("class", "spinner hidden");
 			try { dbgLog("topUp ok voucher=" + (data && data.voucher ? data.voucher : "?"), "dbg-ok"); } catch (e) { }
-			if (data.status == "true") {
-				voucher = data.voucher;
-				setActiveVoucher(voucher);
+		if (gen !== topUpGen) { return; }
+		if (data.status == "true") {
+			voucher = data.voucher;
+			setActiveVoucher(voucher);
+			// Pin the voucher for cancelTopUp: the global gets cleared on
+			// fresh purchases, and a failed topUp never sets it — sending
+			// voucher:"" releases nothing on the ESP.
+			try { window.__cancelVoucher = data.voucher; } catch (e) {}
 				showCoinPanel();
 				insertingCoin = true;
 				$('#codeGenerated').text(voucher);
@@ -1235,7 +1301,7 @@ function callTopupAPI(retryCount) {
 					timer = setInterval(checkCoin, 1000);
 				}
 				if (isMultiVendo) {
-					$("#coinPanelTitle").html("Please insert the coin on " + $("#vendoSelected option:selected").text());
+					$("#coinPanelTitle").text("Please insert the coin on " + $("#vendoSelected option:selected").text());
 				}
 				sfxStartLoop();
 			} else {
@@ -1245,13 +1311,15 @@ function callTopupAPI(retryCount) {
 				timer = null;
 				insertingCoin = false;
 			}
-		}, error: function (xhr, status, err) {
-			// ESP dead / timeout: retry quickly, then show unreachable error
-			dbgAjaxErr("topUp retry=" + retryCount, xhr, status, err);
-			setTimeout(function () {
-				if (retryCount < 3) {
-					callTopupAPI(retryCount + 1);
-				} else {
+	}, error: function (xhr, status, err) {
+		// ESP dead / timeout: retry quickly, then show unreachable error.
+		// Generation-checked: a cancel during the 1s wait kills the retry.
+		dbgAjaxErr("topUp retry=" + retryCount, xhr, status, err);
+		setTimeout(function () {
+			if (gen !== topUpGen) { return; }
+			if (retryCount < 3) {
+				callTopupAPI(retryCount + 1, gen);
+			} else {
 					$("#loaderDiv").attr("class", "spinner hidden");
 					notifyCoinSlotError("coin.slot.notavailable");
 					insertingCoin = false;
@@ -1261,7 +1329,14 @@ function callTopupAPI(retryCount) {
 	});
 }
 
+var currentUseVoucherXhr = null;
 function saveVoucherBtnAction() {
+	// Entry guard: Done double-tap and the wait-expiry auto-finalize used
+	// to fire concurrent /useVoucher posts (plus a racing /cancelTopUp).
+	if (window.__useVoucherBusy) { return; }
+	window.__useVoucherBusy = true;
+	$("#saveVoucherButton").prop('disabled', true);
+	$("#cncl").prop('disabled', true);
 	$("#loaderDiv").attr("class", "spinner");
 	setActiveVoucher( voucher);
 	try { dbgLog("useVoucher start type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
@@ -1270,26 +1345,31 @@ function saveVoucherBtnAction() {
 	clearInterval(timer);
 	timer = null;
 	sfxStopLoop();
-	$.ajax({
+	if (currentUseVoucherXhr) { try { currentUseVoucherXhr.abort(); } catch(e){} }
+	currentUseVoucherXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
 		timeout: 5000,
 		data: { voucher: voucher },
+		complete: function(){ currentUseVoucherXhr = null; },
 		success: function (data) {
 			totalCoinReceived = 0;
 			insertingCoin = false;
+			window.__useVoucherBusy = false;
 			$("#loaderDiv").attr("class", "spinner hidden");
 			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
 		if (data.status == "true") {
-			setStorageValue(voucher + "tempValidity", data.validity);
+			setVouchValue(voucher, "tempValidity", data.validity);
 			try { sfxPlayFile("success", "assets/sounds/success.mp3", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
 		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
 			// Lost the race with the ESP wait-expiry: the vendo already
 			// registered the voucher and added the time itself (then cleared
-			// its session, hence "busy"). The purchase is safe — tempValidity
-			// was stored by the checkCoin polls — so log in normally.
+			// its session, hence "busy"). Prefer the validity riding on this
+			// response — with zero polls yet the checkCoin path stored
+			// nothing and mergeTempValidity would no-op the expiry.
+			if (data.validity) { setVouchValue(voucher, "tempValidity", data.validity); }
 			try { sfxPlayFile("success", "assets/sounds/success.mp3", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
@@ -1299,6 +1379,11 @@ function saveVoucherBtnAction() {
 			$("#cncl").prop('disabled', false);
 		}
 		}, error: function (jqXHR, status, err) {
+			if (status === "abort") { window.__useVoucherBusy = false; return; }
+			// Release INSERT COIN: the old handler left insertingCoin true,
+			// bricking the button until reload.
+			insertingCoin = false;
+			window.__useVoucherBusy = false;
 			$("#loaderDiv").attr("class", "spinner hidden");
 			$("#saveVoucherButton").prop('disabled', false);
 			$("#cncl").prop('disabled', false);
@@ -1367,10 +1452,10 @@ function checkCoin() {
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded)));
 			$('#voucherInput').val(voucher);
 			setActiveVoucher( voucher);
-			setStorageValue(voucher + "tempValidity", data.validity);
+			setVouchValue(voucher, "tempValidity", data.validity);
 				notifyCoinSuccess(data.newCoin);
 			} else if (data.errorCode == "coin.not.inserted") {
-				setStorageValue(voucher + "tempValidity", data.validity);
+				setVouchValue(voucher, "tempValidity", data.validity);
 				var remainTime = parseInt(parseInt(data.remainTime) / 1000);
 				var waitTime = parseFloat(data.waitTime);
 				var percent = parseInt(((remainTime * 1000) / waitTime) * 100);
@@ -1445,6 +1530,7 @@ function closeCoinModal() {
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
+	window.__useVoucherBusy = false;
 	render(STATE);
 }
 
@@ -1467,17 +1553,31 @@ function newLogin() {
 
 function pause() {
 	var vc = getActiveVoucher();
+	try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); window.__logoutTimer = null; } } catch (e) {}
 	setPausedFlag();
-	setStorageValue(vc + "remain", $("#remainTime").html());
+	// Store seconds, not markup: the old code saved $("#remainTime").html()
+	// (tbox spans) and restored it via .html() — editable storage turned
+	// that into an XSS sink. Regenerate markup locally on restore.
+	setVouchValue(vc, "remain", String(window.__remainSecs == null ? -1 : window.__remainSecs));
 	try { dbgLog("pause: remain saved"); } catch (e) { }
 	// Freeze any auto-reload while pausing, then render paused instantly.
 	insertingCoin = true;
 	render("paused");
 	// End the router session in the background without navigating, so no
-	// reload can win the race and bounce the client back to status.
+	// reload can win the race and bounce the client back to status. A
+	// failed logout used to leave paused UI over a still-ticking session —
+	// revert to status with a toast instead.
 	try {
 		fetch(document.logout.action, { method: "GET", cache: "no-store" })
-			.catch(function () { document.logout.submit(); });
+			.then(function (r) { if (!r || !r.ok) { throw new Error("logout-http"); } })
+			.catch(function () {
+				try {
+					removePausedFlag();
+					insertingCoin = false;
+					render("status");
+					$.toast({ title: 'Error', content: 'Pause failed — still connected, please try again', type: 'error', delay: 4000 });
+				} catch (e) { try { document.logout.submit(); } catch (e2) {} }
+			});
 	} catch (e) { document.logout.submit(); }
 }
 
@@ -1486,8 +1586,9 @@ function resume() {
 	try { dbgLog("resume: " + (vc ? "relogin len=" + vc.length : "no voucher, reload")); } catch (e) { }
 	removePausedFlag();
 	insertingCoin = false;
-	removeActiveVoucher();
-	if (vc) { removeStorageValue(vc + "remain"); }
+	// Keep the voucher + remain until the router verdict: the old code
+	// deleted both before doLogin, so a rejected resume lost the code with
+	// no retry. Invalid/uptime paths in resumeSession() clear it instead.
 	if (!vc) { location.reload(); return; }
 	// Re-login directly: no reload, no login-page flash.
 	voucher = vc;

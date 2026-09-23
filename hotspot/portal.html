@@ -217,8 +217,8 @@
 			}
 			// Fold purchased minutes into the stored absolute expiry (was inline in login.html).
 			function mergeTempValidity(vc) {
-				var validity = getStorageValue(vc + "validity");
-				var tempValidity = getStorageValue(vc + "tempValidity");
+				var validity = getVouchValue(vc, "validity");
+				var tempValidity = getVouchValue(vc, "tempValidity");
 				if (tempValidity != null) {
 					var currentExpireDate = new Date();
 					if (validity != null) {
@@ -227,18 +227,18 @@
 					var expireDate = new Date(currentExpireDate.getTime() + parseInt(tempValidity) * 60000);
 					if (expireDate.getTime() < new Date().getTime()) {
 						try { dbgLog("validity cleared (expired temp)"); } catch (e) { }
-						removeStorageValue(vc + "validity");
-						removeStorageValue(vc + "tempValidity");
+						removeVouchValue(vc, "validity");
+						removeVouchValue(vc, "tempValidity");
 					} else {
 						try { dbgLog("validity merged +" + tempValidity + "m"); } catch (e) { }
-						setStorageValue(vc + "validity", expireDate.getTime() + "");
-						removeStorageValue(vc + "tempValidity");
+						setVouchValue(vc, "validity", expireDate.getTime() + "");
+						removeVouchValue(vc, "tempValidity");
 					}
 				}
 			}
 
-			$("#clientIp").html(window.uIp);
-			$("#clientMac").html(window.mac);
+			$("#clientIp").text(window.uIp);
+			$("#clientMac").text(window.mac);
 			boot();
 		</script>
 

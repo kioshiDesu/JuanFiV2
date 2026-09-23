@@ -29,11 +29,6 @@
 		window.loginOrig = "$(link-orig)";
 	</script>
 	$(endif)
-	$(if error)
-	<script>
-		window.loginError = "$(error)";
-	</script>
-	$(endif)
 	<script src="assets/js/boot.js"></script>
 </head>
 
@@ -46,6 +41,15 @@
 </div>
 
 <div id="app" style="display: none"></div>
+
+$(if error)
+<!-- $(error) embeds the username: never inline it in a JS string (quote
+     breakout). textContent read keeps quotes inert. -->
+<span id="loginErr" style="display:none">$(error)</span>
+<script>
+	try { window.loginError = document.getElementById("loginErr").textContent || ""; } catch (e) {}
+</script>
+$(endif)
 
 </body>
 
