@@ -75,7 +75,7 @@ user comment, On-Login below accumulates it here — same as upstream):
 /system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
 :global tgBotToken "REPLACE-ME";
 :global tgChatId "REPLACE-ME";
-(Set once — day/month-report, On-Login, tg-cmd all read these globals.
+(Set once — day/month-report and On-Login all read these globals.
 Rotate the token here and every script follows. Portal coin pings keep
 their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
 /system script add name=day-report policy=read,write,ftp source={
@@ -248,71 +248,6 @@ can read it:
     :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
   }
 ```
-
-### Telegram bot commands (optional)
-
-Ask for totals from chat: `/daily` and `/monthly`, answered by the
-router itself. Warning: this polling only works **one bot per
-vendo** — with one shared bot across boxes the routers race
-`getUpdates` and eat each other's commands. Send-only alerts (above)
-are race-free on a shared bot; commands need a bot each. All bots
-plus you in one group — each router polls only its own token. Group `/commands` reach the bot with default privacy, no
-BotFather change needed. Set `/system identity` per site — it labels
-the replies:
-
-```bash
-/system script add name=tg-cmd policy=read,write,ftp source={
-  :global tgBotToken;
-  :global tgChatId;
-  :local vendo [/system identity get name];
-  :local xv "";
-  :for i from=0 to=([:len $vendo]-1) do={
-    :local chr [:pick $vendo $i ($i+1)];
-    :if ($chr=" ") do={ :set chr "%20" };
-    :set xv ($xv . $chr);
-  }
-  :local HSFilePath "hotspot";
-  :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
-  :local off "0";
-  :local fresh no;
-  :do { :set off [/file get ("$HSFilePath/data/tg-offset.txt") contents]; } on-error={ :set fresh yes; };
-  :local data "";
-  :do { :set data ([/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/getUpdates?timeout=20&offset=" . $off) output=user as-value]->"data"); } on-error={ :log warning "tg-cmd: poll failed"; };
-  :if ($data != "") do={
-    :local maxId [:tonum $off];
-    :local pos 0;
-    :local f [:find $data "\"update_id\":" $pos];
-    :while ($f >= 0) do={
-      :local p ($f+13);
-      :local num "";
-      :local c [:pick $data $p ($p+1)];
-      :while ($c>="0" and $c<="9") do={ :set num ($num . $c); :set p ($p+1); :set c [:pick $data $p ($p+1)]; }
-      :if ($num!="" and [:tonum $num]>$maxId) do={ :set maxId [:tonum $num]; }
-      :set pos ($f+1);
-      :set f [:find $data "\"update_id\":" $pos];
-    }
-    /file print file=("$HSFilePath/data/tg-offset.txt") where name="dummyfile";
-    /file set ("$HSFilePath/data/tg-offset.txt") contents=[:tostr ($maxId+1)];
-    :if (($fresh=no) and ([:find $data ("\"id\":" . $tgChatId)] >= 0)) do={
-      :if ([:find $data "/daily"] >= 0) do={
-        :local day ([:tonum [/system script get todayincome source]]);
-        :local act [:len [/ip hotspot active find]];
-        :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $xv . "%20daily:%20P" . $day . "%20online:%20" . $act) keep-result=no} on-error={};
-      }
-      :if ([:find $data "/monthly"] >= 0) do={
-        :local mon ([:tonum [/system script get monthlyincome source]]);
-        :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $xv . "%20month:%20P" . $mon) keep-result=no} on-error={};
-      }
-    }
-  }
-}
-/system scheduler add name=tg-cmd start-time=startup interval=30s on-event="/system script run tg-cmd" policy=read,write,ftp comment="vendo tg commands";
-```
-
-Notes: 30s poll, answers lag up to ~50s. First run only primes
-the offset (no reply storm for old messages). Offset saves before
-replying, so a failed send never double-answers — retry the command
-instead. Only the configured group chat id gets answers.
 
 ## 4. Site ID publisher
 
