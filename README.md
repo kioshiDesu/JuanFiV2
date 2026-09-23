@@ -209,29 +209,6 @@ can read it:
   }
 ```
 
-### Sales digest → ntfy (optional)
-
-Router-side digest, works with all phones closed. Reads the voucher
-timers (the `comment="vendo"` schedulers §3 creates — the ESP-written
-user comment is already cleared by then, the timer holds the same
-bought-time data). Counts codes bought today + online now, posts hourly:
-
-```bash
-/system script add name=vendo-digest policy=read,ftp source={
-  :local topic "REPLACE-ME";
-  :local day ([:tonum [/system script get todayincome source]]);
-  :local mon ([:tonum [/system script get monthlyincome source]]);
-  :local activeN [:len [/ip hotspot active find]];
-  :local msg ("sales today: P" . $day . " | month: P" . $mon . " | online now: " . $activeN);
-  :do {/tool fetch url=("https://ntfy.sh/" . $topic) http-method=post http-header-field="Title: Vendo digest" http-data=$msg output=none} on-error={ :log warning "vendo-digest: ntfy post failed" };
-}
-/system scheduler add name=vendo-digest start-time=startup interval=1h on-event="/system script run vendo-digest" policy=read,ftp comment="vendo digest";
-```
-
-Reads the `todayincome` / `monthlyincome` counters On-Login maintains
-from the ESP comment's peso field — real money totals, works with all
-phones closed. Per-peso realtime pings stay portal-side (§5 item 6).
-
 ## 4. Site ID publisher
 
 Publishes the board serial to `data/site-id.txt` so saved vouchers are
