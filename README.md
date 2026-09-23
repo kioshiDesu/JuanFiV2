@@ -137,14 +137,15 @@ user comment, On-Login below accumulates it here — same as upstream):
   /system script set todayincome source="$iDayTot";
   :local iMonTot ([:tonum [/system script get monthlyincome source]] + $iSaleAmt);
   /system script set monthlyincome source="$iMonTot";
-# Telegram per-sale ping (optional, upstream pattern — 0 = off).
-  :local isTelegram 0;
-  :local iTBotToken "REPLACE-ME";
-  :local iTGrChatID "REPLACE-ME";
-  :if ($isTelegram=1) do={
+# ntfy per-sale ping (router-side, fires even with the buyer page
+# closed — 0 = off). Use a hard-to-guess topic: anyone holding the
+# topic URL can read it.
+  :local isNtfy 0;
+  :local iNtfyTopic "REPLACE-ME";
+  :if ($isNtfy=1) do={
     :local iUActive [/ip hotspot active print count-only];
-    :local iMessage ("New sale%0AVoucher: $user%0AAmount: $iSaleAmt%0AToday: $iDayTot%0AMonth: $iMonTot%0AActive: $iUActive%0AValid until: $iValidUntil");
-    :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$iMessage" keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
+    :local iMessage ("New sale voucher=$user amount=P$iSaleAmt today=P$iDayTot month=P$iMonTot active=$iUActive valid-until=$iValidUntil");
+    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic) http-method=post http-header-field="Title: Vendo sale" http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
   }
 };
 }
@@ -243,15 +244,6 @@ var footerSubText = "INTERNET SERVICES";
    (`multiVendoOption = 0`) needs it; auto modes resolve silently.
 5. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
-6. ntfy sale/coin alerts (optional): set `ntfyEnabled = true` plus a
-   secret `ntfyTopic` in `config.js` (self-hosted? also set
-   `ntfyServer` + `ntfyToken`). Pre-login phones are offline, so let
-   the ntfy host through the captive wall or purchase alerts never
-   arrive:
-
-```bash
-/ip hotspot walled-garden add dst-host=ntfy.sh action=allow disabled=no comment="ntfy alerts"
-```
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +

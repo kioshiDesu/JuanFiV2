@@ -919,7 +919,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v6"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v7"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1438,13 +1438,6 @@ function saveVoucherBtnAction() {
 	// to fire concurrent /useVoucher posts (plus a racing /cancelTopUp).
 	if (window.__useVoucherBusy) { return; }
 	window.__useVoucherBusy = true;
-	var paidCoins = totalCoinReceived; // reset to 0 on response; keep the sale amount
-	function ntfySale(data) {
-		try {
-			var kind = $("#saveVoucherButton").attr('data-save-type') || "purchase";
-			ntfySend("Sale", kind + " " + voucher + " P" + paidCoins + " validity=" + (data && data.validity ? data.validity : "?") + " | " + ntfyClient(), 3, "moneybag");
-		} catch (e) {}
-	}
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', true);
 	$("#loaderDiv").attr("class", "spinner");
@@ -1472,7 +1465,6 @@ function saveVoucherBtnAction() {
 			setVouchValue(voucher, "tempValidity", data.validity);
 			try { sfxPlayFile("success", "assets/sounds/success.mp3", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
-			try { ntfySale(data); } catch (e) {}
 			autoLoginAfterUseVoucher();
 		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
 			// Lost the race with the ESP wait-expiry: the vendo already
@@ -1483,7 +1475,6 @@ function saveVoucherBtnAction() {
 			if (data.validity) { setVouchValue(voucher, "tempValidity", data.validity); }
 			try { sfxPlayFile("success", "assets/sounds/success.mp3", false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
-			try { ntfySale(data); } catch (e) {}
 			autoLoginAfterUseVoucher();
 		} else {
 			notifyCoinSlotError(data.errorCode);
@@ -1492,7 +1483,6 @@ function saveVoucherBtnAction() {
 		}
 		}, error: function (jqXHR, status, err) {
 			if (status === "abort") { window.__useVoucherBusy = false; return; }
-			try { ntfySend("Vendo alert", "useVoucher " + status + " voucher=" + voucher + " coins=P" + totalCoinReceived + " | " + ntfyClient(), 4, "warning"); } catch (e) {}
 			// Release INSERT COIN: the old handler left insertingCoin true,
 			// bricking the button until reload.
 			insertingCoin = false;
@@ -1722,29 +1712,7 @@ function resume() {
 	doLogin();
 }
 
-// ntfy push: sales + coin inserts + alerts, fire-and-forget from the
-// customer phone. Silent when disabled, unconfigured, or offline.
-function ntfyClient() {
-	var p = [];
-	try { if (voucher) { p.push("code=" + voucher); } } catch (e) {}
-	try { if (window.mac) { p.push("mac=" + window.mac); } } catch (e) {}
-	try { if (window.uIp) { p.push("ip=" + window.uIp); } } catch (e) {}
-	return p.join(" ");
-}
-function ntfySend(title, msg, priority, tags) {
-	try {
-		if (typeof ntfyEnabled === "undefined" || !ntfyEnabled) { return; }
-		if (typeof ntfyTopic === "undefined" || !ntfyTopic) { return; }
-		var server = (typeof ntfyServer !== "undefined" && ntfyServer) ? ntfyServer : "https://ntfy.sh";
-		var headers = { "Title": String(title || "JuanFi").slice(0, 100), "Priority": priority || 3 };
-		if (tags) { headers["Tags"] = tags; }
-		if (typeof ntfyToken !== "undefined" && ntfyToken) { headers["Authorization"] = "Bearer " + ntfyToken; }
-		$.ajax({ type: "POST", url: server.replace(/\/+$/, "") + "/" + encodeURIComponent(ntfyTopic), data: String(msg).slice(0, 1500), headers: headers, timeout: 8000 });
-	} catch (e) {}
-}
-
 function notifyCoinSlotError(errorCode) {
-	try { ntfySend("Vendo alert", errorCode + " (" + (errorCodeMap[errorCode] || "request failed") + ") | " + ntfyClient(), 4, "warning"); } catch (e) {}
 	try { dbgLog("portal error: " + (errorCodeMap[errorCode] || ("Request failed (" + errorCode + ")")), "dbg-err"); } catch (e) { }
 	try {
 		sfxPlayFile("error", "assets/sounds/error.mp3", false, null);
@@ -1758,7 +1726,6 @@ function notifyCoinSuccess(coin) {
 	// blips) exactly once, repeats swallowed.
 	if (coinToastOnce("coin-" + totalCoinReceived, { title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 })) {
 		coinBlip();
-		try { ntfySend("Coin inserted", coin + " peso(s), total P" + totalCoinReceived + " | " + ntfyClient(), 3, "coin"); } catch (e) {}
 	}
 }
 
