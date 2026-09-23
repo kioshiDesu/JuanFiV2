@@ -931,7 +931,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v3"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v4"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
