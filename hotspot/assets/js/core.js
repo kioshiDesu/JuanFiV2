@@ -1117,7 +1117,7 @@ function loadRates() {
 			return;
 		}
 		var html = "<div class='table-responsive'><table class='table table-striped'>";
-		html += "<thead><tr><th>Rate</th><th>Time</th><th>Validity</th>";
+		html += "<thead><tr><th>Rate</th><th>Time</th><th>Expiry</th>";
 		html += "</tr></thead><tbody>";
 		for (var r = 0; r < rows.length; r++) {
 			if (rows[r] == "") { continue; }
