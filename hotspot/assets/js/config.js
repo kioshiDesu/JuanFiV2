@@ -28,4 +28,13 @@ var portalDebug = false;
 // Branding — header + footer (change per site without touching portal.html)
 var brandHeaderHtml = "BRO<em>BRO</em>";
 var footerBrandText = "@NETBRO";
+
+// ntfy push alerts (sales + inserted coins + ESP errors) — off by default.
+// Needs a walled-garden pass for the ntfy host or pre-login phones can't
+// reach it (see README §5). Use a hard-to-guess topic: anyone holding the
+// topic URL can read it.
+var ntfyEnabled = false;
+var ntfyServer = "https://ntfy.sh";
+var ntfyTopic = "";
+var ntfyToken = "";
 var footerSubText = "INTERNET SERVICES";

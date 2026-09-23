@@ -193,6 +193,15 @@ var footerSubText = "INTERNET SERVICES";
    (`multiVendoOption = 0`) needs it; auto modes resolve silently.
 5. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
+6. ntfy sale/coin alerts (optional): set `ntfyEnabled = true` plus a
+   secret `ntfyTopic` in `config.js` (self-hosted? also set
+   `ntfyServer` + `ntfyToken`). Pre-login phones are offline, so let
+   the ntfy host through the captive wall or purchase alerts never
+   arrive:
+
+```bash
+/ip hotspot walled-garden add dst-host=ntfy.sh action=allow disabled=no comment="ntfy alerts"
+```
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
