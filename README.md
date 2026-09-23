@@ -82,7 +82,14 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
   :global tgBotToken;
   :global tgChatId;
   :local day ([:tonum [/system script get todayincome source]]);
-  :local msg ("day closed: P" . $day . "%20%23daily");
+  :local siteId [/system identity get name];
+  :local siteTag "";
+  :for i from=0 to=([:len $siteId]-1) do={
+    :local ch [:pick $siteId $i];
+    :if ($ch = " ") do={ :set ch "_" };
+    :set siteTag ($siteTag . $ch);
+  }
+  :local msg ("day closed: P" . $day . " | Site: " . $siteId . "%20%23daily %23" . $siteTag);
   :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$msg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
   /system script set todayincome source="0";
 };
@@ -91,7 +98,14 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
   :global tgBotToken;
   :global tgChatId;
   :local mon ([:tonum [/system script get monthlyincome source]]);
-  :local msg ("month closed: P" . $mon . "%20%23monthly");
+  :local siteId [/system identity get name];
+  :local siteTag "";
+  :for i from=0 to=([:len $siteId]-1) do={
+    :local ch [:pick $siteId $i];
+    :if ($ch = " ") do={ :set ch "_" };
+    :set siteTag ($siteTag . $ch);
+  }
+  :local msg ("month closed: P" . $mon . " | Site: " . $siteId . "%20%23monthly %23" . $siteTag);
   :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$msg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
   /system script set monthlyincome source="0";
 };
@@ -173,7 +187,14 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
         :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
       }
     } on-error={};
-    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A%23sale");
+    :local siteId [/system identity get name];
+    :local siteTag "";
+    :for i from=0 to=([:len $siteId]-1) do={
+      :local ch [:pick $siteId $i];
+      :if ($ch = " ") do={ :set ch "_" };
+      :set siteTag ($siteTag . $ch);
+    }
+    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0ASite: $siteId%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A%23sale %23$siteTag");
     :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
   }
 };
@@ -231,10 +252,11 @@ can read it:
 ### Telegram bot commands (optional)
 
 Ask for totals from chat: `/daily` and `/monthly`, answered by the
-router itself. One shared bot inbox can't feed many routers (first
-`getUpdates` call eats each message), so the shape is **one bot per
-vendo, all bots plus you in one group** — each router polls only its
-own token. Group `/commands` reach the bot with default privacy, no
+router itself. Warning: this polling only works **one bot per
+vendo** — with one shared bot across boxes the routers race
+`getUpdates` and eat each other's commands. Send-only alerts (above)
+are race-free on a shared bot; commands need a bot each. All bots
+plus you in one group — each router polls only its own token. Group `/commands` reach the bot with default privacy, no
 BotFather change needed. Set `/system identity` per site — it labels
 the replies:
 

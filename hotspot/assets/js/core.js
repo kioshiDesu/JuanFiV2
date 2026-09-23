@@ -113,7 +113,7 @@ function sfxVibrate(pattern) {
 }
 // Named sound files (assets/sounds/): silent no-op when unavailable.
 // ?v= key so browsers HTTP-cache them across visits, same as first-party assets.
-var SOUND_V = "?v=9";
+var SOUND_V = "?v=10";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -926,7 +926,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v9"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v10"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1746,7 +1746,13 @@ function tgCoinPing(coin) {
 		if (typeof tgChatId === "undefined" || !tgChatId) { return; }
 		var who = "";
 		try { who = " mac=" + (window.mac || "?") + " ip=" + (window.uIp || "?"); } catch (e) {}
-		var msg = "coin P" + coin + " (total P" + totalCoinReceived + ")" + who + " #coin";
+		var site = "";
+		try {
+			if (typeof brandHeaderHtml !== "undefined" && brandHeaderHtml) {
+				site = " #" + String(brandHeaderHtml).replace(/<[^>]*>/g, "").replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "");
+			}
+		} catch (e) {}
+		var msg = "coin P" + coin + " (total P" + totalCoinReceived + ")" + who + " #coin" + site;
 		var url = "https://api.telegram.org/bot" + tgBotToken + "/sendmessage?chat_id=" + encodeURIComponent(tgChatId) + "&text=" + encodeURIComponent(msg);
 		$.ajax({ type: "GET", url: url, timeout: 8000 });
 	} catch (e) {}
