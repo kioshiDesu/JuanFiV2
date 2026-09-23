@@ -121,7 +121,7 @@ user comment, On-Login below accumulates it here — same as upstream):
     :local iTimeInt $iUsrTime;
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
     :do { /system scheduler add name="$user" interval=$iTimeInt \
-      start-date=$iDateBeg start-time=$iTimeBeg disable=no comment="vendo" \
+      start-date=$iDateBeg start-time=$iTimeBeg disable=no \
       policy=ftp,read,write,test \
       on-event=("/ip hotspot user remove [find name=\"$user\"];\r\n".\
                 "/ip hotspot active remove [find user=\"$user\"];\r\n".\
