@@ -84,6 +84,19 @@ var insertingCoin = false;
 var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
+// Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
+// ~1s after the loader clears — customers see the portal before it submits.
+window.__pendingAutoLogin = null;
+function queueAutoLogin(fn) {
+	window.__pendingAutoLogin = fn;
+	// Loader already gone (slow job beat the failsafe)? Fire anyway.
+	try { if (typeof bootDone !== "undefined" && bootDone) { drainAutoLogin(); } } catch (e) {}
+}
+function drainAutoLogin() {
+	var fn = window.__pendingAutoLogin;
+	window.__pendingAutoLogin = null;
+	if (fn) { setTimeout(function () { try { fn(); } catch (e) {} }, 1000); }
+}
 // Per-site scope from the router-published site ID (data/site-id.txt, written
 // by the publish-site-id scheduler from the board serial). Empty until the
 // async boot fetch lands; venueScopeSuffix() falls back meanwhile.
@@ -472,6 +485,7 @@ function hideBoot() {
 	// so the fade dissolves over real content, then drop the overlay.
 	$("#app").attr("style", "display: block");
 	try { $("#bootLoader").addClass("boot-fade"); } catch (e) {}
+	try { drainAutoLogin(); } catch (e) {}
 	setTimeout(function () {
 		$("#bootLoader").attr("style", "display: none");
 		// The countdown was sized while hidden (zero widths, so the shrink loop
@@ -564,7 +578,8 @@ function boot() {
 		var sv = getActiveVoucher();
 		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
 		try { markAutoLoginTried(); } catch (e) {}
-		try { doLogin(); } catch (e) { newLogin(); }
+		queueAutoLogin(function () { try { doLogin(); } catch (e) { newLogin(); } });
+		hideBoot();
 		return;
 	}
 	// Site scope arrives async (site-id file); re-scope again on arrival.
@@ -1203,9 +1218,9 @@ function resumeSession() {
 				}
 				voucher = fileVoucher;
 				$('#voucherInput').val(voucher);
-				try { dbgLog("resume: auto-connect len=" + fileVoucher.length); } catch (e) { }
+				try { dbgLog("resume: auto-connect queued len=" + fileVoucher.length); } catch (e) { }
 				try { markAutoLoginTried(); } catch (e) {}
-				$("#connectBtn").click();
+				queueAutoLogin(function () { $("#connectBtn").click(); });
 			})
 			.always(function () { d.resolve(); });
 	} else {
