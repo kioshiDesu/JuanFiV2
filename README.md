@@ -52,16 +52,27 @@ clock syncs even before DNS is up:
 ### Hotspot profile tuning
 
 Winbox: Hotspot → Server Profiles → your profile → **Login** tab:
-HTTP Cookie Lifetime `7d`, tick **Login by MAC Cookie**, MAC Cookie
-Timeout `30d`. Enable **HTTP CHAP + HTTP PAP only** (never HTTPS login —
+untick **Login by Cookie** + **Login by MAC Cookie**. Tick
+**HTTP CHAP + HTTP PAP only** (never HTTPS login —
 browsers block plain-HTTP vendo calls as mixed content).
+Cookie lifetimes gray out once both cookie methods are off.
 
 Hotspot → **User Profiles** → `default`: Idle Timeout `none`,
 Keepalive Timeout `30s`, Status Autorefresh `1m`.
 
 ```bash
-/ip hotspot profile set [find name="hsprof1"] http-cookie-lifetime=7d mac-cookie-timeout=30d login-by=cookie,http-chap,http-pap,mac-cookie
+/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap
 /ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m
+```
+
+Already ran with cookies before? Paste once on the router
+(off-hours — kicks actives) to drop the old login methods and
+flush issued cookies:
+
+```bash
+/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap
+/ip hotspot cookie print
+/ip hotspot cookie remove [find]
 ```
 
 Note: the status page's autorefresh counts as traffic. With autorefresh
@@ -109,7 +120,6 @@ Set `HSFilePath` to `flash/hotspot` on hEX/hAP ax, `hotspot` on hAP lite.
       policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
       on-event=("/ip hotspot user remove [find name=$user];\r\n".\
                 "/ip hotspot active remove [find user=$user];\r\n".\
-                "/ip hotspot cookie remove [find user=$user];\r\n".\
                 "/system scheduler remove [find name=$user];\r\n".\
                 ":do {/file remove \"$HSFilePath/data/$iFileMac.txt\"} on-error={};\r\n")
     } on-error={ log error "( $user ) /system scheduler add => ERROR ADD!" };
