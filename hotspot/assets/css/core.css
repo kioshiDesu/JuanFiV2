@@ -40,7 +40,7 @@
     pointer-events: none;
 }
 #bootText {
-    color: #a3a7ad;
+    color: #c9cfd7;
     font-size: 14px;
     font-variant-numeric: tabular-nums;
 }
@@ -158,12 +158,12 @@
 #memberSection .member-hint {
     font-size: 12px;
     font-weight: 400;
-    color: #a4b0be;
+    color: #c9cfd7;
 }
 #memberSection .member-chev {
     flex-shrink: 0;
     font-size: 16px;
-    color: #a4b0be;
+    color: #c9cfd7;
 }
 
 /* Single-column kiosk layout: one phone screen per state. */
@@ -236,7 +236,7 @@
     font-weight: 700;
     letter-spacing: .08em;
     text-transform: uppercase;
-    color: #a3a7ad;
+    color: #c9cfd7;
 }
 .tsep {
     color: #5b6570;
@@ -265,7 +265,7 @@
     }
 }
 .clientline {
-    color: #8a93a0;
+    color: #b4bcc6;
     font-size: 11px;
     padding: 0 2px 6px 2px;
     font-variant-numeric: tabular-nums;
@@ -306,11 +306,11 @@
 }
 .hero .big .cur {
     font-size: 16px;
-    color: #a3a7ad;
+    color: #c9cfd7;
     font-weight: 600;
 }
 .hero .sub {
-    color: #a3a7ad;
+    color: #c9cfd7;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .25em;
@@ -544,7 +544,7 @@ hr.foot-hr {
     border-bottom: none;
 }
 .stat-list .k {
-    color: #a3a7ad;
+    color: #c9cfd7;
     font-weight: 600;
     white-space: nowrap;
 }

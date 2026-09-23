@@ -58,7 +58,7 @@
 	</header>
 	<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
 
-	<div id="vendoSelectDiv" style="display: none">
+	<div id="vendoSelectDiv">
 		<label for="vendoSelected" class="vendolabel">Choose vendo</label>
 		<select class="form-control" name="vendoSelected" id="vendoSelected">
 		</select>
@@ -159,8 +159,8 @@
 		<div class="brandmark">
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
-			<span class="brand-sub" id="siteTag" style="opacity:.4;font-size:10px;"></span>
-			<span class="brand-sub" id="portalVer" style="opacity:.4;font-size:10px;">v3</span>
+			<span class="brand-sub" id="siteTag" style="opacity:.65;font-size:10px;"></span>
+			<span class="brand-sub" id="portalVer" style="opacity:.65;font-size:10px;">v3</span>
 		</div>
 	</div>
 
@@ -256,7 +256,13 @@
 
 			$("#clientIp").text(window.uIp);
 			$("#clientMac").text(window.mac);
-			boot();
+			// boot.js injects scripts in order, but a failed core.js means
+			// boot() is undefined — fail loud instead of a stuck loader.
+			if (typeof boot === "function") { boot(); }
+			else if (typeof setBootText === "undefined") {
+				var bt = document.getElementById("bootText");
+				if (bt) { bt.textContent = "Failed to load portal. Please reload."; }
+			}
 		</script>
 
 		<div id="loaderDiv" class="spinner hidden" aria-hidden="true">

@@ -48,22 +48,31 @@
     document.getElementById("app").innerHTML = app.innerHTML;
     injectScripts(Array.prototype.slice.call(doc.querySelectorAll("script")), 0);
   }
+  // status 0 is NOT success (file:// false positive / dead radio) — the
+  // portal is always served over http by the router, so demand 200.
   if (window.fetch) {
+    var done = false;
+    setTimeout(function () { if (!done) { done = true; fail("Portal is taking too long."); } }, 10000);
     fetch("portal.html", { cache: "no-store" }).then(function (r) {
+      if (done) { return null; }
+      done = true;
       if (!r.ok) { throw 0; }
       return r.text();
-    }).then(inject).catch(function () { fail(); });
+    }).then(function (t) { if (t !== null) { inject(t); } })
+    .catch(function () { fail(); });
   } else {
     try {
       var x = new XMLHttpRequest();
       x.open("GET", "portal.html", true);
+      try { x.timeout = 8000; } catch (e) {}
       x.onreadystatechange = function () {
         if (x.readyState === 4) {
-          if (x.status === 200 || x.status === 0) { inject(x.responseText); }
+          if (x.status === 200) { inject(x.responseText); }
           else { fail(); }
         }
       };
       x.onerror = function () { fail(); };
+      try { x.ontimeout = function () { fail("Portal is taking too long."); }; } catch (e) {}
       x.send();
     } catch (e) { fail(); }
   }

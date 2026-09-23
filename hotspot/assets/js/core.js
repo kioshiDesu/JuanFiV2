@@ -18,6 +18,11 @@ var errorCodeMap = {
 	'invalid.request': 'Invalid request, please try again'
 };
 
+// Central network budgets (ms): router serves /status + session files on
+// LAN-lo, the ESP is single-threaded and slow — one knob per side.
+var ROUTER_TIMEOUT = 3000;
+var VENDO_TIMEOUT = 5000;
+
 // ---------- console debug log (nothing injected into body) ----------
 // Every portal flow logs here; the ring buffer always fills (retrieve with
 // copyDebugLog() in devtools), but console output only happens when the
@@ -122,6 +127,15 @@ function sfxPlayFile(name, src, loop, fallback) {
 function sfxStartLoop() {
 	sfxStopLoop();
 	sfxPlayFile("insert", "assets/sounds/insertcoinbg.mp3", true, null);
+}
+// Warm the Audio objects at boot (no play, so no autoplay trip): first
+// coin used to pay the network cost inside the timing-sensitive poll.
+function sfxPreload() {
+	try {
+		if (!sfxAudio["insert"]) { sfxAudio["insert"] = new Audio("assets/sounds/insertcoinbg.mp3"); sfxAudio["insert"].preload = "auto"; }
+		if (!sfxAudio["inserted"]) { sfxAudio["inserted"] = new Audio("assets/sounds/insertedcoin.mp3"); sfxAudio["inserted"].preload = "auto"; }
+		if (!sfxAudio["success"]) { sfxAudio["success"] = new Audio("assets/sounds/success.mp3"); sfxAudio["success"].preload = "auto"; }
+	} catch (e) {}
 }
 // Per-coin sting + haptic tick (success sting stays on Done only).
 function coinBlip() {
@@ -247,7 +261,10 @@ function getActiveVoucher() {
 	// Expire stale codes (neighbour leak or old purchase) after 7 days
 	try {
 		var ts = getStorageValue(scopedKey('activeVoucher_ts'));
-		if (v && ts && (Date.now() - parseInt(ts,10) > 7*24*60*60*1000)) { removeActiveVoucher(); removeStorageValue(scopedKey('activeVoucher_ts')); return ""; }
+		// Corrupt ts parses to NaN, and NaN comparisons are always false —
+		// treat unparseable stamps as expired instead of immortal.
+		var age = Date.now() - parseInt(ts, 10);
+		if (v && ts && (!isFinite(age) || age > 7*24*60*60*1000)) { removeActiveVoucher(); removeStorageValue(scopedKey('activeVoucher_ts')); return ""; }
 	} catch(e){}
 	return v;
 }
@@ -403,7 +420,7 @@ function macNoColon() {
 // vendorIp step does. Missing file (scheduler not installed yet) fails fast
 // to a 404 and keeps vendorIp scoping.
 function loadSiteId() {
-	$.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: 3000 })
+	$.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
 			var m = String(data == null ? "" : data).replace(/[^A-Za-z0-9]/g, "");
 			if (/^[A-Za-z0-9]{4,32}$/.test(m)) {
@@ -526,8 +543,9 @@ function boot() {
 			voucher = "";
 		}
 	} catch (e) { }
-	$("#footYear").html(new Date().getFullYear());
+	$("#footYear").text(new Date().getFullYear());
 	applyFlags();
+	try { sfxPreload(); } catch (e) {}
 	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
 	// Re-scope voucher after vendorIp is resolved (multi-vendo selects it)
 	try {
@@ -546,7 +564,7 @@ function boot() {
 		var sv = getActiveVoucher();
 		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
 		try { markAutoLoginTried(); } catch (e) {}
-		doLogin();
+		try { doLogin(); } catch (e) { newLogin(); }
 		return;
 	}
 	// Site scope arrives async (site-id file); re-scope again on arrival.
@@ -642,7 +660,7 @@ function detectState() {
 	// users as logged-out and fire spurious auto-logins/topUps.
 	probeStatus(0);
 	function probeStatus(attempt) {
-	$.ajax({ type: "GET", url: "/status", timeout: 3000 }).done(function (data) {
+	$.ajax({ type: "GET", url: "/status", timeout: ROUTER_TIMEOUT }).done(function (data) {
 		var html = String(data);
 		if (html.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") >= 0) {
 			try { dbgLog("detect: login"); } catch (e) { }
@@ -1019,7 +1037,7 @@ function cancelCoin() {
 	$.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/cancelTopUp",
-		timeout: 5000,
+		timeout: VENDO_TIMEOUT,
 		data: { voucher: cancelVc, mac: mac },
 		success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
 		error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
@@ -1067,7 +1085,7 @@ function loadRates() {
 	return $.ajax({
 		type: "GET",
 		url: "http://" + vendorIpAddress + "/getRates?date=" + (new Date().getTime()),
-		timeout: 5000
+		timeout: VENDO_TIMEOUT
 	}).done(function (data) {
 		try { dbgLog("getRates ok (" + String(data).length + " chars): " + String(data).slice(0, 120), "dbg-ok"); } catch (e) { }
 		var rows = String(data).split("|");
@@ -1166,7 +1184,7 @@ function resumeSession() {
 		renderStoredRemain("#pauseRemainTime", voucher);
 	}
 	if ($("#voucherInput").length > 0) {
-		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
+		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
 			// Split on the LAST "#" — member names may contain "#",
 			// the router always appends validity after the final one.
@@ -1236,7 +1254,7 @@ function formatExpiryLeft(t) {
 
 function showValidity() {
 	var d = $.Deferred();
-	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: 3000 })
+	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
 			if (String(data).length > 50) {
 				try { dbgLog("validity: long body, fallback"); } catch (e) { }
@@ -1316,7 +1334,7 @@ function insertBtnAction() {
 		$.ajax({
 			type: "GET",
 			url: "/status",
-			timeout: 3000,
+			timeout: ROUTER_TIMEOUT,
 			success: function (data) {
 				if (data.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					try { dbgLog("insert: already logged in, bouncing to status"); } catch (e) { }
@@ -1357,7 +1375,7 @@ function callTopupAPI(retryCount, gen) {
 	currentTopUpXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/topUp",
-		timeout: 5000,
+		timeout: VENDO_TIMEOUT,
 		data: { voucher: voucher, mac: mac, extendTime: (isExtend ? "1" : "0") },
 		complete: function(){ currentTopUpXhr = null; },
 		success: function (data) {
@@ -1426,7 +1444,7 @@ function saveVoucherBtnAction() {
 	currentUseVoucherXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
-		timeout: 5000,
+		timeout: VENDO_TIMEOUT,
 		data: { voucher: voucher },
 		complete: function(){ currentUseVoucherXhr = null; },
 		success: function (data) {
@@ -1517,7 +1535,7 @@ function checkCoin() {
 	currentCheckCoinXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/checkCoin",
-		timeout: 5000,
+		timeout: VENDO_TIMEOUT,
 		data: { voucher: voucher },
 		success: function (data) {
 			checkCoinFailStreak = 0;
