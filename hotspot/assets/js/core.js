@@ -852,7 +852,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { $("#portalVer").text(""); } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v2"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1110,10 +1110,10 @@ function resumeSession() {
 				var parts = String(data).split("#");
 				var fileVoucher = (parts[0] || "").trim();
 				var validUntil = parts.length > 1 ? parseValidity(parts[1]) : null;
-				// Stale session file (empty or expired voucher): never
-				// auto-connect it, or a dead test code keeps logging
-				// itself in on every visit to the login page.
-				if (fileVoucher == "" || (validUntil != null && validUntil.getTime() < new Date().getTime())) {
+				// Stale session file (empty, dateless, or expired voucher):
+				// never auto-connect it, or a dead test code keeps
+				// logging itself in on every visit to the login page.
+				if (fileVoucher == "" || validUntil == null || validUntil.getTime() < new Date().getTime()) {
 					removeActiveVoucher();
 					try { dbgLog("resume: stale session file, skipping auto-connect"); } catch (e) { }
 					d.resolve();

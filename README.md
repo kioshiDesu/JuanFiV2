@@ -160,9 +160,10 @@ var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
 
-Bump `PORTAL_VERSION` in `config.js` and matching `?v=N` asset query
-strings on every portal change so phones don't serve stale JS. Vendored
-libs stay pinned at `?v=26`.
+Bump the `?v=N` query on every first-party asset (`core.css`,
+`JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
+router shells) on every portal change so phones don't serve stale JS.
+Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
 
 ## License
 
