@@ -38,11 +38,15 @@
 <body id="loginBody" data-session-time="$(session-time-left-secs)">
 <span id="curV" style="display:none">$(username)</span>
 <span id="loginDst" style="display:none">$(link-orig)</span>
+<span id="bytesIn" style="display:none">$(bytes-in-nice)</span>
+<span id="bytesOut" style="display:none">$(bytes-out-nice)</span>
 <script>
 	try {
 		window.currentVoucher = document.getElementById("curV").textContent || "";
 		document.getElementById("loginBody").setAttribute("data-current-voucher", window.currentVoucher);
 		window.loginDst = document.getElementById("loginDst").textContent || "";
+		window.bytesIn = document.getElementById("bytesIn").textContent || "";
+		window.bytesOut = document.getElementById("bytesOut").textContent || "";
 	} catch (e) {}
 </script>
 

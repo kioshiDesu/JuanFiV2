@@ -727,6 +727,10 @@ function render(state) {
 	}
 	if (state == "status") {
 		$("#statusVoucher").text(voucher);
+		try {
+			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); }
+			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); }
+		} catch (e) {}
 		startCountdown();
 		previewUrgencyHook();
 	}
