@@ -2,42 +2,10 @@
 
 > Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2).
 
-MikroTik hotspot portal for a coinslot vendo system (ESP8266 wireless).
-Portal files only — no firmware in this repo. Tested against original
-JuanFi ESP firmware ([original README](https://github.com/ivanalayan15/JuanFi#readme)).
+MikroTik hotspot portal + RouterOS setup scripts for a coinslot
+vendo system. Portal files only — no firmware in this repo.
 
-Vouchers are issued by the vendo firmware and work from any AP on the
-same router. Default network: `10.0.0.0/16` (vendo `.254`, router `.1`).
-
-## Requirements
-
-- ESP8266 vendo running JuanFi firmware + baseboard
-- Coinslot, MikroTik router, access point
-- 12V supply for NodeMCU and MikroTik
-
-## 1. Vendo firmware
-
-Flash the ESP8266 with original JuanFi firmware following its own docs.
-This repo only ships the hotspot portal and RouterOS setup scripts.
-
-## 2. Network setup
-
-Let the vendo talk to the router (vendo at `10.0.0.254`):
-
-```bash
-/ip hotspot walled-garden ip add action=accept disabled=no dst-address=10.0.0.254 comment="JuanFi vendo"
-/ip firewall filter add action=accept chain=input place-before=0 src-address=10.0.0.254 comment="JuanFi vendo"
-```
-
-Give the vendo a static DHCP lease, then add its MAC/IP as Bypassed under
-Hotspot → IP Bindings (Server: all). Create the API user the vendo logs
-in with (`pisonet` / `abc123` — must match both sides):
-
-```bash
-/user add name=pisonet password=abc123 group=full disabled=no
-```
-
-### Router clock
+## 1. Router clock
 
 Fixes 1970-time voucher issues. Uses raw IPs (Google Public NTP) so the
 clock syncs even before DNS is up:
@@ -49,7 +17,7 @@ clock syncs even before DNS is up:
 /system ntp client set enabled=yes servers=216.239.35.8,216.239.35.4
 ```
 
-### Hotspot profile tuning
+## 2. Hotspot profile tuning
 
 Winbox: Hotspot → Server Profiles → your profile → **Login** tab:
 untick **Login by Cookie** + **Login by MAC Cookie**. Tick
