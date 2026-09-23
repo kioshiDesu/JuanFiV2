@@ -145,8 +145,16 @@ user comment, On-Login below accumulates it here — same as upstream):
   :local iNtfyTopic "REPLACE-ME";
   :if ($isNtfy=1) do={
     :local iUActive [/ip hotspot active print count-only];
-    :local iMessage ("New sale voucher=$user amount=P$iSaleAmt today=P$iDayTot month=P$iMonTot active=$iUActive valid-until=$iValidUntil");
-    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic) http-method=post http-header-field="Title: Vendo sale" http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
+    :local iHost $address;
+    :do {
+      :local leaseId [/ip dhcp-server lease find address=$address];
+      :if ([:len $leaseId] > 0) do={
+        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
+        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
+      }
+    } on-error={};
+    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive");
+    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
   }
 };
 }
