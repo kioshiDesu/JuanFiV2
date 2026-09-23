@@ -75,10 +75,11 @@ user comment, On-Login below accumulates it here — same as upstream):
 /system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
 /system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script set todayincome source=\"0\"" policy=read,write comment="vendo income";
 /system script add name=month-report policy=read,write,ftp source={
-  :local topic "REPLACE-ME";
+  :local iTBotToken "REPLACE-ME";
+  :local iTGrChatID "REPLACE-ME";
   :local mon ([:tonum [/system script get monthlyincome source]]);
   :local msg ("month closed: P" . $mon);
-  :do {/tool fetch url=("https://ntfy.sh/" . $topic) http-method=post http-header-field="Title: Vendo month" http-data=$msg output=none} on-error={ :log warning "month-report: ntfy post failed" };
+  :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$msg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
   /system script set monthlyincome source="0";
 };
 /system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script run month-report" policy=read,write,ftp comment="vendo income";
