@@ -3,14 +3,14 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-		<link rel="stylesheet" href="assets/css/core.css?v=2">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=2">
+	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=36">
+		<link rel="stylesheet" href="assets/css/core.css?v=3">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=3">
 	<title>JuanFiV2 Login Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<script src="assets/js/config.js?v=2"></script>
+	<script src="assets/js/config.js?v=3"></script>
 	<script>
 		// Client facts for the single-file portal (portal.html renders the UI).
 		window.PAGE = "login";
@@ -29,12 +29,12 @@
 		window.loginOrig = "$(link-orig)";
 	</script>
 	$(endif)
-	<script src="assets/js/boot.js?v=2"></script>
+	<script src="assets/js/boot.js?v=3"></script>
 </head>
 
 <body id="loginBody">
 
-<div id="bootLoader">
+<div id="bootLoader" role="status" aria-live="polite">
 	<div class="spinner-ring"></div>
 	<div><b id="bootBrand">Loading your data…</b></div>
 	<div id="bootText"></div>

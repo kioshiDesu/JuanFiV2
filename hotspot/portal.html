@@ -6,16 +6,16 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=2">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=2">
+	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=36">
+	<link rel="stylesheet" href="assets/css/core.css?v=3">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=3">
 	<title>HOTSPOT Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#1a1a2e">
-	<script src="assets/js/config.js?v=2"></script>
-	<script src="assets/js/md5.js?v=26"></script>
+	<script src="assets/js/config.js?v=3"></script>
+	<script src="assets/js/md5.js?v=36"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
 		// standalone (preview) falls back to the samples below.
@@ -42,7 +42,7 @@
 
 <body id="loginBody">
 
-<div id="bootLoader">
+<div id="bootLoader" role="status" aria-live="polite">
 	<div class="spinner-ring"></div>
 	<div><b id="bootBrand">Loading your data…</b></div>
 	<div id="bootText"></div>
@@ -58,7 +58,8 @@
 	</header>
 	<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
 
-	<div id="vendoSelectDiv" style="margin-top: 8px">
+	<div id="vendoSelectDiv" style="display: none">
+		<label for="vendoSelected" class="vendolabel">Choose vendo</label>
 		<select class="form-control" name="vendoSelected" id="vendoSelected">
 		</select>
 	</div>
@@ -71,13 +72,13 @@
 
 					<div id="voucherBlock" style="margin-top: 15px;">
 			<div class="voucher-pill">
-				<input type="text" class="form-control" id="voucherInput" placeholder="Voucher here…" autocomplete="off" spellcheck="false">
+				<input type="text" class="form-control" id="voucherInput" aria-label="Voucher code" placeholder="Voucher here…" autocomplete="off" spellcheck="false">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
 		</div>
 
 		<div id="memberSection">
-			<button type="button" class="panelTitle toggle member-toggle" id="memberSectionBodyHead" onclick="toggleBlock('memberSectionBody'); return false;">
+			<button type="button" class="panelTitle toggle member-toggle" id="memberSectionBodyHead" aria-expanded="false" aria-controls="memberSectionBody" onclick="toggleBlock('memberSectionBody'); return false;">
 				<span class="member-text">
 					<span class="member-title">Member Login</span>
 					<span class="member-hint">Have an account? Sign in</span>
@@ -105,7 +106,7 @@
 	<div id="view-status" style="display: none">
 		<div class="hero" id="statusHero">
 			<div class="sub">Remaining Time</div>
-			<div class="big odometer timeboxes" id="remainTime" aria-live="polite" aria-atomic="true"></div>
+			<div class="big odometer timeboxes" id="remainTime" aria-live="off" aria-atomic="true"></div>
 			<div class="vouchline">Voucher <span id="statusVoucher"></span> &bull; Expires <span id="expirationTime"></span></div>
 		</div>
 
@@ -119,7 +120,7 @@
 	<div id="view-paused" style="display: none">
 		<div class="hero">
 			<div class="sub">Paused</div>
-			<div class="big timeboxes" id="pauseRemainTime" aria-live="polite" aria-atomic="true"></div>
+			<div class="big timeboxes" id="pauseRemainTime" aria-live="off" aria-atomic="true"></div>
 			<div class="vouchline">Voucher <span id="pausedVoucher"></span> &bull; Expires <span id="expirationTimePaused"></span></div>
 		</div>
 
@@ -159,7 +160,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="opacity:.4;font-size:10px;"></span>
-			<span class="brand-sub" id="portalVer" style="opacity:.4;font-size:10px;">v2</span>
+			<span class="brand-sub" id="portalVer" style="opacity:.4;font-size:10px;">v3</span>
 		</div>
 	</div>
 
@@ -169,8 +170,8 @@
 		</form>
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
-		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=2"></script>
+		<script src="assets/js/jquery.min.js?v=36"></script>
+		<script src="assets/js/core.js?v=3"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -230,11 +231,17 @@
 				var validity = getVouchValue(vc, "validity");
 				var tempValidity = getVouchValue(vc, "tempValidity");
 				if (tempValidity != null) {
+					// Non-numeric ESP values used to store "NaN" and poison
+					// later reads — bail instead of writing garbage.
+					var addMin = parseInt(tempValidity, 10);
+					if (!isFinite(addMin)) { return; }
 					var currentExpireDate = new Date();
 					if (validity != null) {
-						currentExpireDate = new Date(parseInt(validity));
+						var base = parseInt(validity, 10);
+						if (!isFinite(base)) { return; }
+						currentExpireDate = new Date(base);
 					}
-					var expireDate = new Date(currentExpireDate.getTime() + parseInt(tempValidity) * 60000);
+					var expireDate = new Date(currentExpireDate.getTime() + addMin * 60000);
 					if (expireDate.getTime() < new Date().getTime()) {
 						try { dbgLog("validity cleared (expired temp)"); } catch (e) { }
 						removeVouchValue(vc, "validity");

@@ -578,3 +578,11 @@ hr.foot-hr {
 #progressDiv.time-ok { background-color: #2eaf5a !important; }
 #progressDiv.time-half { background-color: #e67e22 !important; }
 #progressDiv.time-low { background-color: #e74c3c !important; }
+
+/* Motion + keyboard: kill infinite coin animations for vestibular safety,
+   keep a visible focus ring on the coin button for keyboard users. */
+@media (prefers-reduced-motion: reduce) {
+	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated { animation: none !important; }
+	#bootLoader.boot-fade { transition: none !important; }
+}
+#insertBtn:focus-visible, #insertBtn:focus { outline: 3px solid #4cd137; outline-offset: 3px; }

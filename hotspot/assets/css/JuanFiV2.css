@@ -56,10 +56,12 @@ body {
 }
 
 #vendoSelectDiv {
-	margin-bottom: 12px;
-	border: 2px solid #57606f;
-	border-radius: 5px;
-	padding: 6px 0 8px 6px
+	margin: 10px 0;
+}
+.vendolabel {
+	display: block;
+	margin-bottom: 4px;
+	font-size: 12px;
 }
 
 
@@ -70,17 +72,13 @@ body {
 
 #vendoSelected {
 	display: block;
-	padding: 4px;
-	width: 95%;
-	border: 2px solid #57606f;
-	border-radius: 3px;
+	width: 100%;
+	padding: 8px;
+	border: 1px solid #57606f;
+	border-radius: 6px;
 	background-color: #191e2d;
 	color: #fff;
-}
-
-#vendoSelectDiv label {
-	color: #fff;
-	
+	font-size: 16px;
 }
 
 .footer {

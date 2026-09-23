@@ -17,6 +17,11 @@ clock syncs even before DNS is up:
 /system ntp client set enabled=yes servers=216.239.35.8,216.239.35.4
 ```
 
+Verify with `/system clock print` — year must be current, not 1970
+(stale clock = garbage scheduler `next-run` = garbage voucher validity).
+Set the timezone too: `/system clock set time-zone-name=Asia/Manila`
+(use your own zone).
+
 ## 2. Hotspot profile tuning
 
 Winbox: Hotspot → Server Profiles → your profile → **Login** tab:
@@ -46,25 +51,37 @@ flush issued cookies:
 Note: the status page's autorefresh counts as traffic. With autorefresh
 (`1m`) longer than keepalive (`30s`), idle expiry still works once the
 page is closed. If idle users never expire, check the defconf FastTrack
-firewall rule first (fasttracked traffic skips idle accounting).
+firewall rule first (fasttracked traffic skips idle accounting) — accept
+hotspot traffic before it:
+
+```bash
+/ip firewall filter add chain=forward action=accept protocol=tcp dst-port=80,443 \
+  src-address=10.0.0.0/16 place-before=0 comment="hotspot before fasttrack"
+```
 
 ## 3. Hotspot login script (On Login)
 
 Hotspot → Server Profiles → your profile → Login tab → On Login.
-Set `HSFilePath` to `flash/hotspot` on hEX/hAP ax, `hotspot` on hAP lite.
+`HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
+§4). Paste §4 first so `data/site-id.txt` already exists when logins run.
+Voucher CHAP uses an empty password — the firmware must keep
+`VOUCHER_LOGIN_OPTION=0` or CHAP logins reject.
 
 ```bash
 :local HSFilePath "hotspot";
-:local aUsrNote [/ip hotspot user get $user comment];
-:local aUsrNote [:toarray $aUsrNote];
+:if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
+:local rawNote [/ip hotspot user get [find name="$user"] comment];
+:if ($rawNote = "") do={
+  :log warning ("On-Login(" . $user . "): empty comment, voucher timer skipped");
+} else={
+:local aUsrNote [:toarray $rawNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
 :local iExtCode ($aUsrNote->2);
-:local iVdoName ($aUsrNote->3);
-:local iTimeMin [/ip hotspot user get $user limit-uptime];
-:local iUserReg [/system scheduler find name=$user];
+:local iTimeMin [/ip hotspot user get [find name="$user"] limit-uptime];
+:local iUserReg [/system scheduler find name="$user"];
 
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
-  /ip hotspot user set $user comment="";
+  /ip hotspot user set [find name="$user"] comment="";
   :local iFileMac;
   :local mac $"mac-address";
   :for i from=0 to=([:len $mac] - 1) do={
@@ -73,10 +90,10 @@ Set `HSFilePath` to `flash/hotspot` on hEX/hAP ax, `hotspot` on hAP lite.
     :set iFileMac ($iFileMac . $chr)
   }
   :if (($iUserReg!="") and ($iExtCode=1)) do={
-    :local iTimeInt [/system scheduler get $user interval];
+    :local iTimeInt [/system scheduler get [find name="$user"] interval];
     :set iTimeInt ($iTimeInt+$iUsrTime);
     :if ($iTimeMin>$iTimeInt) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
-    /system scheduler set $user interval=$iTimeInt;
+    /system scheduler set [find name="$user"] interval=$iTimeInt;
   }
   :local iDateBeg [/system clock get date];
   :local iTimeBeg [/system clock get time];
@@ -85,31 +102,42 @@ Set `HSFilePath` to `flash/hotspot` on hEX/hAP ax, `hotspot` on hAP lite.
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
     :do { /system scheduler add name="$user" interval=$iTimeInt \
       start-date=$iDateBeg start-time=$iTimeBeg disable=no \
-      policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
-      on-event=("/ip hotspot user remove [find name=$user];\r\n".\
-                "/ip hotspot active remove [find user=$user];\r\n".\
-                "/system scheduler remove [find name=$user];\r\n".\
+      policy=ftp,read,write,test \
+      on-event=("/ip hotspot user remove [find name=\"$user\"];\r\n".\
+                "/ip hotspot active remove [find user=\"$user\"];\r\n".\
+                "/system scheduler remove [find name=\"$user\"];\r\n".\
                 ":do {/file remove \"$HSFilePath/data/$iFileMac.txt\"} on-error={};\r\n")
-    } on-error={ log error "( $user ) /system scheduler add => ERROR ADD!" };
-    :local x 10;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
+    } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
+    :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };
   :if ([/file find name="$HSFilePath/data"]="") do={
     :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/"} on-error={ };
   }
-  :local iValidUntil [/system scheduler get $user next-run];
-  :if ([/system scheduler find name=$user]!="") do={
+  :if ([/system scheduler find name="$user"]!="") do={
+    :local iValidUntil [/system scheduler get [find name="$user"] next-run];
     /file print file="$HSFilePath/data/$iFileMac.txt" where name="dummyfile";
-    :local x 10;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
-    /file set "$HSFilePath/data/$iFileMac" contents="$user#$iValidUntil";
+    :local x 5;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
+    /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
   }
 };
+}
 ```
 
-On Logout (same profile):
+Policy is the minimum that runs the cleanup (`ftp` for `/file`,
+`read,write,test` for user/scheduler/file ops) — the old
+`reboot,policy,password,sniff,sensitive,romon` set is overbroad for a
+login-triggered context. The portal splits the session file on the last
+`#`, so member names containing `#` still work. Waits trimmed 10s → 5s
+so captive clients don't time out and double-submit.
+
+On Logout (same profile). Only `session timeout` shortens the timer —
+manual logout, admin removal, and keepalive expiry leave the scheduler at
+full interval, which is correct for the time-remaining model (remaining
+minutes are preserved, not forfeited):
 
 ```bash
 :if ($cause="session timeout") do={
-  /system scheduler set [find name=$user] interval=5s;
+  /system scheduler set [find name="$user"] interval=5s;
 }
 ```
 
@@ -133,7 +161,7 @@ scoped per site. Write-once, runs at startup, needs no reachable vendo:
     :do { :set sn [/system routerboard get serial-number] } on-error={};
     :if ([:len $sn] >= 4) do={
       /file print file=$siteFile where name="dummyfile";
-      :local x 10;:while (($x>0) and ([/file find name=$siteFile]="")) do={:set x ($x-1);:delay 1s};
+      :local x 5;:while (($x>0) and ([/file find name=$siteFile]="")) do={:set x ($x-1);:delay 1s};
       /file set "$siteFile" contents="$sn";
     }
   }
@@ -159,6 +187,12 @@ var brandHeaderHtml = "BRO<em>BRO</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
+
+4. Multi-vendo only: set `showVendoSelect = true` in `config.js` to
+   reveal the picker dropdown (hidden by default). Manual mode
+   (`multiVendoOption = 0`) needs it; auto modes resolve silently.
+5. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
+   `login.html` line 2 — the router needs that sentinel.
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
