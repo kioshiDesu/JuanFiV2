@@ -101,7 +101,7 @@ Voucher CHAP uses an empty password — the firmware must keep
     :local iTimeInt $iUsrTime;
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
     :do { /system scheduler add name="$user" interval=$iTimeInt \
-      start-date=$iDateBeg start-time=$iTimeBeg disable=no \
+      start-date=$iDateBeg start-time=$iTimeBeg disable=no comment="vendo" \
       policy=ftp,read,write,test \
       on-event=("/ip hotspot user remove [find name=\"$user\"];\r\n".\
                 "/ip hotspot active remove [find user=\"$user\"];\r\n".\
@@ -140,6 +140,36 @@ minutes are preserved, not forfeited):
   /system scheduler set [find name="$user"] interval=5s;
 }
 ```
+
+### Sales digest → ntfy (optional)
+
+Router-side digest, works with all phones closed. Reads the voucher
+timers (the `comment="vendo"` schedulers §3 creates — the ESP-written
+user comment is already cleared by then, the timer holds the same
+bought-time data). Counts codes bought today + online now, posts hourly:
+
+```bash
+/system script add name=vendo-digest policy=read,ftp source={
+  :local topic "REPLACE-ME";
+  :local today [/system clock get date];
+  :local newN 0;
+  :local newNames "";
+  :foreach id in=[/system scheduler find comment="vendo"] do={
+    :if ([/system scheduler get $id start-date] = $today) do={
+      :set newN ($newN + 1);
+      :set newNames ($newNames . [/system scheduler get $id name] . " +" . [/system scheduler get $id interval] . "; ");
+    }
+  }
+  :local activeN [:len [/ip hotspot active find]];
+  :local msg ("sales today: " . $newN . " | online now: " . $activeN . " | " . $newNames);
+  :do {/tool fetch url=("https://ntfy.sh/" . $topic) http-method=post http-header-field="Title: Vendo digest" http-data=$msg output=none} on-error={ :log warning "vendo-digest: ntfy post failed" };
+}
+/system scheduler add name=vendo-digest start-time=startup interval=1h on-event="/system script run vendo-digest" policy=read,ftp comment="vendo digest";
+```
+
+Limits: expired-today codes already self-removed, so the count is
+still-valid ones. Peso totals aren't on the router (comments carry
+time, not coins) — per-peso sale pings stay portal-side (§5 item 6).
 
 ## 4. Site ID publisher
 
