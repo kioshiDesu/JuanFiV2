@@ -125,8 +125,9 @@ user comment, On-Login below accumulates it here — same as upstream):
   :if ([/file find name="$HSFilePath/data"]="") do={
     :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/"} on-error={ };
   }
+  :local iValidUntil "";
   :if ([/system scheduler find name="$user"]!="") do={
-    :local iValidUntil [/system scheduler get [find name="$user"] next-run];
+    :set iValidUntil [/system scheduler get [find name="$user"] next-run];
     /file print file="$HSFilePath/data/$iFileMac.txt" where name="dummyfile";
     :local x 5;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
     /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
