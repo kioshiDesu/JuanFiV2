@@ -67,6 +67,16 @@ Hotspot → Server Profiles → your profile → Login tab → On Login.
 Voucher CHAP uses an empty password — the firmware must keep
 `VOUCHER_LOGIN_OPTION=0` or CHAP logins reject.
 
+Income counters first (the ESP writes the sale peso amount into the
+user comment, On-Login below accumulates it here — same as upstream):
+
+```bash
+/system script add name=todayincome source="0" policy=read,write comment="vendo income";
+/system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
+/system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script set todayincome source=\"0\"" policy=read,write comment="vendo income";
+/system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script set monthlyincome source=\"0\"" policy=read,write comment="vendo income";
+```
+
 ```bash
 :local HSFilePath "hotspot";
 :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
@@ -76,7 +86,9 @@ Voucher CHAP uses an empty password — the firmware must keep
 } else={
 :local aUsrNote [:toarray $rawNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
+:local iSaleAmt [:tonum ($aUsrNote->1)];
 :local iExtCode ($aUsrNote->2);
+:local iVdoName ($aUsrNote->3);
 :local iTimeMin [/ip hotspot user get [find name="$user"] limit-uptime];
 :local iUserReg [/system scheduler find name="$user"];
 
@@ -119,6 +131,21 @@ Voucher CHAP uses an empty password — the firmware must keep
     :local x 5;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
     /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
   }
+# Sales accumulators (comment already read above; cleared at login so
+# persist the pesos here — the digest below reports these).
+  :local iDayTot ([:tonum [/system script get todayincome source]] + $iSaleAmt);
+  /system script set todayincome source="$iDayTot";
+  :local iMonTot ([:tonum [/system script get monthlyincome source]] + $iSaleAmt);
+  /system script set monthlyincome source="$iMonTot";
+# Telegram per-sale ping (optional, upstream pattern — 0 = off).
+  :local isTelegram 0;
+  :local iTBotToken "REPLACE-ME";
+  :local iTGrChatID "REPLACE-ME";
+  :if ($isTelegram=1) do={
+    :local iUActive [/ip hotspot active print count-only];
+    :local iMessage ("New sale%0AVoucher: $user%0AAmount: $iSaleAmt%0AToday: $iDayTot%0AMonth: $iMonTot%0AActive: $iUActive%0AValid until: $iValidUntil");
+    :do {/tool fetch url="https://api.telegram.org/bot$iTBotToken/sendmessage?chat_id=$iTGrChatID&text=$iMessage" keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
+  }
 };
 }
 ```
@@ -151,25 +178,18 @@ bought-time data). Counts codes bought today + online now, posts hourly:
 ```bash
 /system script add name=vendo-digest policy=read,ftp source={
   :local topic "REPLACE-ME";
-  :local today [/system clock get date];
-  :local newN 0;
-  :local newNames "";
-  :foreach id in=[/system scheduler find comment="vendo"] do={
-    :if ([/system scheduler get $id start-date] = $today) do={
-      :set newN ($newN + 1);
-      :set newNames ($newNames . [/system scheduler get $id name] . " +" . [/system scheduler get $id interval] . "; ");
-    }
-  }
+  :local day ([:tonum [/system script get todayincome source]]);
+  :local mon ([:tonum [/system script get monthlyincome source]]);
   :local activeN [:len [/ip hotspot active find]];
-  :local msg ("sales today: " . $newN . " | online now: " . $activeN . " | " . $newNames);
+  :local msg ("sales today: P" . $day . " | month: P" . $mon . " | online now: " . $activeN);
   :do {/tool fetch url=("https://ntfy.sh/" . $topic) http-method=post http-header-field="Title: Vendo digest" http-data=$msg output=none} on-error={ :log warning "vendo-digest: ntfy post failed" };
 }
 /system scheduler add name=vendo-digest start-time=startup interval=1h on-event="/system script run vendo-digest" policy=read,ftp comment="vendo digest";
 ```
 
-Limits: expired-today codes already self-removed, so the count is
-still-valid ones. Peso totals aren't on the router (comments carry
-time, not coins) — per-peso sale pings stay portal-side (§5 item 6).
+Reads the `todayincome` / `monthlyincome` counters On-Login maintains
+from the ESP comment's peso field — real money totals, works with all
+phones closed. Per-peso realtime pings stay portal-side (§5 item 6).
 
 ## 4. Site ID publisher
 
