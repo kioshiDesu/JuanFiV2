@@ -113,7 +113,9 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
     :set siteTag ($siteTag . $ch);
   }
   :local msg ("day closed: P" . $day . " | Site: " . $siteId . "%20%23daily %23" . $siteTag);
-  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$msg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
+  :local eMsg "";
+  :for ei from=0 to=([:len $msg]-1) do={ :local ech [:pick $msg $ei]; :if ($ech = " ") do={ :set ech "%20" }; :if ($ech = "#") do={ :set ech "%23" }; :if ($ech = "&") do={ :set ech "%26" }; :set eMsg ($eMsg . $ech); };
+  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$eMsg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
   /system script set todayincome source="0";
 };
 /system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script run day-report" policy=read,write,ftp comment="vendo income";
@@ -152,7 +154,9 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
     :set siteTag ($siteTag . $ch);
   }
   :local msg ("month closed: P" . $mon . " | Site: " . $siteId . "%20%23monthly %23" . $siteTag);
-  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$msg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
+  :local eMsg "";
+  :for ei from=0 to=([:len $msg]-1) do={ :local ech [:pick $msg $ei]; :if ($ech = " ") do={ :set ech "%20" }; :if ($ech = "#") do={ :set ech "%23" }; :if ($ech = "&") do={ :set ech "%26" }; :set eMsg ($eMsg . $ech); };
+  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$eMsg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
   /system script set monthlyincome source="0";
 };
 /system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script run month-report" policy=read,write,ftp comment="vendo income";
@@ -262,7 +266,9 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
       :set siteTag ($siteTag . $ch);
     }
     :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0ASite: $siteId%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A%23sale %23$siteTag");
-    :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
+    :local eTMsg "";
+    :for ei from=0 to=([:len $iTMsg]-1) do={ :local ech [:pick $iTMsg $ei]; :if ($ech = " ") do={ :set ech "%20" }; :if ($ech = "#") do={ :set ech "%23" }; :if ($ech = "&") do={ :set ech "%26" }; :set eTMsg ($eTMsg . $ech); };
+    :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $eTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
   }
 };
 }
