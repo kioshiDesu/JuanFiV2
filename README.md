@@ -90,6 +90,13 @@ into the counters below (same as upstream):
 coin pings keep their own `tgBotToken`/`tgChatId` in `config.js`,
 phones can't read MT.)
 
+Winbox method (no terminal paste): System → Scripts → `+` per
+script — Name = `todayincome`, Source = `0`, tick Policy `read` +
+`write`, Apply + OK. Same for `monthlyincome`, then `day-report` /
+`month-report` (Source = the `{...}` body, Policy `read,write,ftp`).
+Globals have no Winbox form — New Terminal → paste the two
+`:global` lines, Enter. Run-check: select a script → Run Script.
+
 ```bash
 /system script add name=day-report policy=read,write,ftp source={
   :global tgBotToken;
@@ -180,6 +187,10 @@ phones can't read MT.)
 Hotspot → Server Profiles → your profile → Login tab → On Login.
 `HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
 F). Paste F first so `data/site-id.txt` already exists when logins run.
+
+Winbox method: same path in Winbox — double-click the profile →
+Login tab → paste into the On Login box (maximize the window, the
+field is small), OK. No System → Scripts entry needed for this one.
 
 ```bash
 :local HSFilePath "hotspot";
@@ -301,6 +312,8 @@ login-triggered context. The portal splits the session file on the last
 so captive clients don't time out and double-submit.
 
 ### E. On-Logout (same profile)
+
+Winbox: same Login tab → On Logout box, paste, OK.
 
 Only `session timeout` shortens the timer — manual logout, admin
 removal, and keepalive expiry leave the scheduler at full interval,
