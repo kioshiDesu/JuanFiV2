@@ -83,6 +83,29 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
   :global tgChatId;
   :local day ([:tonum [/system script get todayincome source]]);
   :local siteId [/system identity get name];
+  :local cfgPath "hotspot/assets/js/config.js";
+  :if ([/file find name="flash/hotspot/assets/js/config.js"] != "") do={ :set cfgPath "flash/hotspot/assets/js/config.js"; }
+  :do {
+    :local cfg [/file get [find name=$cfgPath] contents];
+    :local key "brandHeaderHtml = \"";
+    :local p [:find $cfg $key];
+    :if ([:typeof $p] != "nil") do={
+      :local rest [:pick $cfg ($p + [:len $key]) [:len $cfg]];
+      :local q [:find $rest "\""];
+      :if ([:typeof $q] != "nil") do={
+        :local brand [:pick $rest 0 $q];
+        :local tagst 0;
+        :local plain "";
+        :for j from=0 to=([:len $brand]-1) do={
+          :local bc [:pick $brand $j];
+          :if ($bc = "<") do={ :set tagst 1 };
+          :if ($tagst = 0) do={ :set plain ($plain . $bc) };
+          :if ($bc = ">") do={ :set tagst 0 };
+        }
+        :if ($plain != "") do={ :set siteId $plain };
+      }
+    }
+  } on-error={};
   :local siteTag "";
   :for i from=0 to=([:len $siteId]-1) do={
     :local ch [:pick $siteId $i];
@@ -99,6 +122,29 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
   :global tgChatId;
   :local mon ([:tonum [/system script get monthlyincome source]]);
   :local siteId [/system identity get name];
+  :local cfgPath "hotspot/assets/js/config.js";
+  :if ([/file find name="flash/hotspot/assets/js/config.js"] != "") do={ :set cfgPath "flash/hotspot/assets/js/config.js"; }
+  :do {
+    :local cfg [/file get [find name=$cfgPath] contents];
+    :local key "brandHeaderHtml = \"";
+    :local p [:find $cfg $key];
+    :if ([:typeof $p] != "nil") do={
+      :local rest [:pick $cfg ($p + [:len $key]) [:len $cfg]];
+      :local q [:find $rest "\""];
+      :if ([:typeof $q] != "nil") do={
+        :local brand [:pick $rest 0 $q];
+        :local tagst 0;
+        :local plain "";
+        :for j from=0 to=([:len $brand]-1) do={
+          :local bc [:pick $brand $j];
+          :if ($bc = "<") do={ :set tagst 1 };
+          :if ($tagst = 0) do={ :set plain ($plain . $bc) };
+          :if ($bc = ">") do={ :set tagst 0 };
+        }
+        :if ($plain != "") do={ :set siteId $plain };
+      }
+    }
+  } on-error={};
   :local siteTag "";
   :for i from=0 to=([:len $siteId]-1) do={
     :local ch [:pick $siteId $i];
@@ -188,6 +234,27 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
       }
     } on-error={};
     :local siteId [/system identity get name];
+    :do {
+      :local cfg [/file get [find name=($HSFilePath . "/assets/js/config.js")] contents];
+      :local key "brandHeaderHtml = \"";
+      :local p [:find $cfg $key];
+      :if ([:typeof $p] != "nil") do={
+        :local rest [:pick $cfg ($p + [:len $key]) [:len $cfg]];
+        :local q [:find $rest "\""];
+        :if ([:typeof $q] != "nil") do={
+          :local brand [:pick $rest 0 $q];
+          :local tagst 0;
+          :local plain "";
+          :for j from=0 to=([:len $brand]-1) do={
+            :local bc [:pick $brand $j];
+            :if ($bc = "<") do={ :set tagst 1 };
+            :if ($tagst = 0) do={ :set plain ($plain . $bc) };
+            :if ($bc = ">") do={ :set tagst 0 };
+          }
+          :if ($plain != "") do={ :set siteId $plain };
+        }
+      }
+    } on-error={};
     :local siteTag "";
     :for i from=0 to=([:len $siteId]-1) do={
       :local ch [:pick $siteId $i];
