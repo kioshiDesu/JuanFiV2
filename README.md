@@ -76,8 +76,9 @@ hotspot traffic before it:
 
 One bot for all vendos (sends-only DM). Set the token/chat once here —
 day/month-report and On-Login all read these globals. The ESP writes
-the sale peso amount into the user comment; On-Login accumulates it
-into the counters below (same as upstream):
+ the sale peso amount into the user comment; On-Login accumulates it
+ into the counters below (same as upstream) plus per-vendo
+ `Daily-<name>` / `Monthly-<name>` pairs (multi-vendo aware):
 
 ```bash
 /system script add name=todayincome source="0" policy=read,write comment="vendo income";
@@ -140,10 +141,8 @@ script → Run Script.
     :if ($ch = " ") do={ :set ch "_" };
     :set siteTag ($siteTag . $ch);
   }
-  :local msg ("day closed: P" . $day . " | Site: " . $siteId . "%20%23daily %23" . $siteTag);
-  :local eMsg "";
-  :for ei from=0 to=([:len $msg]-1) do={ :local ech [:pick $msg $ei]; :if ($ech = " ") do={ :set ech "%20" }; :if ($ech = "#") do={ :set ech "%23" }; :if ($ech = "&") do={ :set ech "%26" }; :set eMsg ($eMsg . $ech); };
-  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$eMsg" keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
+  :local msg ("day closed: P" . $day . " | Site: " . $siteId . " #daily #" . $siteTag);
+  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendMessage" http-method=post http-data=("chat_id=" . $tgChatId . "&text=" . $msg) keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
   /system script set todayincome source="0";
 };
 /system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script run day-report" policy=read,write,ftp comment="vendo income";
@@ -182,10 +181,8 @@ script → Run Script.
     :if ($ch = " ") do={ :set ch "_" };
     :set siteTag ($siteTag . $ch);
   }
-  :local msg ("month closed: P" . $mon . " | Site: " . $siteId . "%20%23monthly %23" . $siteTag);
-  :local eMsg "";
-  :for ei from=0 to=([:len $msg]-1) do={ :local ech [:pick $msg $ei]; :if ($ech = " ") do={ :set ech "%20" }; :if ($ech = "#") do={ :set ech "%23" }; :if ($ech = "&") do={ :set ech "%26" }; :set eMsg ($eMsg . $ech); };
-  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendmessage?chat_id=$tgChatId&text=$eMsg" keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
+  :local msg ("month closed: P" . $mon . " | Site: " . $siteId . " #monthly #" . $siteTag);
+  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendMessage" http-method=post http-data=("chat_id=" . $tgChatId . "&text=" . $msg) keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
   /system script set monthlyincome source="0";
 };
 /system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script run month-report" policy=read,write,ftp comment="vendo income";
@@ -262,6 +259,17 @@ field is small), OK. No System → Scripts entry needed for this one.
   /system script set todayincome source="$iDayTot";
   :local iMonTot ([:tonum [/system script get monthlyincome source]] + $iSaleAmt);
   /system script set monthlyincome source="$iMonTot";
+# Per-vendo counters (multi-vendo aware — one Daily/Monthly pair per ESP
+# name from the comment, auto-created on first sale; globals above stay
+# the all-sites totals the reports post).
+  :if ($iVdoName != "") do={
+    :local iVDay ("Daily-" . $iVdoName);
+    :if ([/system script find name=$iVDay] = "") do={ /system script add name=$iVDay source="0" policy=read,write comment="vendo income"; }
+    /system script set $iVDay source=([:tonum [/system script get $iVDay source]] + $iSaleAmt);
+    :local iVMon ("Monthly-" . $iVdoName);
+    :if ([/system script find name=$iVMon] = "") do={ /system script add name=$iVMon source="0" policy=read,write comment="vendo income"; }
+    /system script set $iVMon source=([:tonum [/system script get $iVMon source]] + $iSaleAmt);
+  }
 # Telegram per-sale ping (same layout, permanent history — 0 = off).
   :local isTelegram 0;
   /system script run tg-creds;
@@ -305,10 +313,8 @@ field is small), OK. No System → Scripts entry needed for this one.
       :if ($ch = " ") do={ :set ch "_" };
       :set siteTag ($siteTag . $ch);
     }
-    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0ASite: $siteId%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A%23sale %23$siteTag");
-    :local eTMsg "";
-    :for ei from=0 to=([:len $iTMsg]-1) do={ :local ech [:pick $iTMsg $ei]; :if ($ech = " ") do={ :set ech "%20" }; :if ($ech = "#") do={ :set ech "%23" }; :if ($ech = "&") do={ :set ech "%26" }; :set eTMsg ($eTMsg . $ech); };
-    :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage?chat_id=" . $tgChatId . "&text=" . $eTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
+    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0ASite: $siteId%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A#sale #$siteTag");
+    :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage") http-method=post http-data=("chat_id=" . $tgChatId . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
   }
 };
 }
