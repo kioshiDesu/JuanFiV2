@@ -1,11 +1,11 @@
 # AGENTS.md — JuanFiV2 Hotspot Portal
 
-MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §3–4), tested against original JuanFi ESP firmware. No npm/build/test/lint — do not invent commands. No firmware in this repo (releases + `JuanFi-nodemcu/` removed); hardware verification is careful diff review, no test harness.
+MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §Scripts), tested against original JuanFi ESP firmware. No npm/build/test/lint — do not invent commands. No firmware in this repo (releases + `JuanFi-nodemcu/` removed); hardware verification is careful diff review, no test harness.
 
 ## Layout
 
 - `hotspot/` — canonical hotspot portal (upload its **contents** to the router's `hotspot` dir), one self-rendering file: `portal.html` holds all UI (login+status+paused views, rates inline table, inline coin/member/QR sections — no modals) and probes `/status` at boot to render the matching view (`?state=` forces one); `login.html` / `status.html` are thin router shells (refresh-timeout + MikroTik vars into `window.*`, CHAP secrets on login, `./assets/js/boot.js` injects the app), `logout.html` is a script-only redirect back to `login` (auto-login lands on status). Edit UI only in `portal.html`. Shared `assets/js/core.js` (`detectState()`/`render()`/`boot()`, focus-mode `showCoinPanel`/`toggleBlock`, 9s failsafe).
-- `README.md` §3–4 — canonical RouterOS scheduler/script + hotspot On-Login/On-Logout snippets.
+- `README.md` §Scripts — canonical RouterOS scripts, labeled A–G in paste order (On-Login/On-Logout, income counters, site publisher, portal upload).
 - `.agents/skills/` + `skills-lock.json` are local-only (gitignored). Load `routeros-scripting` for `.rsc`/hotspot scripts.
 
 ## Vendo API quirks (would break the coin flow if missed)
@@ -19,8 +19,8 @@ MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §3–4), t
 
 ## Portal + RouterOS gotchas
 
-- Portal config var is `vendorIpAddress` (with an **o**) in `hotspot/assets/js/config.js` — `README.md` §5 says `vendoIpAddress`, which is stale. Portal calls the vendo over plain HTTP with CORS (`/topUp`, `/checkCoin`, `/useVoucher`, `/cancelTopUp`, `/getRates`, `/health`). Local first-party asset URLs carry `?v=N` (no version var — `PORTAL_VERSION` was removed as redundant) — bump the query on every portal change or phones keep running stale JS. Vendored libs (bootstrap/jquery/md5) stay pinned at `?v=26`.
-- On-Login script `HSFilePath` is `flash/hotspot` on hEX/hAP-ax, `hotspot` on hAP lite. Scheduler/script paste order in `README.md` §3 matters (scripts before schedulers that reference them).
+- Portal config var is `vendorIpAddress` (with an **o**) in `hotspot/assets/js/config.js` — `README.md` §Scripts-G says `vendoIpAddress`, which is stale. Portal calls the vendo over plain HTTP with CORS (`/topUp`, `/checkCoin`, `/useVoucher`, `/cancelTopUp`, `/getRates`, `/health`). Local first-party asset URLs carry `?v=N` (no version var — `PORTAL_VERSION` was removed as redundant) — bump the query on every portal change or phones keep running stale JS. Vendored libs (bootstrap/jquery/md5) stay pinned at `?v=26`.
+- On-Login script `HSFilePath` is `flash/hotspot` on hEX/hAP-ax, `hotspot` on hAP lite. Script paste order in `README.md` §Scripts (A→G) matters (scripts before schedulers that reference them).
 - Hotspot Server Profile → Login tab: enable **HTTP CHAP + HTTP PAP only** (portal uses CHAP when `$(chap-id)` exists, PAP plain-submit otherwise; MAC off, Trial off). Never enable HTTPS login — the page would load over TLS and browsers block its plain-HTTP vendo calls as mixed content, silently killing the coin flow.
 - If Keepalive Timeout never logs out idle users: suspect the defconf **FastTrack** firewall rule first (fasttracked hotspot traffic skips idle accounting — accept hotspot traffic before it), then a wrong server profile or a per-user-profile `keepalive-timeout`/`idle-timeout` override. Note the status page's own autorefresh hits count as traffic, so `status-autorefresh` shorter than keepalive keeps sessions alive forever while the page is open.
 - Default network is `10.0.0.0/16` (vendo `.254`, router `.1`); defaults `admin/admin` + MikroTik API `pisonet/abc123` must match on both sides.

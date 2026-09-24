@@ -5,7 +5,20 @@
 MikroTik hotspot portal + RouterOS setup scripts for a coinslot
 vendo system. Portal files only — no firmware in this repo.
 
-## 1. Router clock
+## Features
+
+- Coin flow (INSERT COIN → Done/extend) with per-coin toasts
+- Pause/resume with banked time, auto-login for returning codes
+- Voucher + member login (voucher CHAP uses an empty password —
+  the firmware must keep `VOUCHER_LOGIN_OPTION=0`)
+- Logout receipt, live session Up/Down usage on the status view
+- MT-side alerts: per-sale telegram pings, daily/monthly income
+  reports, all tagged per site
+- `api.json` captive-portal API so phones show time left natively
+
+## Scripts (paste in order)
+
+### A. Router clock
 
 Fixes 1970-time voucher issues. Uses raw IPs (Google Public NTP) so the
 clock syncs even before DNS is up:
@@ -22,7 +35,7 @@ Verify with `/system clock print` — year must be current, not 1970
 Set the timezone too: `/system clock set time-zone-name=Asia/Manila`
 (use your own zone).
 
-## 2. Hotspot profile tuning
+### B. Hotspot profile tuning
 
 Winbox: Hotspot → Server Profiles → your profile → **Login** tab:
 untick **Login by Cookie** + **Login by MAC Cookie**. Tick
@@ -59,25 +72,25 @@ hotspot traffic before it:
   src-address=10.0.0.0/16 place-before=0 comment="hotspot before fasttrack"
 ```
 
-## 3. Hotspot login script (On Login)
+### C. Telegram globals + income counters
 
-Hotspot → Server Profiles → your profile → Login tab → On Login.
-`HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
-§4). Paste §4 first so `data/site-id.txt` already exists when logins run.
-Voucher CHAP uses an empty password — the firmware must keep
-`VOUCHER_LOGIN_OPTION=0` or CHAP logins reject.
-
-Income counters first (the ESP writes the sale peso amount into the
-user comment, On-Login below accumulates it here — same as upstream):
+One bot for all vendos (sends-only DM). Set the token/chat once here —
+day/month-report and On-Login all read these globals. The ESP writes
+the sale peso amount into the user comment; On-Login accumulates it
+into the counters below (same as upstream):
 
 ```bash
 /system script add name=todayincome source="0" policy=read,write comment="vendo income";
 /system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
 :global tgBotToken "REPLACE-ME";
 :global tgChatId "REPLACE-ME";
-(Set once — day/month-report and On-Login all read these globals.
-Rotate the token here and every script follows. Portal coin pings keep
-their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
+```
+
+(Set once — rotate the token here and every script follows. Portal
+coin pings keep their own `tgBotToken`/`tgChatId` in `config.js`,
+phones can't read MT.)
+
+```bash
 /system script add name=day-report policy=read,write,ftp source={
   :global tgBotToken;
   :global tgChatId;
@@ -162,6 +175,12 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
 /system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script run month-report" policy=read,write,ftp comment="vendo income";
 ```
 
+### D. On-Login
+
+Hotspot → Server Profiles → your profile → Login tab → On Login.
+`HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
+F). Paste F first so `data/site-id.txt` already exists when logins run.
+
 ```bash
 :local HSFilePath "hotspot";
 :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
@@ -218,7 +237,7 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
     /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
   }
 # Sales accumulators (comment already read above; cleared at login so
-# persist the pesos here — the digest below reports these).
+# persist the pesos here — the day/month reports read these).
   :local iDayTot ([:tonum [/system script get todayincome source]] + $iSaleAmt);
   /system script set todayincome source="$iDayTot";
   :local iMonTot ([:tonum [/system script get monthlyincome source]] + $iSaleAmt);
@@ -274,12 +293,6 @@ their own `tgBotToken`/`tgChatId` in `config.js`, phones can't read MT.)
 }
 ```
 
-Bot hardening (BotFather): `/setjoingroups` → Disable — send-only bot,
-nobody can add it to random groups. Leave `/setprivacy` default; the bot
-never reads messages. Tags above (`#sale`, `#monthly`) are tappable
-filters in the DM. Secretary Mode is Business-account automation —
-irrelevant here, no updates are ever handled.
-
 Policy is the minimum that runs the cleanup (`ftp` for `/file`,
 `read,write,test` for user/scheduler/file ops) — the old
 `reboot,policy,password,sniff,sensitive,romon` set is overbroad for a
@@ -287,10 +300,12 @@ login-triggered context. The portal splits the session file on the last
 `#`, so member names containing `#` still work. Waits trimmed 10s → 5s
 so captive clients don't time out and double-submit.
 
-On Logout (same profile). Only `session timeout` shortens the timer —
-manual logout, admin removal, and keepalive expiry leave the scheduler at
-full interval, which is correct for the time-remaining model (remaining
-minutes are preserved, not forfeited):
+### E. On-Logout (same profile)
+
+Only `session timeout` shortens the timer — manual logout, admin
+removal, and keepalive expiry leave the scheduler at full interval,
+which is correct for the time-remaining model (remaining minutes are
+preserved, not forfeited):
 
 ```bash
 :if ($cause="session timeout") do={
@@ -298,31 +313,7 @@ minutes are preserved, not forfeited):
 }
 ```
 
-### Optional: ntfy per-sale ping (instead of telegram)
-
-Paste at the end of the On-Login script, inside the main `if` (uses
-its vars). Use a hard-to-guess topic: anyone holding the topic URL
-can read it:
-
-```bash
-  :local isNtfy 0;
-  :local iNtfyTopic "REPLACE-ME";
-  :if ($isNtfy=1) do={
-    :local iUActive [/ip hotspot active print count-only];
-    :local iHost $address;
-    :do {
-      :local leaseId [/ip dhcp-server lease find address=$address];
-      :if ([:len $leaseId] > 0) do={
-        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
-        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
-      }
-    } on-error={};
-    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive #sale");
-    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
-  }
-```
-
-## 4. Site ID publisher
+### F. Site ID publisher
 
 Publishes the board serial to `data/site-id.txt` so saved vouchers are
 scoped per site. Write-once, runs at startup, needs no reachable vendo:
@@ -354,14 +345,24 @@ Run `/system script run publish-site-id` once after pasting. Verify:
 `/file print where name="hotspot/data/site-id.txt"` must show your board
 serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
 
-## 5. Portal files
+### G. Portal files
 
 1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your vendo
    IP (`10.0.0.254` by default).
 2. Upload the `hotspot/` folder contents to the router's `hotspot`
    directory (overwrite, don't delete — the scheduler keeps
    `data/site-id.txt` there).
-3. Optional branding in `config.js`:
+3. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
+   `login.html` line 2 — the router needs that sentinel.
+
+Bump the `?v=N` query on every first-party asset (`core.css`,
+`JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
+router shells) on every portal change so phones don't serve stale JS.
+Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
+
+## Optional
+
+- Branding (per site, on the router copy only — never commit):
 
 ```js
 var brandHeaderHtml = "BRO<em>BRO</em>";
@@ -369,24 +370,46 @@ var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
 
-4. Multi-vendo only: set `showVendoSelect = true` in `config.js` to
-   reveal the picker dropdown (hidden by default). Manual mode
-   (`multiVendoOption = 0`) needs it; auto modes resolve silently.
-5. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
-   `login.html` line 2 — the router needs that sentinel.
-6. Coin-insert pings (optional): set `tgCoinAlerts = true` plus
-   `tgBotToken`/`tgChatId` in `config.js`. The buying phone sends one
-   telegram message per inserted coin (deduped by running total).
-   Pre-login phones are offline, so pass telegram through the wall:
+- Vendo picker (multi-vendo only): set `showVendoSelect = true` in
+  `config.js` to reveal the dropdown (hidden by default). Manual mode
+  (`multiVendoOption = 0`) needs it; auto modes resolve silently.
+- Coin-insert pings: set `tgCoinAlerts = true` plus `tgBotToken` /
+  `tgChatId` in `config.js`. The buying phone sends one telegram
+  message per inserted coin (deduped by running total). Pre-login
+  phones are offline, so pass telegram through the wall:
 
 ```bash
 /ip hotspot walled-garden add dst-host=api.telegram.org action=allow disabled=no comment="telegram coin pings"
 ```
 
-Bump the `?v=N` query on every first-party asset (`core.css`,
-`JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
-router shells) on every portal change so phones don't serve stale JS.
-Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
+- ntfy per-sale ping (instead of telegram): paste at the end of the
+  On-Login script, inside the main `if` (uses its vars). Use a
+  hard-to-guess topic: anyone holding the topic URL can read it:
+
+```bash
+  :local isNtfy 0;
+  :local iNtfyTopic "REPLACE-ME";
+  :if ($isNtfy=1) do={
+    :local iUActive [/ip hotspot active print count-only];
+    :local iHost $address;
+    :do {
+      :local leaseId [/ip dhcp-server lease find address=$address];
+      :if ([:len $leaseId] > 0) do={
+        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
+        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
+      }
+    } on-error={};
+    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive #sale");
+    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
+  }
+```
+
+- Bot hardening (BotFather): `/setjoingroups` → Disable — send-only
+  bot, nobody can add it to random groups. Leave `/setprivacy`
+  default; the bot never reads messages. Tags (`#sale`, `#daily`,
+  `#monthly`) are tappable filters in the DM. Secretary Mode is
+  Business-account automation — irrelevant here, no updates are ever
+  handled.
 
 ## License
 
