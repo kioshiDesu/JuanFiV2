@@ -82,23 +82,31 @@ into the counters below (same as upstream):
 ```bash
 /system script add name=todayincome source="0" policy=read,write comment="vendo income";
 /system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
-:global tgBotToken "REPLACE-ME";
-:global tgChatId "REPLACE-ME";
+/system script add name=tg-creds policy=read comment="vendo income" source={
+  :global tgBotToken "REPLACE-ME";
+  :global tgChatId "REPLACE-ME";
+}
+/system scheduler add name=tg-creds-boot start-time=startup on-event="/system script run tg-creds" policy=read comment="vendo income";
+/system script run tg-creds;
 ```
 
-(Set once — rotate the token here and every script follows. Portal
-coin pings keep their own `tgBotToken`/`tgChatId` in `config.js`,
-phones can't read MT.)
+One place for the token/chat — every script runs `tg-creds` first,
+so a reboot (which wipes globals) can't break alerts. The boot
+scheduler restores them at startup; the last line loads them now.
+(Portal coin pings keep their own `tgBotToken`/`tgChatId` in
+`config.js`, phones can't read MT.)
 
 Winbox method (no terminal paste): System → Scripts → `+` per
 script — Name = `todayincome`, Source = `0`, tick Policy `read` +
 `write`, Apply + OK. Same for `monthlyincome`, then `day-report` /
-`month-report` (Source = the `{...}` body, Policy `read,write,ftp`).
-Globals have no Winbox form — New Terminal → paste the two
-`:global` lines, Enter. Run-check: select a script → Run Script.
+`month-report` (Source = the `{...}` body, Policy `read,write,ftp`),
+plus `tg-creds` (Source = its `{...}` body with your real token/chat,
+Policy `read`). No terminal needed at all. Run-check: select a
+script → Run Script.
 
 ```bash
 /system script add name=day-report policy=read,write,ftp source={
+  /system script run tg-creds;
   :global tgBotToken;
   :global tgChatId;
   :local day ([:tonum [/system script get todayincome source]]);
@@ -140,6 +148,7 @@ Globals have no Winbox form — New Terminal → paste the two
 };
 /system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script run day-report" policy=read,write,ftp comment="vendo income";
 /system script add name=month-report policy=read,write,ftp source={
+  /system script run tg-creds;
   :global tgBotToken;
   :global tgChatId;
   :local mon ([:tonum [/system script get monthlyincome source]]);
@@ -255,6 +264,7 @@ field is small), OK. No System → Scripts entry needed for this one.
   /system script set monthlyincome source="$iMonTot";
 # Telegram per-sale ping (same layout, permanent history — 0 = off).
   :local isTelegram 0;
+  /system script run tg-creds;
   :global tgBotToken;
   :global tgChatId;
   :if ($isTelegram=1) do={
