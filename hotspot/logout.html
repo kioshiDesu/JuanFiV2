@@ -3,8 +3,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=37">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=37">
+	<link rel="stylesheet" href="assets/css/core.css?v=38">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=38">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>JuanFiV2 - Logged out</title>
@@ -51,6 +51,17 @@
 		document.getElementById("loDown").textContent = t("loOut");
 		var link = t("loLink") || "login";
 		document.getElementById("loLogin").href = link;
+		// Auto-login pending (pause/renew set reLogin): skip the receipt
+		// preview entirely — the login page submits on its own.
+		var relogin = null;
+		try {
+			if (typeof localStorage !== 'undefined' && localStorage) { relogin = localStorage.getItem("reLogin"); }
+			if (relogin == null) {
+				var m = document.cookie.match(/(?:^|; )reLogin=([^;]*)/);
+				relogin = m ? decodeURIComponent(m[1]) : null;
+			}
+		} catch (e) {}
+		if (relogin === "1") { window.location.replace(link); return; }
 		var n = 10;
 		var el = document.getElementById("loCount");
 		var iv = setInterval(function () {
