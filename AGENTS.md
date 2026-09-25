@@ -5,7 +5,7 @@ MikroTik hotspot portal (`hotspot/`) + RouterOS scripts (`README.md` §Scripts),
 ## Layout
 
 - `hotspot/` — canonical hotspot portal (upload its **contents** to the router's `hotspot` dir), one self-rendering file: `portal.html` holds all UI (login+status+paused views, rates inline table, inline coin/member/QR sections — no modals) and probes `/status` at boot to render the matching view (`?state=` forces one); `login.html` / `status.html` are thin router shells (refresh-timeout + MikroTik vars into `window.*`, CHAP secrets on login, `./assets/js/boot.js` injects the app), `logout.html` is a script-only redirect back to `login` (auto-login lands on status). Edit UI only in `portal.html`. Shared `assets/js/core.js` (`detectState()`/`render()`/`boot()`, focus-mode `showCoinPanel`/`toggleBlock`, 9s failsafe).
-- `README.md` §Scripts — canonical RouterOS scripts, labeled A–G in paste order (On-Login/On-Logout, income counters, site publisher, portal upload).
+- `README.md` §Scripts — canonical RouterOS scripts, labeled A–F in paste order (On-Login/On-Logout, site publisher, portal upload).
 - `.agents/skills/` + `skills-lock.json` are local-only (gitignored). Load `routeros-scripting` for `.rsc`/hotspot scripts.
 
 ## Vendo API quirks (would break the coin flow if missed)

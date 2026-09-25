@@ -12,8 +12,6 @@ vendo system. Portal files only — no firmware in this repo.
 - Voucher + member login (voucher CHAP uses an empty password —
   the firmware must keep `VOUCHER_LOGIN_OPTION=0`)
 - Logout receipt, live session Up/Down usage on the status view
-- MT-side alerts: per-sale telegram pings, daily/monthly income
-  reports, all tagged per site
 - `api.json` captive-portal API so phones show time left natively
 
 ## Scripts (paste in order)
@@ -72,127 +70,11 @@ hotspot traffic before it:
   src-address=10.0.0.0/16 place-before=0 comment="hotspot before fasttrack"
 ```
 
-### C. Telegram globals + income counters
-
-One bot for all vendos (sends-only DM). Set the token/chat once here —
-day/month-report and On-Login all read these globals. The ESP writes
- the sale peso amount into the user comment; On-Login accumulates it
- into the counters below (same as upstream) plus per-vendo
- `Daily-<name>` / `Monthly-<name>` pairs (multi-vendo aware):
-
-```bash
-/system script add name=todayincome source="0" policy=read,write comment="vendo income";
-/system script add name=monthlyincome source="0" policy=read,write comment="vendo income";
-/system script add name=tg-creds policy=read comment="vendo income" source={
-  :global tgBotToken "REPLACE-ME";
-  :global tgChatId "REPLACE-ME";
-}
-/system scheduler add name=tg-creds-boot start-time=startup on-event="/system script run tg-creds" policy=read comment="vendo income";
-/system script run tg-creds;
-```
-
-One place for the token/chat — every script runs `tg-creds` first,
-so a reboot (which wipes globals) can't break alerts. The boot
-scheduler restores them at startup; the last line loads them now.
-(Portal coin pings keep their own `tgBotToken`/`tgChatId` in
-`config.js`, phones can't read MT.)
-
-Winbox method (no terminal paste): System → Scripts → `+` per
-script — Name = `todayincome`, Source = `0`, tick Policy `read` +
-`write`, Apply + OK. Same for `monthlyincome`, then `day-report` /
-`month-report` (Source = the `{...}` body, Policy `read,write,ftp`),
-plus `tg-creds` (Source = its `{...}` body with your real token/chat,
-Policy `read`). No terminal needed at all. Run-check: select a
-script → Run Script.
-
-```bash
-/system script add name=day-report policy=read,write,ftp source={
-  /system script run tg-creds;
-  :global tgBotToken;
-  :global tgChatId;
-  :local day ([:tonum [/system script get todayincome source]]);
-  :local siteId [/system identity get name];
-  :local cfgPath "hotspot/assets/js/config.js";
-  :if ([/file find name="flash/hotspot/assets/js/config.js"] != "") do={ :set cfgPath "flash/hotspot/assets/js/config.js"; }
-  :do {
-    :local cfg [/file get [find name=$cfgPath] contents];
-    :local key "brandHeaderHtml = \"";
-    :local p [:find $cfg $key];
-    :if ([:typeof $p] != "nil") do={
-      :local rest [:pick $cfg ($p + [:len $key]) [:len $cfg]];
-      :local q [:find $rest "\""];
-      :if ([:typeof $q] != "nil") do={
-        :local brand [:pick $rest 0 $q];
-        :local tagst 0;
-        :local plain "";
-        :for j from=0 to=([:len $brand]-1) do={
-          :local bc [:pick $brand $j];
-          :if ($bc = "<") do={ :set tagst 1 };
-          :if ($tagst = 0) do={ :set plain ($plain . $bc) };
-          :if ($bc = ">") do={ :set tagst 0 };
-        }
-        :if ($plain != "") do={ :set siteId $plain };
-      }
-    }
-  } on-error={};
-  :local siteTag "";
-  :for i from=0 to=([:len $siteId]-1) do={
-    :local ch [:pick $siteId $i];
-    :if ($ch = " ") do={ :set ch "_" };
-    :set siteTag ($siteTag . $ch);
-  }
-  :local msg ("day closed: P" . $day . " | Site: " . $siteId . " #daily #" . $siteTag);
-  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendMessage" http-method=post http-data=("chat_id=" . $tgChatId . "&text=" . $msg) keep-result=no} on-error={ :log warning "day-report: telegram send failed" };
-  /system script set todayincome source="0";
-};
-/system scheduler add name="Reset Daily Income" interval=1d start-time=00:00:00 on-event="/system script run day-report" policy=read,write,ftp comment="vendo income";
-/system script add name=month-report policy=read,write,ftp source={
-  /system script run tg-creds;
-  :global tgBotToken;
-  :global tgChatId;
-  :local mon ([:tonum [/system script get monthlyincome source]]);
-  :local siteId [/system identity get name];
-  :local cfgPath "hotspot/assets/js/config.js";
-  :if ([/file find name="flash/hotspot/assets/js/config.js"] != "") do={ :set cfgPath "flash/hotspot/assets/js/config.js"; }
-  :do {
-    :local cfg [/file get [find name=$cfgPath] contents];
-    :local key "brandHeaderHtml = \"";
-    :local p [:find $cfg $key];
-    :if ([:typeof $p] != "nil") do={
-      :local rest [:pick $cfg ($p + [:len $key]) [:len $cfg]];
-      :local q [:find $rest "\""];
-      :if ([:typeof $q] != "nil") do={
-        :local brand [:pick $rest 0 $q];
-        :local tagst 0;
-        :local plain "";
-        :for j from=0 to=([:len $brand]-1) do={
-          :local bc [:pick $brand $j];
-          :if ($bc = "<") do={ :set tagst 1 };
-          :if ($tagst = 0) do={ :set plain ($plain . $bc) };
-          :if ($bc = ">") do={ :set tagst 0 };
-        }
-        :if ($plain != "") do={ :set siteId $plain };
-      }
-    }
-  } on-error={};
-  :local siteTag "";
-  :for i from=0 to=([:len $siteId]-1) do={
-    :local ch [:pick $siteId $i];
-    :if ($ch = " ") do={ :set ch "_" };
-    :set siteTag ($siteTag . $ch);
-  }
-  :local msg ("month closed: P" . $mon . " | Site: " . $siteId . " #monthly #" . $siteTag);
-  :do {/tool fetch url="https://api.telegram.org/bot$tgBotToken/sendMessage" http-method=post http-data=("chat_id=" . $tgChatId . "&text=" . $msg) keep-result=no} on-error={ :log warning "month-report: telegram send failed" };
-  /system script set monthlyincome source="0";
-};
-/system scheduler add name="Reset Monthly Income" interval=30d start-time=00:00:00 on-event="/system script run month-report" policy=read,write,ftp comment="vendo income";
-```
-
-### D. On-Login
+### C. On-Login
 
 Hotspot → Server Profiles → your profile → Login tab → On Login.
 `HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
-F). Paste F first so `data/site-id.txt` already exists when logins run.
+E). Paste E first so `data/site-id.txt` already exists when logins run.
 
 Winbox method: same path in Winbox — double-click the profile →
 Login tab → paste into the On Login box (maximize the window, the
@@ -207,9 +89,7 @@ field is small), OK. No System → Scripts entry needed for this one.
 } else={
 :local aUsrNote [:toarray $rawNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
-:local iSaleAmt [:tonum ($aUsrNote->1)];
 :local iExtCode ($aUsrNote->2);
-:local iVdoName ($aUsrNote->3);
 :local iTimeMin [/ip hotspot user get [find name="$user"] limit-uptime];
 :local iUserReg [/system scheduler find name="$user"];
 
@@ -253,69 +133,6 @@ field is small), OK. No System → Scripts entry needed for this one.
     :local x 5;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
     /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
   }
-# Sales accumulators (comment already read above; cleared at login so
-# persist the pesos here — the day/month reports read these).
-  :local iDayTot ([:tonum [/system script get todayincome source]] + $iSaleAmt);
-  /system script set todayincome source="$iDayTot";
-  :local iMonTot ([:tonum [/system script get monthlyincome source]] + $iSaleAmt);
-  /system script set monthlyincome source="$iMonTot";
-# Per-vendo counters (multi-vendo aware — one Daily/Monthly pair per ESP
-# name from the comment, auto-created on first sale; globals above stay
-# the all-sites totals the reports post).
-  :if ($iVdoName != "") do={
-    :local iVDay ("Daily-" . $iVdoName);
-    :if ([/system script find name=$iVDay] = "") do={ /system script add name=$iVDay source="0" policy=read,write comment="vendo income"; }
-    /system script set $iVDay source=([:tonum [/system script get $iVDay source]] + $iSaleAmt);
-    :local iVMon ("Monthly-" . $iVdoName);
-    :if ([/system script find name=$iVMon] = "") do={ /system script add name=$iVMon source="0" policy=read,write comment="vendo income"; }
-    /system script set $iVMon source=([:tonum [/system script get $iVMon source]] + $iSaleAmt);
-  }
-# Telegram per-sale ping (same layout, permanent history — 0 = off).
-  :local isTelegram 0;
-  /system script run tg-creds;
-  :global tgBotToken;
-  :global tgChatId;
-  :if ($isTelegram=1) do={
-    :local iUActive [/ip hotspot active print count-only];
-    :local iHost $address;
-    :do {
-      :local leaseId [/ip dhcp-server lease find address=$address];
-      :if ([:len $leaseId] > 0) do={
-        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
-        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
-      }
-    } on-error={};
-    :local siteId [/system identity get name];
-    :do {
-      :local cfg [/file get [find name=($HSFilePath . "/assets/js/config.js")] contents];
-      :local key "brandHeaderHtml = \"";
-      :local p [:find $cfg $key];
-      :if ([:typeof $p] != "nil") do={
-        :local rest [:pick $cfg ($p + [:len $key]) [:len $cfg]];
-        :local q [:find $rest "\""];
-        :if ([:typeof $q] != "nil") do={
-          :local brand [:pick $rest 0 $q];
-          :local tagst 0;
-          :local plain "";
-          :for j from=0 to=([:len $brand]-1) do={
-            :local bc [:pick $brand $j];
-            :if ($bc = "<") do={ :set tagst 1 };
-            :if ($tagst = 0) do={ :set plain ($plain . $bc) };
-            :if ($bc = ">") do={ :set tagst 0 };
-          }
-          :if ($plain != "") do={ :set siteId $plain };
-        }
-      }
-    } on-error={};
-    :local siteTag "";
-    :for i from=0 to=([:len $siteId]-1) do={
-      :local ch [:pick $siteId $i];
-      :if ($ch = " ") do={ :set ch "_" };
-      :set siteTag ($siteTag . $ch);
-    }
-    :local iTMsg ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0ASite: $siteId%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive%0A%0A#sale #$siteTag");
-    :do {/tool fetch url=("https://api.telegram.org/bot" . $tgBotToken . "/sendMessage") http-method=post http-data=("chat_id=" . $tgChatId . "&text=" . $iTMsg) keep-result=no} on-error={ :log warning "On-Login: telegram send failed" };
-  }
 };
 }
 ```
@@ -325,9 +142,14 @@ Policy is the minimum that runs the cleanup (`ftp` for `/file`,
 `reboot,policy,password,sniff,sensitive,romon` set is overbroad for a
 login-triggered context. The portal splits the session file on the last
 `#`, so member names containing `#` still work. Waits trimmed 10s → 5s
-so captive clients don't time out and double-submit.
+so captive clients don't time out and double-submit. Ran the old
+tracker version? Delete the leftovers on the router: scripts
+`day-report`, `month-report`, `todayincome`, `monthlyincome`,
+`tg-creds` (+ `Daily-*` / `Monthly-*`) and schedulers `Reset Daily
+Income`, `Reset Monthly Income`, `tg-creds-boot` — nothing reads
+them anymore.
 
-### E. On-Logout (same profile)
+### D. On-Logout (same profile)
 
 Winbox: same Login tab → On Logout box, paste, OK.
 
@@ -342,7 +164,7 @@ preserved, not forfeited):
 }
 ```
 
-### F. Site ID publisher
+### E. Site ID publisher
 
 Publishes the board serial to `data/site-id.txt` so saved vouchers are
 scoped per site. Write-once, runs at startup, needs no reachable vendo:
@@ -374,7 +196,7 @@ Run `/system script run publish-site-id` once after pasting. Verify:
 `/file print where name="hotspot/data/site-id.txt"` must show your board
 serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
 
-### G. Portal files
+### F. Portal files
 
 1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your vendo
    IP (`10.0.0.254` by default).
@@ -402,44 +224,6 @@ var footerSubText = "INTERNET SERVICES";
 - Vendo picker (multi-vendo only): set `showVendoSelect = true` in
   `config.js` to reveal the dropdown (hidden by default). Manual mode
   (`multiVendoOption = 0`) needs it; auto modes resolve silently.
-- Coin-insert pings: set `tgCoinAlerts = true` plus `tgBotToken` /
-  `tgChatId` in `config.js`. The buying phone sends one telegram
-  message per inserted coin (deduped by running total). Pre-login
-  phones are offline, so pass telegram through the wall:
-
-```bash
-/ip hotspot walled-garden add dst-host=api.telegram.org action=allow disabled=no comment="telegram coin pings"
-```
-
-- ntfy per-sale ping (instead of telegram): paste at the end of the
-  On-Login script, inside the main `if` (uses its vars). Use a
-  hard-to-guess topic: anyone holding the topic URL can read it:
-
-```bash
-  :local isNtfy 0;
-  :local iNtfyTopic "REPLACE-ME";
-  :if ($isNtfy=1) do={
-    :local iUActive [/ip hotspot active print count-only];
-    :local iHost $address;
-    :do {
-      :local leaseId [/ip dhcp-server lease find address=$address];
-      :if ([:len $leaseId] > 0) do={
-        :local hn [/ip dhcp-server lease get ($leaseId->0) host-name];
-        :if ($hn != "") do={ :set iHost ($hn . " (" . $address . ")") };
-      }
-    } on-error={};
-    :local iMessage ("New sale $user%0AExpiry: $iValidUntil | Active: $iHost%0A%0AAmount: P$iSaleAmt | Today: P$iDayTot | Month: P$iMonTot | Users: $iUActive #sale");
-    :do {/tool fetch url=("https://ntfy.sh/" . $iNtfyTopic . "?title=Vendo+sale") http-method=post http-data=$iMessage output=none} on-error={ :log warning "On-Login: ntfy send failed" };
-  }
-```
-
-- Bot hardening (BotFather): `/setjoingroups` → Disable — send-only
-  bot, nobody can add it to random groups. Leave `/setprivacy`
-  default; the bot never reads messages. Tags (`#sale`, `#daily`,
-  `#monthly`) are tappable filters in the DM. Secretary Mode is
-  Business-account automation — irrelevant here, no updates are ever
-  handled.
-
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)

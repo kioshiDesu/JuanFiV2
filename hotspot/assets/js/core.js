@@ -113,7 +113,7 @@ function sfxVibrate(pattern) {
 }
 // Named sound files (assets/sounds/): silent no-op when unavailable.
 // ?v= key so browsers HTTP-cache them across visits, same as first-party assets.
-var SOUND_V = "?v=10";
+var SOUND_V = "?v=11";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -926,7 +926,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v10"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v11"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1733,29 +1733,7 @@ function notifyCoinSuccess(coin) {
 	// blips) exactly once, repeats swallowed.
 	if (coinToastOnce("coin-" + totalCoinReceived, { title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 })) {
 		coinBlip();
-		tgCoinPing(coin);
 	}
-}
-
-// Telegram coin-insert ping, fire-and-forget. Dedup comes free:
-// notifyCoinSuccess only calls here once per coin (same total key).
-function tgCoinPing(coin) {
-	try {
-		if (typeof tgCoinAlerts === "undefined" || !tgCoinAlerts) { return; }
-		if (typeof tgBotToken === "undefined" || !tgBotToken) { return; }
-		if (typeof tgChatId === "undefined" || !tgChatId) { return; }
-		var who = "";
-		try { who = " mac=" + (window.mac || "?") + " ip=" + (window.uIp || "?"); } catch (e) {}
-		var site = "";
-		try {
-			if (typeof brandHeaderHtml !== "undefined" && brandHeaderHtml) {
-				site = " #" + String(brandHeaderHtml).replace(/<[^>]*>/g, "").replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "");
-			}
-		} catch (e) {}
-		var msg = "coin P" + coin + " (total P" + totalCoinReceived + ")" + who + " #coin" + site;
-		var url = "https://api.telegram.org/bot" + tgBotToken + "/sendmessage?chat_id=" + encodeURIComponent(tgChatId) + "&text=" + encodeURIComponent(msg);
-		$.ajax({ type: "GET", url: url, timeout: 8000 });
-	} catch (e) {}
 }
 
 function secondsToDhms(seconds) {

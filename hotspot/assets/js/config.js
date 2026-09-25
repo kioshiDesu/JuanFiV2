@@ -25,12 +25,6 @@ var vendorIpAddress = "10.0.0.254"; //ESP Address
 // so copyDebugLog() in devtools works even when this is false.
 var portalDebug = false;
 
-// Telegram coin-insert pings — off by default. Needs a walled-garden
-// pass for api.telegram.org or pre-login phones can't reach it.
-var tgCoinAlerts = false;
-var tgBotToken = "";
-var tgChatId = "";
-
 // Branding — header + footer (change per site without touching portal.html)
 var brandHeaderHtml = "BRO<em>BRO</em>";
 var footerBrandText = "@NETBRO";
