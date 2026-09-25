@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=32";
+var SOUND_V = "?v=33";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -278,9 +278,13 @@ function pushVoucherHistory(vc) {
 	try { paintVoucherHistory(); } catch (e) {}
 }
 function useHistoryVoucher(vc) {
-	voucher = String(vc || "");
-	try { $('#voucherInput').val(voucher); } catch (e) {}
-	try { closeHistoryView(); } catch (e) {}
+	vc = String(vc || "");
+	if (!vc) { return; }
+	try {
+		if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(vc); }
+		else { var ta = document.createElement('textarea'); ta.value = vc; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e2) {} document.body.removeChild(ta); }
+	} catch (e) {}
+	try { $.toast({ title: 'Copied', content: "Voucher copied to clipboard", type: 'success', delay: 2500 }); } catch (e) {}
 }
 function paintVoucherHistory() {
 	var box = document.getElementById('vhistFull');
@@ -885,7 +889,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v32"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v33"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1325,6 +1329,7 @@ function insertBtnAction() {
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', false);
 	$("#loaderDiv").attr("class", "spinner");
+	try { closeHistoryView(); } catch (e) {}
 	totalCoinReceived = 0;
 	$('#totalCoin').text("0");
 	$('#totalTime').html(secondsToDhms(0));
@@ -1443,6 +1448,7 @@ function saveVoucherBtnAction() {
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', true);
 	$("#loaderDiv").attr("class", "spinner");
+	try { closeHistoryView(); } catch (e) {}
 	setActiveVoucher( voucher);
 	try { dbgLog("useVoucher start type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
 	$('#voucherInput').val(voucher);
