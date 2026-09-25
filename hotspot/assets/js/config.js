@@ -26,7 +26,7 @@ var vendorIpAddress = "10.0.0.254"; //ESP Address
 var portalDebug = false;
 
 // Branding — header + footer (change per site without touching portal.html)
-var brandHeaderHtml = "BRO<em>BRO</em>";
+var brandHeaderHtml = "BROBRO<em>PISOWIFI</em>";
 var footerBrandText = "@NETBRO";
 
 var footerSubText = "INTERNET SERVICES";
