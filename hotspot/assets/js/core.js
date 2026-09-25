@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=33";
+var SOUND_V = "?v=34";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -691,6 +691,7 @@ function renderStoredRemain(sel, vc) {
 
 function render(state) {
 	setPortalState(state);
+	try { if (state != "login" && voucher) { pushVoucherHistory(voucher); } } catch (e) {}
 	try { paintVoucherHistory(); } catch (e) {}
 	try { dbgLog("render: " + state); } catch (e) { }
 	// Login succeeded (status/paused views): arm the next auto-login.
@@ -889,7 +890,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v33"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v34"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

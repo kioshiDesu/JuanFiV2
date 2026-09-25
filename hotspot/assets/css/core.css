@@ -605,7 +605,7 @@ hr.foot-hr {
 #view-history {
     position: fixed;
     inset: 0;
-    z-index: 9000;
+    z-index: 10001;
     background: #101418;
     padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
     overflow-y: auto;
