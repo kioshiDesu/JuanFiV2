@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=56";
+var SOUND_V = "?v=57";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -122,6 +122,8 @@ function sfxPlayFile(name, src, loop, fallback) {
 	}
 }
 function sfxStartLoop() {
+	if (window.__sfxMuted) { return; }
+	try { if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; } } catch (e) {}
 	sfxStopLoop();
 	sfxPlayFile("insert", snd("assets/sounds/insertcoinbg.mp3"), true, null);
 }
@@ -133,6 +135,7 @@ function sfxPreload() {
 	} catch (e) {}
 }
 function coinBlip() {
+	if (window.__sfxMuted) { return; }
 	sfxPlayFile("inserted", snd("assets/sounds/insertedcoin.mp3"), false, null);
 	sfxVibrate(40);
 }
@@ -142,6 +145,13 @@ function sfxStopLoop() {
 		if (a) { a.pause(); try { a.currentTime = 0; } catch (e) {} }
 	} catch (e) {}
 	sfxVibrate(0);
+}
+function sfxToggleMute(btn) {
+	try {
+		window.__sfxMuted = !window.__sfxMuted;
+		if (window.__sfxMuted) { sfxStopLoop(); }
+		if (btn) { btn.textContent = window.__sfxMuted ? "UNMUTE" : "MUTE"; }
+	} catch (e) {}
 }
 
 (function ($) {
@@ -153,12 +163,13 @@ function sfxStopLoop() {
 		if (!box) {
 			box = document.createElement("div");
 			box.id = "juanfi-toasts";
-			box.setAttribute("role", "alert");
+			box.setAttribute("role", "status");
 			box.setAttribute("aria-live", "polite");
 			document.body.appendChild(box);
 		}
 		var el = document.createElement("div");
 		el.className = "jtoast";
+		if (o.type === "error") { el.setAttribute("role", "alert"); }
 		el.style.borderLeftColor = COLORS[o.type] || COLORS.info;
 		var b = document.createElement("b");
 		b.textContent = o.title || "";
@@ -932,7 +943,7 @@ function applyFlags() {
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v56"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v57"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -987,7 +998,7 @@ function showCoinPanel() {
 	document.body.classList.add("coin-focus");
 	$("#coinPanel").attr("style", "display: block");
 	var el = document.getElementById("coinPanel");
-	if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) { el.scrollIntoView(); } }
+	if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: "nearest", behavior: ((window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) ? "auto" : "smooth") }); } catch (e) { el.scrollIntoView(); } }
 	try {
 		var t = document.getElementById("coinPanelTitle");
 		if (t && t.focus) { t.focus({ preventScroll: true }); }
@@ -1064,7 +1075,7 @@ function cancelCoinForfeit() {
 	if (currentTopUpXhr) { try { currentTopUpXhr.abort(); } catch(e){} currentTopUpXhr = null; }
 	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch(e){} currentCheckCoinXhr = null; }
 	if (currentUseVoucherXhr) { try { currentUseVoucherXhr.abort(); } catch(e){} currentUseVoucherXhr = null; }
-	$("#loaderDiv").attr("class", "spinner hidden");
+	$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 	if (forfeited > 0) {
 		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled — ' + currencySym + forfeited + ' forfeited', type: 'info', delay: 3000 });
 	} else {
@@ -1079,8 +1090,8 @@ function cancelCoinForfeit() {
 		url: "http://" + vendorIpAddress + "/cancelTopUp",
 		timeout: VENDO_TIMEOUT,
 		data: { voucher: cancelVc, mac: mac },
-		success: function () { $("#loaderDiv").attr("class", "spinner hidden"); },
-		error: function () { $("#loaderDiv").attr("class", "spinner hidden"); }
+		success: function () { $("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){} },
+		error: function () { $("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){} }
 	});
 	totalCoinReceived = 0;
 	render(STATE);
@@ -1135,7 +1146,7 @@ function loadRates() {
 			return;
 		}
 		var html = "<div class='table-responsive'><table class='table table-striped'>";
-		html += "<thead><tr><th>Rate</th><th>Time</th><th>Expiry</th>";
+		html += "<thead><tr><th scope=\"col\">Rate</th><th scope=\"col\">Time</th><th scope=\"col\">Expiry</th>";
 		html += "</tr></thead><tbody>";
 		for (var r = 0; r < rows.length; r++) {
 			if (rows[r] == "") { continue; }
@@ -1165,7 +1176,7 @@ function escHtml(s) {
 function rateDisplay(raw) {
 	var t = String(raw == null ? "" : raw).trim();
 	var m = t.match(/(\d+(?:\.\d+)?)/);
-	if (m) { return currencySym + m[1]; }
+	if (m) { try { return currencySym + new Intl.NumberFormat("en-PH", { maximumFractionDigits: 2 }).format(parseFloat(m[1])); } catch (e) {} return currencySym + m[1]; }
 	return t;
 }
 
@@ -1372,7 +1383,7 @@ function insertBtnAction() {
 	$("#progressDiv").html("");
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', false);
-	$("#loaderDiv").attr("class", "spinner");
+	$("#loaderDiv").attr("class", "spinner");try{$("#paidNote").text("Confirming purchase…");}catch(e){}
 	try { closeHistoryView(); } catch (e) {}
 	totalCoinReceived = 0;
 	$('#totalCoin').text("0");
@@ -1439,7 +1450,7 @@ function callTopupAPI(retryCount, gen) {
 		data: { voucher: voucher, mac: mac, extendTime: (isExtend ? "1" : "0") },
 		complete: function(){ currentTopUpXhr = null; },
 		success: function (data) {
-			$("#loaderDiv").attr("class", "spinner hidden");
+			$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 			try { dbgLog("topUp ok voucher=" + (data && data.voucher ? data.voucher : "?"), "dbg-ok"); } catch (e) { }
 		if (gen !== topUpGen) { return; }
 		if (data.status == "true") {
@@ -1474,7 +1485,7 @@ function callTopupAPI(retryCount, gen) {
 			if (retryCount < 3) {
 				callTopupAPI(retryCount + 1, gen);
 			} else {
-					$("#loaderDiv").attr("class", "spinner hidden");
+					$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 					notifyCoinSlotError("coin.slot.notavailable");
 					insertingCoin = false;
 					restoreStashedVoucher();
@@ -1491,7 +1502,7 @@ function saveVoucherBtnAction() {
 	window.__useVoucherBusy = true;
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', true);
-	$("#loaderDiv").attr("class", "spinner");
+	$("#loaderDiv").attr("class", "spinner");try{$("#paidNote").text("Confirming purchase…");}catch(e){}
 	try { closeHistoryView(); } catch (e) {}
 	setActiveVoucher( voucher);
 	try { dbgLog("useVoucher start type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
@@ -1512,7 +1523,7 @@ function saveVoucherBtnAction() {
 			insertingCoin = false;
 			window.__useVoucherBusy = false;
 			window.__cancelVoucher = null;
-			$("#loaderDiv").attr("class", "spinner hidden");
+			$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
 		if (data.status == "true") {
 			setVouchValue(voucher, "tempValidity", data.validity);
@@ -1531,7 +1542,7 @@ function saveVoucherBtnAction() {
 			// Release both locks or Done + Insert stay bricked till reload.
 			insertingCoin = false;
 			window.__useVoucherBusy = false;
-			$("#loaderDiv").attr("class", "spinner hidden");
+			$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 			$("#saveVoucherButton").prop('disabled', false);
 			$("#cncl").prop('disabled', false);
 		}
@@ -1539,7 +1550,7 @@ function saveVoucherBtnAction() {
 			if (status === "abort") { window.__useVoucherBusy = false; return; }
 			insertingCoin = false;
 			window.__useVoucherBusy = false;
-			$("#loaderDiv").attr("class", "spinner hidden");
+			$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 			$("#saveVoucherButton").prop('disabled', false);
 			$("#cncl").prop('disabled', false);
 			dbgAjaxErr("useVoucher", jqXHR, status, err);

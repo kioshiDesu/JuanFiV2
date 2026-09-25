@@ -8,7 +8,7 @@
     var bt = document.getElementById("bootText");
     if (bt) {
       bt.innerHTML = (msg || "Failed to load portal.")
-        + ' <a href="#" onclick="location.reload();return false;">Tap to retry</a>';
+        + ' <button type="button" onclick="location.reload();">Tap to retry</button>';
     }
   }
   function checkLibs() {

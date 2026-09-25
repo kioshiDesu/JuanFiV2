@@ -130,6 +130,12 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     outline: 2px solid #4cd137;
     outline-offset: 2px;
     border-radius: 2px;
+#app .btn:focus-visible, #app .iconbtn:focus-visible, #app input:focus-visible, #app select:focus-visible, #app .vhist-row:focus-visible { outline: 3px solid #4cd137; outline-offset: 2px; }
+html { color-scheme: dark; }
+button, a, input, select { touch-action: manipulation; }
+body { -webkit-tap-highlight-color: transparent; }
+.skip { position: absolute; left: -999px; top: 0; z-index: 12000; background: #fff; color: #000; padding: 8px 12px; }
+.skip:focus { left: 8px; top: 8px; }
 }
 /* Member toggle card: full-width tap target with title, hint, chevron. */
 #memberSection .member-toggle {
@@ -430,19 +436,20 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
 /* M9: toast dismiss. */
 .jtoast {
     position: relative;
-    padding-right: 34px;
+    padding-right: 48px;
 }
 .jtoast .jclose {
     position: absolute;
-    top: 4px;
-    right: 6px;
+    top: 0;
+    right: 0;
+    width: 44px;
     border: none;
     background: none;
     color: #fff;
-    font-size: 18px;
-    line-height: 1;
-    min-width: 28px;
-    min-height: 28px;
+    font-size: 20px;
+    min-width: 44px;
+    min-height: 44px;
+    line-height: 44px;
     cursor: pointer;
 }
 /* M10: voucher error shake. */

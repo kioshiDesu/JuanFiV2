@@ -3,10 +3,11 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=56">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=56">
+	<link rel="stylesheet" href="assets/css/core.css?v=57">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=57">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="theme-color" content="#101418">
 	<title>JuanFiV2 - Logged out</title>
 	<script>
 	// Auto-login pending: leave before first paint, no receipt flash.
@@ -31,7 +32,7 @@
 
 <div class="portal">
 	<div class="hero">
-		<div class="sub">Logged out</div>
+		<h1 class="sub">Logged out</h1>
 		<div class="vouchline">Voucher <span id="loUser"></span></div>
 	</div>
 
@@ -47,7 +48,7 @@
 		<button type="button" id="loCopy" class="btn btn-primary btn-block" style="display: block; width: 100%; min-height: 48px;">COPY VOUCHER</button>
 	</div>
 
-	<div class="pausenote" id="loNote">Returning to login in <span id="loCount">10</span>s — your saved code auto-connects there.</div>
+	<div class="pausenote" id="loNote" role="status" aria-live="polite">Returning to login in <span id="loCount">10</span>s — your saved code auto-connects there.</div>
 </div>
 
 <script>
