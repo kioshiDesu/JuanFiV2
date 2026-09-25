@@ -353,13 +353,12 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     color: #fff;
     font-weight: 700;
 }
-.hero .vouchline.metatable {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px 12px;
+.hero .vouchline.metalist {
+    display: block;
 }
-.hero .vouchline .metaleft { text-align: left; border-right: 1px solid rgba(255,255,255,.25); padding-right: 10px; }
-.hero .vouchline .metaright { text-align: left; padding-left: 10px; }
+.hero .vouchline .metarow { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
+.hero .vouchline .metalabel { text-align: left; }
+.hero .vouchline .metaval { text-align: right; }
 .hero .vouchline .mico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
 .pausenote {
     margin: 10px 0 2px 0;
