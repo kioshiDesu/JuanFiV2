@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=40";
+var SOUND_V = "?v=41";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -896,7 +896,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v40"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v41"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1723,11 +1723,12 @@ function notifyCoinSuccess(coin) {
 }
 
 function secondsToDhms(seconds) {
-	seconds = Number(seconds);
-	var d = Math.floor(seconds / (3600 * 24));
-	var h = Math.floor(seconds % (3600 * 24) / 3600);
-	var m = Math.floor(seconds % 3600 / 60);
-	var s = Math.floor(seconds % 60);
-	var dDisplay = d > 0 ? d + (d == 1 ? " Day " : " Days ") : "";
-	return (dDisplay ? dDisplay + " " : "") + h + "h : " + m + "m : " + s + "s";
+	seconds = Math.max(0, Number(seconds) || 0);
+	var mins = Math.floor(seconds / 60);
+	if (mins < 1) { return "less than a minute"; }
+	if (mins < 90) { return mins + (mins == 1 ? " min" : " mins"); }
+	var hours = Math.floor(mins / 60);
+	if (hours < 48) { return hours + (hours == 1 ? " hour" : " hours"); }
+	var days = Math.floor(hours / 24);
+	return days + (days == 1 ? " day" : " days");
 }
