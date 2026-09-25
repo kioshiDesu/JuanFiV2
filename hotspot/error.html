@@ -7,18 +7,27 @@
     <meta http-equiv="expires" content="-1">
     <title>Internet hotspot - Error</title>
     <link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-    <link rel="stylesheet" href="assets/css/core.css?v=11">
+    <link rel="stylesheet" href="assets/css/core.css?v=12">
 </head>
 
 <body>
     <div class="ie-fixMinHeight">
         <div class="main">
             <div class="wrap">
-                <h1>Hotspot error: $(error)</h1>
-                <p class="info">Log in page: <a href="$(link-login)">$(link-login)</a></p>
+                <h1>Hotspot error: <span id="errMsg">$(error)</span></h1>
+                <p class="info">Log in page: <a id="loginLink" href="login">log in</a></p>
+                <span id="loginDst" style="display:none">$(link-login)</span>
             </div>
         </div>
     </div>
+    <script>
+        // $(error) stays inert span text (quotes can't break out); the
+        // login URL is set from span text after a scheme check.
+        try {
+            var u = document.getElementById("loginDst").textContent || "login";
+            document.getElementById("loginLink").href = /^(https?:\/\/|\/)/.test(u) ? u : "login";
+        } catch (e) {}
+    </script>
 </body>
 
 </html>

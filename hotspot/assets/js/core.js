@@ -113,7 +113,7 @@ function sfxVibrate(pattern) {
 }
 // Named sound files (assets/sounds/): silent no-op when unavailable.
 // ?v= key so browsers HTTP-cache them across visits, same as first-party assets.
-var SOUND_V = "?v=11";
+var SOUND_V = "?v=12";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -354,7 +354,6 @@ function removeSessionValue(key) {
 function autoLoginTried() { return getSessionValue('autoLoginTried') === '1'; }
 function markAutoLoginTried() { setSessionValue('autoLoginTried', '1'); }
 function clearAutoLoginTried() {
-	try { removeSessionValue(scopedKey('autoLoginTried')); } catch (e) {}
 	try { removeSessionValue('autoLoginTried'); } catch (e) {}
 	try {
 		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
@@ -383,7 +382,7 @@ function wipePortalStorage() {
 	var fixed = ["activeVoucher", "activeVoucher_ts", "isPaused", "forceLogout",
 		"redirectLogin", "ignoreSaveCode", "insertCoinRefreshed",
 		"totalCoinReceived", "reLogin", "selectedVendo"];
-	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin"];
+	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin", "selectedVendo"];
 	var vouchers = [];
 	try {
 	// Raw reads on purpose: getActiveVoucher() can expire-and-delete a
@@ -621,6 +620,7 @@ function boot() {
 			jobs.push(timedStep("Checking session", resumeSession(), true));
 		} else {
 			jobs.push(timedStep("Loading session", showValidity(), true));
+			jobs.push(timedStep("Checking voucher", validateStatusVoucher(), true));
 		}
 		// jQuery promises settle fail or success — either way reveal the portal.
 		$.when.apply($, jobs).always(function () {
@@ -933,7 +933,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v11"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v12"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1274,6 +1274,30 @@ function formatExpiryLeft(t) {
 	return days + (days == 1 ? " day left" : " days left");
 }
 
+// Status-boot stale check: the per-MAC session file should name the same
+// voucher the router reports. Mismatch = stale neighbour code — drop its
+// stored remain/validity so the paused view can't show another code's time.
+function validateStatusVoucher() {
+	var d = $.Deferred();
+	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
+	.done(function (data) {
+		try {
+			var str = String(data);
+			var hash = str.lastIndexOf("#");
+			var fv = (hash < 0 ? str : str.slice(0, hash)).trim();
+			if (fv && fv !== voucher) {
+				removeVouchValue(fv, "remain");
+				removeVouchValue(fv, "tempValidity");
+				removeVouchValue(fv, "validity");
+				dbgLog("status-boot: stale file voucher cleared");
+			}
+		} catch (e) {}
+		d.resolve();
+	})
+	.fail(function () { d.resolve(); });
+	return d.promise();
+}
+
 function showValidity() {
 	var d = $.Deferred();
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
@@ -1347,7 +1371,7 @@ function insertBtnAction() {
 	$("#cncl").prop('disabled', false);
 	$("#loaderDiv").attr("class", "spinner");
 	totalCoinReceived = 0;
-	$('#totalCoin').html("0");
+	$('#totalCoin').text("0");
 	$('#totalTime').html(secondsToDhms(0));
 
 	if ($("#saveVoucherButton").attr('data-save-type') != "extend" && PAGE === "login") {
@@ -1490,6 +1514,7 @@ function saveVoucherBtnAction() {
 			totalCoinReceived = 0;
 			insertingCoin = false;
 			window.__useVoucherBusy = false;
+			window.__cancelVoucher = null;
 			$("#loaderDiv").attr("class", "spinner hidden");
 			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
 		if (data.status == "true") {
@@ -1587,7 +1612,7 @@ function checkCoin() {
 			if (data.status == "true") {
 			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
 			totalCoinReceived = parseInt(data.totalCoin, 10);
-			$('#totalCoin').html(data.totalCoin);
+			$('#totalCoin').text(data.totalCoin);
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded, 10)));
 			$('#voucherInput').val(voucher);
 			setActiveVoucher( voucher);
@@ -1620,7 +1645,7 @@ function checkCoin() {
 						notifyCoinSlotError('coins.wait.expired');
 					}
 				} else {
-					$('#totalCoin').html(data.totalCoin);
+					$('#totalCoin').text(data.totalCoin);
 					$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded, 10)));
 					var bar = $("#progressDiv");
 					bar.css('width', percent + '%');
@@ -1681,6 +1706,7 @@ function closeCoinModal() {
 	timer = null;
 	insertingCoin = false;
 	window.__useVoucherBusy = false;
+	window.__cancelVoucher = null;
 	render(STATE);
 }
 
