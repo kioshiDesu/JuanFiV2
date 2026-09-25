@@ -5,7 +5,8 @@
     justify-content: center;
     align-items: center;
     height: 100%;
-    background: #101418;
+    background: transparent;
+    pointer-events: none;
     top: 0;
     left: 0;
     width: 100%;
@@ -260,6 +261,24 @@
         padding-bottom: 14px;
     }
 }
+@media (max-width: 360px) {
+    #remainTime.timeboxes,
+    #pauseRemainTime.timeboxes {
+        gap: 3px;
+    }
+    .tbox {
+        min-width: 0;
+        flex: 1 1 0;
+        padding: 6px 2px 5px 2px;
+    }
+    .tbox .tnum {
+        font-size: 24px;
+    }
+    .tsep {
+        font-size: 16px;
+        padding-bottom: 12px;
+    }
+}
 .clientline {
     color: #b4bcc6;
     font-size: 11px;
@@ -451,8 +470,6 @@
 }
 
 #extendBtn {
-    display: block;
-    width: 100%;
     min-height: 44px;
     font-weight: 700;
 }

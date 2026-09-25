@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=12">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=12">
+	<link rel="stylesheet" href="assets/css/core.css?v=13">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=13">
 	<title>HOTSPOT Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#1a1a2e">
-	<script src="assets/js/config.js?v=12"></script>
+	<script src="assets/js/config.js?v=13"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -46,6 +46,8 @@
 	<div><b id="bootBrand">Loading your data…</b></div>
 	<div id="bootText"></div>
 </div>
+
+<noscript><div style="padding:20px;text-align:center">This portal needs JavaScript. Please enable it and reload.</div></noscript>
 
 <div id="app" style="display: none">
 <div id="coinDim"></div>
@@ -153,6 +155,11 @@
 			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-primary">Done</button>
 			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger">Cancel</button>
 		</div>
+		<div id="forfeitBar" style="display: none; text-align: center; margin-top: 10px;">
+			<div id="forfeitText" style="margin-bottom: 8px; font-weight: bold;"></div>
+			<button type="button" id="forfeitYes" class="btn btn-danger">FORFEIT</button>
+			<button type="button" id="forfeitNo" class="btn btn-success">KEEP GOING</button>
+		</div>
 	</div>
 
 	<div class="footer">
@@ -160,7 +167,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="opacity:.65;font-size:10px;"></span>
-			<span class="brand-sub" id="portalVer" style="opacity:.65;font-size:10px;">v12</span>
+			<span class="brand-sub" id="portalVer" style="opacity:.65;font-size:10px;">v13</span>
 		</div>
 	</div>
 
@@ -172,7 +179,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=12"></script>
+		<script src="assets/js/core.js?v=13"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -266,7 +273,12 @@
 			if (typeof boot === "function") { boot(); }
 			else if (typeof setBootText === "undefined") {
 				var bt = document.getElementById("bootText");
-				if (bt) { bt.textContent = "Failed to load portal. Please reload."; }
+				if (bt) { bt.textContent = "Failed to load portal. "; }
+				var rb = document.createElement("button");
+				rb.textContent = "RETRY";
+				rb.setAttribute("type", "button");
+				rb.onclick = function () { location.reload(); };
+				if (bt && bt.parentNode) { bt.parentNode.appendChild(rb); }
 			}
 		</script>
 

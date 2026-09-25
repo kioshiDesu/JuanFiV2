@@ -113,7 +113,7 @@ function sfxVibrate(pattern) {
 }
 // Named sound files (assets/sounds/): silent no-op when unavailable.
 // ?v= key so browsers HTTP-cache them across visits, same as first-party assets.
-var SOUND_V = "?v=12";
+var SOUND_V = "?v=13";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -933,7 +933,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v12"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v13"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1014,20 +1014,26 @@ function restoreCoinChrome() {
 }
 
 function cancelCoin() {
-	// Coins in the slot? Confirm first — cancelling forfeits them, and a
-	// stray tap used to silently strand paid credit (next topUp starts a
-	// fresh voucher and abandons this one on the ESP).
-	var forfeited = 0;
+	// Coins in the slot? Show the inline forfeit bar — window.confirm is
+	// suppressed in CNA sheets, which used to strand paid credit (a stray
+	// tap silently abandoned the voucher on the ESP).
 	if (totalCoinReceived > 0) {
-		var ok = false;
-		try { ok = window.confirm("₱" + totalCoinReceived + " inserted — cancelling forfeits it.\n\nOK = forfeit, Cancel = keep going (then tap Done to claim)."); } catch (e) { ok = false; }
-		if (!ok) {
-			try { dbgLog("cancel: kept session with coins=" + totalCoinReceived); } catch (e) { }
-			return;
-		}
-		forfeited = totalCoinReceived;
-		try { dbgLog("cancel: forfeited coins=" + forfeited); } catch (e) { }
+		try {
+			$("#forfeitText").text("₱" + totalCoinReceived + " inserted — cancelling forfeits it.");
+			$("#forfeitBar").show();
+			$("#forfeitYes").off("click").on("click", function () { try { $("#forfeitBar").hide(); } catch (e) {} cancelCoinForfeit(); });
+			$("#forfeitNo").off("click").on("click", function () {
+				try { $("#forfeitBar").hide(); } catch (e) {}
+				try { dbgLog("cancel: kept session with coins=" + totalCoinReceived); } catch (e) { }
+			});
+		} catch (e) { cancelCoinForfeit(); }
+		return;
 	}
+	cancelCoinForfeit();
+}
+function cancelCoinForfeit() {
+	var forfeited = totalCoinReceived;
+	try { dbgLog("cancel: forfeited coins=" + forfeited); } catch (e) { }
 	topUpGen++;
 	clearInterval(timer);
 	timer = null;
@@ -1744,7 +1750,9 @@ function pause() {
 	// failed logout used to leave paused UI over a still-ticking session —
 	// revert to status with a toast instead.
 	try {
-		fetch(document.logout.action, { method: "GET", cache: "no-store" })
+		var pauseCtl = null;
+		try { pauseCtl = new AbortController(); setTimeout(function () { try { pauseCtl.abort(); } catch (e) {} }, 5000); } catch (e) { pauseCtl = null; }
+		fetch(document.logout.action, { method: "GET", cache: "no-store", signal: pauseCtl ? pauseCtl.signal : undefined })
 			.then(function (r) { if (!r || !r.ok) { throw new Error("logout-http"); } })
 			.catch(function () {
 				try {
