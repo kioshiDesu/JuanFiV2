@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=36">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=36">
+	<link rel="stylesheet" href="assets/css/core.css?v=37">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=37">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#3d4044">
-	<script src="assets/js/config.js?v=36"></script>
+	<script src="assets/js/config.js?v=37"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -56,10 +56,10 @@
 	<header class="topbar">
 		<div class="brandmark">
 			<h1 class="brand-big" id="brandHeader">JuanFi<em>V2</em></h1>
+			<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
 		</div>
 		<button type="button" id="histBtn" class="iconbtn" aria-label="Voucher history" onclick="showHistoryView(); return false"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
 	</header>
-	<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
 
 	<div id="vendoSelectDiv">
 		<label for="vendoSelected" class="vendolabel">Choose vendo</label>
@@ -185,7 +185,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v36</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v37</span>
 		</div>
 	</div>
 
@@ -197,7 +197,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=36"></script>
+		<script src="assets/js/core.js?v=37"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

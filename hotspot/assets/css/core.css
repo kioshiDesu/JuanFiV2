@@ -297,6 +297,9 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     padding: 0 2px 6px 2px;
     font-variant-numeric: tabular-nums;
 }
+.brandmark .clientline {
+    padding: 0;
+}
 .hero {
     background: none;
     border: none;
