@@ -1,8 +1,5 @@
-// JuanFiV2 portal core — one-page app shared by login.html / status.html.
 // Each page sets PAGE ("login"|"status") plus its MikroTik vars
 // (mac, uIp, hotspotAddress, interfaceName, loginError) before this loads,
-// then calls boot() on document ready. Boot shows a loading screen, preloads
-// promo rates + session data, then reveals the page.
 
 var errorCodeMap = {
 	'coins.wait.expired': 'Coin slot expired',
@@ -18,15 +15,10 @@ var errorCodeMap = {
 	'invalid.request': 'Invalid request, please try again'
 };
 
-// Central network budgets (ms): router serves /status + session files on
-// LAN-lo, the ESP is single-threaded and slow — one knob per side.
 var ROUTER_TIMEOUT = 3000;
 var VENDO_TIMEOUT = 5000;
 
 // ---------- console debug log (nothing injected into body) ----------
-// Every portal flow logs here; the ring buffer always fills (retrieve with
-// copyDebugLog() in devtools), but console output only happens when the
-// portalDebug switch in config.js is true — customer consoles stay clean.
 var __dbgLines = [];
 function __dbgTime() {
 	try { return new Date().toLocaleTimeString(); } catch (e) { return ""; }
@@ -77,21 +69,16 @@ function copyDebugLog() {
 var voucher = (function(){ try { var k = scopedKey('activeVoucher'); var v = getStorageValue(k); if (v != null) return v; // migrate bare key once
 	var bare = getStorageValue('activeVoucher'); if (bare != null && bare !== "") { setStorageValue(k, bare); removeStorageValue('activeVoucher'); return bare; } return ""; } catch(e){ return ""; } })();
 if (voucher == null) { voucher = ""; }
-// Portal state: "login" | "status" | "paused". Router pages preset PAGE;
-// portal.html (single-file) switches it live via setPortalState().
 var STATE = (typeof PAGE !== 'undefined') ? PAGE : 'login';
 var insertingCoin = false;
 var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
 // Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
-// after the loader clears — pause view + remain secs stay readable a few
-// beats before it submits and the OS captive tab closes itself.
 var AUTO_LOGIN_DWELL_MS = 2000;
 window.__pendingAutoLogin = null;
 function queueAutoLogin(fn) {
 	window.__pendingAutoLogin = fn;
-	// Loader already gone (slow job beat the failsafe)? Fire anyway.
 	try { if (typeof bootDone !== "undefined" && bootDone) { drainAutoLogin(); } } catch (e) {}
 }
 function drainAutoLogin() {
@@ -100,20 +87,12 @@ function drainAutoLogin() {
 	if (fn) { setTimeout(function () { try { fn(); } catch (e) {} }, AUTO_LOGIN_DWELL_MS); }
 }
 // Per-site scope from the router-published site ID (data/site-id.txt, written
-// by the publish-site-id scheduler from the board serial). Empty until the
-// async boot fetch lands; venueScopeSuffix() falls back meanwhile.
 var siteIdSuffix = "";
 
-// Sounds: named MP3 files (assets/sounds/) + vibration. Files are
-// pre-amplified; playback stays at full volume. Works offline (same-origin
-// files, no network); degrades silently where unsupported (e.g. autoplay
-// blocked long after the last tap, iOS vibration).
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-// Named sound files (assets/sounds/): silent no-op when unavailable.
-// ?v= key so browsers HTTP-cache them across visits, same as first-party assets.
-var SOUND_V = "?v=29";
+var SOUND_V = "?v=30";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -146,8 +125,6 @@ function sfxStartLoop() {
 	sfxStopLoop();
 	sfxPlayFile("insert", snd("assets/sounds/insertcoinbg.mp3"), true, null);
 }
-// Warm the Audio objects at boot (no play, so no autoplay trip): first
-// coin used to pay the network cost inside the timing-sensitive poll.
 function sfxPreload() {
 	try {
 		if (!sfxAudio["insert"]) { sfxAudio["insert"] = new Audio(snd("assets/sounds/insertcoinbg.mp3")); sfxAudio["insert"].preload = "auto"; }
@@ -155,7 +132,6 @@ function sfxPreload() {
 		if (!sfxAudio["success"]) { sfxAudio["success"] = new Audio(snd("assets/sounds/success.mp3")); sfxAudio["success"].preload = "auto"; }
 	} catch (e) {}
 }
-// Per-coin sting + haptic tick (success sting stays on Done only).
 function coinBlip() {
 	sfxPlayFile("inserted", snd("assets/sounds/insertedcoin.mp3"), false, null);
 	sfxVibrate(40);
@@ -168,8 +144,6 @@ function sfxStopLoop() {
 	sfxVibrate(0);
 }
 
-// Dependency-free toast: drop-in for $.toast({title, content, type, delay}).
-// Replaces bootstrap.js + toast.min.js (~63KB of router flash).
 (function ($) {
 	if (!$ || $.toast) { return; }
 	var COLORS = { success: "#067647", error: "#d92d20", info: "#175cd3", warning: "#b7791f" };
@@ -241,7 +215,6 @@ function setCookie(name, value, days) {
 		expires = "; expires=" + date.toUTCString();
 	}
 	// Values encoded: raw vouchers/member names can contain ";" or "=",
-	// which used to split getCookie lookups and collide keys.
 	document.cookie = name + "=" + encodeURIComponent(value || "") + expires + "; path=/";
 }
 
@@ -265,9 +238,6 @@ function eraseCookie(name) {
 
 // Venue-scoped voucher storage — same browser visiting two neighbouring
 // vendos at 10.0.0.1 would otherwise share one localStorage key and a
-// neighbour's 1FI code would auto-fill here. Scope is the router-published
-// site ID (board serial); vendorIp is only a last-resort fallback.
-// Scope order: site ID first, then vendorIp, then hotspotAddress.
 function venueScopeSuffix() {
 	var v = "";
 	try {
@@ -283,11 +253,8 @@ function scopedKey(base) {
 }
 function getActiveVoucher() {
 	var v = getStorageValue(scopedKey('activeVoucher'));
-	// Expire stale codes (neighbour leak or old purchase) after 7 days
 	try {
 		var ts = getStorageValue(scopedKey('activeVoucher_ts'));
-		// Corrupt ts parses to NaN, and NaN comparisons are always false —
-		// treat unparseable stamps as expired instead of immortal.
 		var age = Date.now() - parseInt(ts, 10);
 		if (v && ts && (!isFinite(age) || age > 7*24*60*60*1000)) { removeActiveVoucher(); removeStorageValue(scopedKey('activeVoucher_ts')); return ""; }
 	} catch(e){}
@@ -300,7 +267,6 @@ function setActiveVoucher(v) {
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
 // Per-voucher keys (remain/tempValidity/validity) are venue-scoped like
 // activeVoucher itself, or the same VCxxxxxx code collides across
-// neighbouring vendos. Null-safe: empty voucher yields null, wrappers no-op.
 function vKey(vc, suffix) { return (vc ? scopedKey(vc + suffix) : null); }
 function getVouchValue(vc, suffix) { var k = vKey(vc, suffix); return k ? getStorageValue(k) : null; }
 function setVouchValue(vc, suffix, val) { var k = vKey(vc, suffix); if (k) { setStorageValue(k, val); } }
@@ -310,21 +276,14 @@ function setPausedFlag() { return setStorageValue(scopedKey('isPaused'), "1"); }
 function removePausedFlag() { return removeStorageValue(scopedKey('isPaused')); }
 // Deliberately UNSCOPED (like autoLoginTried): set before logout and read
 // after reload, potentially under a different site scope. Scoped reads used
-// to miss and strand the extend flow on the login page.
 function getReLoginFlag() { return getStorageValue('reLogin'); }
 function setReLoginFlag() { return setStorageValue('reLogin', "1"); }
 function removeReLoginFlag() { return removeStorageValue('reLogin'); }
 
 // ---------- session-scoped auto-login guard (one shot per tab) ----------
 // sessionStorage survives reloads in the same tab but dies with the tab,
-// so an auto-login submit that lands back on login (bad voucher, slow
-// router) won't re-submit forever. Cleared on status render (login
-// succeeded), so a later expiry can auto-login again in the same tab.
 var __memSession = {};
 // Fallback chain: sessionStorage → persistent storage (localStorage/cookie
-// via setStorageValue) → memory. Memory-only used to die on reload, looping
-// auto-login forever in private mode; the persistent layer survives reload
-// and is cleared on status render like the primary path.
 function setSessionValue(key, value) {
 	try {
 		if (typeof sessionStorage !== 'undefined' && sessionStorage != null) {
@@ -379,12 +338,6 @@ function clearAutoLoginTried() {
 	} catch (e) {}
 }
 
-// Scoped migration wipe: removes only portal-owned keys. Never
-// localStorage.clear() — that would nuke foreign data stored by any other
-// app on this hotspot origin. Covers legacy bare keys, venue-scoped keys
-// (<base>_<anything>, suffix-agnostic so renames and ESP swaps can't strand
-// orphans) and per-voucher keys (<voucher>remain/tempValidity/validity)
-// for every voucher code still on record.
 function wipePortalStorage() {
 	var fixed = ["activeVoucher", "activeVoucher_ts", "isPaused", "forceLogout",
 		"redirectLogin", "ignoreSaveCode", "insertCoinRefreshed",
@@ -392,8 +345,6 @@ function wipePortalStorage() {
 	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin", "selectedVendo"];
 	var vouchers = [];
 	try {
-	// Raw reads on purpose: getActiveVoucher() can expire-and-delete a
-		// stale code (7-day check) before we harvest it for dynamic keys.
 		var bare = getStorageValue('activeVoucher');
 		if (bare) { vouchers.push(bare); }
 		try {
@@ -413,12 +364,8 @@ function wipePortalStorage() {
 				if (k === scopedBases[b] || k.indexOf(scopedBases[b] + "_") === 0) { kill.push(k); scopedHit = true; break; }
 			}
 			if (scopedHit) { continue; }
-			// Orphaned per-voucher tails from other scopes (neighbour codes
-			// never harvested above): any key ending in a tail suffix goes.
 			if (/(remain|tempValidity|validity)$/.test(k)) { kill.push(k); continue; }
 			for (var v = 0; v < vouchers.length; v++) {
-				// Bare legacy keys plus venue-scoped variants
-				// (<voucher><suffix>_<scope>).
 				var hit = false;
 				if (vouchers[v]) {
 					var tails = ["remain", "tempValidity", "validity"];
@@ -439,10 +386,6 @@ function macNoColon() {
 }
 
 // Fetch the router-published site ID (publish-site-id scheduler writes
-// data/site-id.txt from the board serial). Fire-and-forget: never gates the
-// boot jobs; on arrival re-scope the voucher the same way the multi-vendo
-// vendorIp step does. Missing file (scheduler not installed yet) fails fast
-// to a 404 and keeps vendorIp scoping.
 function loadSiteId() {
 	return $.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
@@ -450,9 +393,6 @@ function loadSiteId() {
 			if (/^[A-Za-z0-9]{4,32}$/.test(m)) {
 				try { siteIdSuffix = m.toUpperCase(); } catch (e) {}
 			try {
-				// Truthy only: a new scope with no voucher yields "" —
-				// adopting it would wipe the vendorIp-scoped code and
-				// poison later keys ("nullremain", vc.length throws).
 				var scopedV = getActiveVoucher();
 				if (scopedV && scopedV !== voucher) {
 					voucher = scopedV;
@@ -461,8 +401,6 @@ function loadSiteId() {
 					}
 				}
 			} catch (e) {}
-			// Migrate the saved picker choice into the new scope (it was
-			// stored before the site ID arrived) and adopt it in manual mode.
 			try {
 				var bareSel = getStorageValue('selectedVendo');
 				if (bareSel) {
@@ -492,17 +430,12 @@ function setBootText(t) {
 function hideBoot() {
 	if (bootDone) { return; }
 	bootDone = true;
-	// Fade the loader instead of blinking it away; reveal the app at once
-	// so the fade dissolves over real content, then drop the overlay.
 	$("#app").attr("style", "display: block");
 	try { $("#bootLoader").addClass("boot-fade"); } catch (e) {}
 	try { $("#readyNote").text("Portal ready"); } catch (e) {}
 	try { drainAutoLogin(); } catch (e) {}
 	setTimeout(function () {
 		$("#bootLoader").attr("style", "display: none");
-		// The countdown was sized while hidden (zero widths, so the shrink loop
-		// never ran) — refit now that measurements are real, or first paint
-		// overflows small screens until the next 1s tick fixes it.
 		try {
 			__fitCache = {};
 			fitCountdown("#remainTime");
@@ -511,9 +444,6 @@ function hideBoot() {
 	}, 450);
 }
 
-// Boot progress: simple counter under the brand name ("Loading... 1/3").
-// Step labels and timings stay in the debug buffer only — the loader
-// line just counts settled steps so customers see progress, not logs.
 function __stepSecs(t0) {
 	try { return (((new Date()).getTime() - t0) / 1000).toFixed(1) + "s"; }
 	catch (e) { return ""; }
@@ -551,13 +481,9 @@ function timedStep(label, promise, soft) {
 }
 
 function boot() {
-	// Fresh counters per boot — a second boot() call used to double-count
-	// the "Loading... n/m" line on top of the previous run's totals.
 	__bootTotal = 0;
 	__bootDoneCount = 0;
 	try { bootDone = false; } catch (e) {}
-	// One-way storage migration: stale flags from older portal builds used to
-	// wedge pause/cancel/auto-login (clearing browser data fixed it by hand).
 	try {
 		if (getStorageValue("portalBuild") !== "r5") {
 			var wipeKeys = ["activeVoucher", "isPaused", "forceLogout",
@@ -573,25 +499,15 @@ function boot() {
 	applyFlags();
 	try { sfxPreload(); } catch (e) {}
 	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
-	// Re-scope voucher after vendorIp is resolved (multi-vendo selects it)
 	try {
 		var scopedV = getActiveVoucher();
 		if (scopedV && scopedV !== voucher) { voucher = scopedV; }
 	} catch(e){}
-	// Re-login after an extend that outlived its session (set by
-	// autoLoginAfterCoin). Runs AFTER applyFlags (multi-vendo vendorIp
-	// select) and the re-scope above — reading the flag earlier used a
-	// different scope than the write and stranded extends on login.
-	// Runs here, not in the shell, because doLogin only exists after injection.
 	if (getReLoginFlag() == '1') {
 		removeReLoginFlag();
-		// A logout/reload wipes the page but not storage: restore the
-		// voucher into the input or doLogin has nothing to submit.
 		var sv = getActiveVoucher();
 		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
 		try { markAutoLoginTried(); } catch (e) {}
-		// Site scope arrives async — submit only after it lands, or the
-		// scoped read misses and doLogin posts empty.
 		var goReLogin = function () { queueAutoLogin(function () { try { doLogin(); } catch (e) { newLogin(); } }); };
 		try {
 			window.__siteIdLoaded = true;
@@ -601,16 +517,11 @@ function boot() {
 		hideBoot();
 		return;
 	}
-	// Site scope arrives async (site-id file); re-scope again on arrival.
 	try { if (!window.__siteIdLoaded) { loadSiteId(); } } catch (e) {}
 	if (voucher != "" && $("#voucherInput").length > 0) {
 		$('#voucherInput').val(voucher);
 	}
 	// Failsafe: never trap the customer behind the loader (dead vendo,
-	// no net) — but never reveal a half-booted page either. At 9s only
-	// reveal when the session state is known; otherwise warn and take
-	// one last hard stop at 20s. Renders after reveal used to clobber
-	// typed vouchers and open coin panels.
 	var bootStateKnown = false;
 	setTimeout(function () {
 		if (bootStateKnown) { hideBoot(); return; }
@@ -630,7 +541,6 @@ function boot() {
 			jobs.push(timedStep("Loading session", showValidity(), true));
 			jobs.push(timedStep("Checking voucher", validateStatusVoucher(), true));
 		}
-		// jQuery promises settle fail or success — either way reveal the portal.
 		$.when.apply($, jobs).always(function () {
 			try { dbgLog("boot ready (" + __stepSecs(bootT0) + ")"); } catch (e) { }
 			setTimeout(hideBoot, 500);
@@ -639,15 +549,11 @@ function boot() {
 }
 
 // Read live session facts out of the status page. Prefers data-* attributes
-// on #loginBody (exact values, immune to JS formatting drift); falls back to
-// the legacy inline-JS regex for older shells or parsers without text/html
-// DOM support.
 function parseStatusFacts(html) {
 	var facts = { voucher: "", sessiontime: "" };
 	try {
 		var doc = new DOMParser().parseFromString(String(html), "text/html");
 		// Shells carry the voucher as span text (never inline JS/attrs —
-		// quotes in vouchers stay inert). Attribute second (legacy shells).
 		try {
 			var cvEl = doc.getElementById("curV");
 			if (cvEl && cvEl.textContent) { facts.voucher = cvEl.textContent; }
@@ -672,8 +578,6 @@ function parseStatusFacts(html) {
 	return facts;
 }
 
-// Probe the router for the real client state and render the matching view,
-// document.write-style: one file, UI follows the session, not the filename.
 function detectState() {
 	var d = $.Deferred();
 	try {
@@ -685,14 +589,11 @@ function detectState() {
 		}
 	} catch (e) { }
 	// A reload while paused means the user is coming back: drop the pause
-	// and fall through to auto-resume below. The paused view only ever
-	// renders via pause() itself (no reload), or ?state=paused for testing.
 	if (getPausedFlag() == "1") {
 		removePausedFlag();
 		try { dbgLog("paused flag dropped on reload"); } catch (e) { }
 	}
 	// Single retry: a slow router (>3s) used to misclassify logged-in
-	// users as logged-out and fire spurious auto-logins/topUps.
 	probeStatus(0);
 	function probeStatus(attempt) {
 	$.ajax({ type: "GET", url: "/status", timeout: ROUTER_TIMEOUT }).done(function (data) {
@@ -701,7 +602,6 @@ function detectState() {
 			try { dbgLog("detect: login"); } catch (e) { }
 			d.resolve("login");
 		} else {
-			// Logged in: lift live session facts out of the status page itself.
 			try {
 				var facts = parseStatusFacts(html);
 				if (facts.voucher) {
@@ -758,9 +658,6 @@ function render(state) {
 	}
 }
 
-// Segmented countdown boxes: always Day Hour Min Sec, joined with colons,
-// each with a small unit label inside. Zero boxes stay visible ("00 Days")
-// so the layout never shifts as time runs down.
 function tbox(n, one, many) {
 	var num = (n < 10 ? "0" : "") + n;
 	return '<span class="tbox"><span class="tnum">' + num + '</span><span class="tlab">' + (n == 1 ? one : many) + "</span></span>";
@@ -774,11 +671,6 @@ function boxesDhms(seconds) {
 		tbox(m, "Min", "Mins"), tbox(s, "Sec", "Secs")].join(sep);
 }
 
-// Shrink a hero countdown until it fits (long hour counts clip the
-// trailing "s" on 320px phones). Resets to the stylesheet size first
-// so shorter values grow back; re-runs on rotate/resize.
-// Skip refits when the text hasn't changed: the 1s countdown tick would
-// otherwise force a full shrink-loop reflow every second on every phone.
 var __fitCache = {};
 function fitCountdown(sel) {
 	var el = $(sel);
@@ -804,8 +696,6 @@ function fitCountdown(sel) {
 	__fitCache[sel] = node.textContent;
 }
 
-// Plain-words SR label for the visual countdown boxes ("mashed" spans
-// otherwise). aria-live stays off, so per-tick updates never chatter.
 function paintRemainA11y(time) {
 	try {
 		var t = Math.max(0, parseInt(time || 0, 10));
@@ -828,8 +718,6 @@ function startCountdown() {
 		return;
 	}
 	time = parseInt(time, 10);
-	// Non-numeric session time used to tick NaN forever ("00m 00s", no
-	// logout). Clamp to zero so the session expires instead of hanging.
 	if (!isFinite(time) || time < 0) { time = 0; }
 	window.__remainSecs = time;
 	var total = time;
@@ -846,9 +734,6 @@ function startCountdown() {
 		paintRemainA11y(time);
 		paintCountdownUrgency(time);
 		fitCountdown("#remainTime");
-		// One-shot low-time notices (in-page: no permission needed, works
-		// over plain HTTP). Skipped when the whole session is shorter than
-		// the threshold so the message is never wrong.
 		if (!warned5 && total > 300 && time <= 300) {
 			warned5 = true;
 			$.toast({ title: 'Running low', content: '5 minutes remaining — tap EXTEND TIME to add more', type: 'warning', delay: 5000 });
@@ -863,17 +748,12 @@ function startCountdown() {
 		if (time <= 0) {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
 			clearInterval(window.remainingTimer);
-			// Tracked so pause() can disarm it: tapping pause inside the
-			// 6s window used to show paused UI while logout still fired.
 			try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); } } catch (e) {}
 			window.__logoutTimer = setTimeout(function () { document.logout.submit(); }, 6000);
 		}
 	}, 1000);
 }
 
-// Preview hook, visual only (no timer/logout effect): ?urgency=warn|low
-// forces the countdown color so the thresholds can be checked without
-// waiting for a session to run down. Same spirit as the ?state= hook.
 function previewUrgencyHook() {
 	try {
 		var m = new RegExp("[?&]urgency=(warn|low)").exec(location.search || "");
@@ -884,8 +764,6 @@ function previewUrgencyHook() {
 	} catch (e) { }
 }
 
-// Session countdown urgency: amber under 5 min, pulsing red under 1 min,
-// so the logout at zero never comes as a surprise. Unlimited plans skip it.
 function paintCountdownUrgency(time) {
 	var el = $("#remainTime");
 	if (el.length == 0) { return; }
@@ -895,8 +773,6 @@ function paintCountdownUrgency(time) {
 }
 
 function applyFlags() {
-	// Vendo picker — hidden unless the operator opts in via showVendoSelect
-	// (config.js, default false). Auto modes always resolve silently.
 	if (typeof isMultiVendo !== 'undefined' && isMultiVendo && $("#vendoSelected").length > 0) {
 		if (multiVendoOption == 1) {
 			var currentHotspot = hotspotAddress.split(":")[0];
@@ -934,7 +810,6 @@ function applyFlags() {
 		}
 	}
 
-	// Branding from config.js — keep portal.html generic. Operator-edited
 	// value: allow <em> only, strip everything else so a per-site edit
 	// can't inject script/img handlers via .html().
 	function brandSafe(html) {
@@ -959,13 +834,11 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v29"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v30"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
 
-// Show the effective storage scope in the footer so support can tell which
-// site a report came from. Re-rendered when the async site-id file lands.
 function renderSiteTag() {
 	try {
 		var el = $("#siteTag");
@@ -978,7 +851,6 @@ function renderSiteTag() {
 
 // ---------- focused blocks: one action on screen at a time (no modals) ----------
 
-// Collapse/expand a section body; headers with class "toggle" call this.
 function toggleBlock(id) {
 	var el = document.getElementById(id);
 	if (!el) { return; }
@@ -997,18 +869,12 @@ function toggleBlock(id) {
 }
 
 function showCoinPanel() {
-	// In-place swap: the coin panel takes the pressed button's spot.
-	// The rest of the UI darkens under a veil (rates stay lit);
-	// voucher + member are hidden until the panel closes.
 	var slot = (STATE == "status") ? "#coinSlot-status" : "#coinSlot-login";
 	var panel = document.getElementById("coinPanel");
 	var dest = document.querySelector(slot);
 	if (panel && dest && panel.parentNode !== dest) { dest.appendChild(panel); }
 	if (STATE == "status") {
 		$("#extendBtn").attr("style", "display: none");
-		// Extend focus mirrors login: only panel + rates stay lit.
-		// NOTE: hide #statusHero by id — the coin panel carries its own
-		// .hero block once moved in, and a descendant selector would kill it.
 		$("#statusHero").attr("style", "display: none");
 		$("#view-status .btnrow").attr("style", "display: none");
 	} else {
@@ -1016,7 +882,6 @@ function showCoinPanel() {
 	}
 	$("#voucherBlock").attr("style", "display: none");
 	$("#memberSection").attr("style", "display: none");
-	// Screen readers stay out from behind the veil while it dims the page.
 	try {
 		$("#voucherBlock").attr("aria-hidden", "true");
 		$("#memberSection").attr("aria-hidden", "true");
@@ -1025,7 +890,6 @@ function showCoinPanel() {
 	$("#coinPanel").attr("style", "display: block");
 	var el = document.getElementById("coinPanel");
 	if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) { el.scrollIntoView(); } }
-	// Keyboard users land on the panel title; Escape backs out.
 	try {
 		var t = document.getElementById("coinPanelTitle");
 		if (t && t.focus) { t.focus({ preventScroll: true }); }
@@ -1043,7 +907,6 @@ function showCoinPanel() {
 	window.__coinOpen = true;
 }
 
-// Done button says what it does: CLAIM CODE on purchase, ADD TIME extend.
 function paintSaveBtn() {
 	var t = $("#saveVoucherButton").attr('data-save-type') || "purchase";
 	$("#saveVoucherButton").text(t == "extend" ? "Add Time" : "Claim Code");
@@ -1060,7 +923,6 @@ function restoreCoinChrome() {
 		$("#voucherBlock").removeAttr("aria-hidden");
 		$("#memberSection").removeAttr("aria-hidden");
 	} catch (e) {}
-	// Return focus where the coin flow started.
 	try {
 		var back = (typeof STATE !== "undefined" && STATE == "status") ? "#extendBtn" : "#insertBtn";
 		var b = document.querySelector(back);
@@ -1071,7 +933,6 @@ function restoreCoinChrome() {
 function cancelCoin() {
 	// Coins in the slot? Show the inline forfeit bar — window.confirm is
 	// suppressed in CNA sheets, which used to strand paid credit (a stray
-	// tap silently abandoned the voucher on the ESP).
 	if (totalCoinReceived > 0) {
 		try {
 			$("#forfeitText").text("₱" + totalCoinReceived + " inserted — cancelling forfeits it.");
@@ -1108,8 +969,6 @@ function cancelCoinForfeit() {
 	}
 	try { sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null); } catch (e) { }
 	// Always release the ESP slot — including after a forfeit — so the next
-	// customer never opens against our abandoned session (busy recovery
-	// paths already cover a slot that stays held).
 	var cancelVc = voucher;
 	try { if (window.__cancelVoucher) { cancelVc = window.__cancelVoucher; } } catch (e) {}
 	$.ajax({
@@ -1124,7 +983,6 @@ function cancelCoinForfeit() {
 	render(STATE);
 }
 
-// Shows one of "login" | "status" | "paused" (single-file portal).
 function setPortalState(s) {
 	STATE = s;
 	$("#coinPanel").attr("style", "display: none");
@@ -1134,13 +992,9 @@ function setPortalState(s) {
 	$("#view-login").attr("style", s == "login" ? "display: block" : "display: none");
 	$("#view-status").attr("style", s == "status" ? "display: block" : "display: none");
 	$("#view-paused").attr("style", s == "paused" ? "display: block" : "display: none");
-	// Rates stay visible on every view (paused keeps comparison context).
 	$("#ratesSection").attr("style", "display: block");
 	$("#saveVoucherButton").attr('data-save-type', s == "status" ? "extend" : "purchase");
 	try { paintSaveBtn(); } catch (e) {}
-	// boot() already queues showValidity() as a job after render(); only
-	// refresh here for later transitions (cancel/pause/resume) so the boot
-	// path doesn't fire the same /data/*.txt GET twice.
 	if (bootDone && (s == "status" || s == "paused") && $("#expirationTime").html() == "") {
 		showValidity();
 	}
@@ -1148,7 +1002,6 @@ function setPortalState(s) {
 
 // ---------- promo rates (inline section, no modal) ----------
 
-// Human durations for the rates table: "10 mins", "1 hour", "3 days".
 function humanDuration(mins) {
 	mins = parseInt(mins || 0, 10);
 	if (mins <= 0) { return "—"; }
@@ -1194,7 +1047,6 @@ function loadRates() {
 		$("#ratesBody").html(html);
 	}).fail(function (xhr, status, err) {
 		// Timeout vs refuse vs HTTP error need different fixes (power,
-		// WiFi, ESP config) — one blanket message sent everyone to power.
 		var why = (status === "timeout")
 			? "Rates unavailable — vendo not answering (timeout). Check power & WiFi."
 			: "Rates unavailable — vendo error (" + (xhr && xhr.status ? "HTTP " + xhr.status : status || "network") + ").";
@@ -1207,8 +1059,6 @@ function escHtml(s) {
 	return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// Rate cell: pull the number out of labels like "1 pesos" / "P10" and show
-// it with a peso sign ("₱1"); verbatim for numberless names ("UNLI").
 function rateDisplay(raw) {
 	var t = String(raw == null ? "" : raw).trim();
 	var m = t.match(/(\d+(?:\.\d+)?)/);
@@ -1220,18 +1070,15 @@ function rateDisplay(raw) {
 
 function resumeSession() {
 	var d = $.Deferred();
-	// Single-file portal keeps all views in the DOM: only auto-connect on login state.
 	if (typeof STATE !== 'undefined' && STATE != "login") { d.resolve(); return d.promise(); }
 	// Router rejection lands back here with loginError set — show it
 	// BEFORE the one-shot guard below, or a failed submit (which marks
-	// tried before posting) would swallow its own error toast.
 	if (loginError != "" && voucher != "") {
 		removePausedFlag();
 		try { markAutoLoginTried(); } catch (e) {}
 		var loginErrLower = String(loginError).toLowerCase();
 		if (loginErrLower.indexOf("no more sessions") !== -1 || loginErrLower.indexOf("session limit") !== -1 || loginErrLower.indexOf("simultaneous") !== -1) {
 			// Code valid but online elsewhere (shared-users=1) — keep it
-			// so retry is one tap instead of retyping.
 			try { $('#voucherInput').val(voucher); } catch (e) {}
 			try { dbgLog("resume: code in use elsewhere, voucher kept", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'In use', content: "This code is online on another device — pause it there or wait 30s, then tap CONNECT to retry", type: 'warning', delay: 8000 });
@@ -1242,7 +1089,6 @@ function resumeSession() {
 			$.toast({ title: 'Expired', content: "This code has used up all its time", type: 'error', delay: 5000 });
 		} else if (loginErrLower.indexOf("invalid username or password") !== -1 || loginErrLower.indexOf("wrong password") !== -1) {
 			// Member typo (errors.txt invalid-username) — not a voucher
-			// problem, so say so; nothing saved to clear.
 			try { dbgLog("resume: member bad credentials", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Login failed', content: "Wrong username or password — check and try again", type: 'error', delay: 5000 });
 		} else {
@@ -1255,7 +1101,6 @@ function resumeSession() {
 		return d.promise();
 	}
 	// One-shot per tab: a reload after a failed submit lands back here
-	// with the same session file — without this the page re-submits forever.
 	try {
 		if (autoLoginTried()) {
 			dbgLog("resume: already tried this tab, skipping auto-login");
@@ -1271,14 +1116,11 @@ function resumeSession() {
 		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
 			// Split on the LAST "#" — member names may contain "#",
-			// the router always appends validity after the final one.
 			var str = String(data);
 			var hash = str.lastIndexOf("#");
 			var fileVoucher = (hash < 0 ? str : str.slice(0, hash)).trim();
 			var validUntil = hash < 0 ? null : parseValidity(str.slice(hash + 1));
 				// Stale session file (empty, dateless, or expired voucher):
-				// never auto-connect it, or a dead test code keeps
-				// logging itself in on every visit to the login page.
 				if (fileVoucher == "" || validUntil == null || validUntil.getTime() < new Date().getTime()) {
 					removeActiveVoucher();
 					try { dbgLog("resume: stale session file, skipping auto-connect"); } catch (e) { }
@@ -1302,7 +1144,6 @@ function resumeSession() {
 
 function parseValidity(raw) {
 	// Invalid dates come back null (never Invalid Date) — callers render
-	// "No expiry"/stale instead of "NaN day left".
 	raw = String(raw == null ? "" : raw);
 	if (raw.length == 0) { return null; }
 	var d;
@@ -1318,12 +1159,10 @@ function parseValidity(raw) {
 }
 
 function renderExpiration(html) {
-	// Single-file portal has two expiry slots (status + paused views).
 	$("#expirationTime").html(html);
 	$("#expirationTimePaused").html(html);
 }
 
-// Relative expiry for customers: "3 days left" / "5 hours left" / "12 mins left".
 function formatExpiryLeft(t) {
 	var diff = t.getTime() - new Date().getTime();
 	if (diff <= 0) { return "expired"; }
@@ -1338,7 +1177,6 @@ function formatExpiryLeft(t) {
 
 // Status-boot stale check: the per-MAC session file should name the same
 // voucher the router reports. Mismatch = stale neighbour code — drop its
-// stored remain/validity so the paused view can't show another code's time.
 function validateStatusVoucher() {
 	var d = $.Deferred();
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
@@ -1388,7 +1226,6 @@ function showValidity() {
 	return d.promise();
 }
 
-// Returns true when some expiry could be shown, false when nothing loaded.
 function fallbackValidity() {
 	var validity = getVouchValue(voucher, "validity");
 	if (validity != null) {
@@ -1416,7 +1253,6 @@ function fallbackValidity() {
 
 // Coin-session generation: bumped on every fresh insert AND every cancel.
 // topUp retries captured an old generation never fire — without this a
-// retry timer outlives cancelCoin and resurrects a dead session.
 var topUpGen = 0;
 function insertBtnAction() {
 	// No double-submit: one coin session at a time (second tap = busy error).
@@ -1439,8 +1275,6 @@ function insertBtnAction() {
 	$('#totalTime').html(secondsToDhms(0));
 
 	if ($("#saveVoucherButton").attr('data-save-type') != "extend" && PAGE === "login") {
-		// Not logged in yet? The router serves the login page (marker present) — top up.
-		// Already logged in (status page served)? Bounce there instead.
 		$.ajax({
 			type: "GET",
 			url: "/status",
@@ -1465,7 +1299,6 @@ function insertBtnAction() {
 }
 
 // Failed fresh topUp: hand the stashed code back so cancelTopUp and
-// retry have a real voucher instead of "".
 function restoreStashedVoucher() {
 	try {
 		if (window.__stashedVoucher) {
@@ -1488,7 +1321,6 @@ function callTopupAPI(retryCount, gen) {
 		var storedVoucher = getActiveVoucher();
 		if (storedVoucher != null) {
 			// Stash, don't wipe: the fresh post still sends voucher:"",
-			// but a failed topUp restores the code for cancel + retry.
 			try { window.__stashedVoucher = storedVoucher; } catch (e) {}
 			voucher = "";
 			$("#voucherInput").val('');
@@ -1511,8 +1343,6 @@ function callTopupAPI(retryCount, gen) {
 			voucher = data.voucher;
 			setActiveVoucher(voucher);
 			// Pin the voucher for cancelTopUp: the global gets cleared on
-			// fresh purchases, and a failed topUp never sets it — sending
-			// voucher:"" releases nothing on the ESP.
 			try { window.__cancelVoucher = data.voucher; } catch (e) {}
 				showCoinPanel();
 				insertingCoin = true;
@@ -1533,7 +1363,6 @@ function callTopupAPI(retryCount, gen) {
 				restoreStashedVoucher();
 			}
 	}, error: function (xhr, status, err) {
-		// ESP dead / timeout: retry quickly, then show unreachable error.
 		// Generation-checked: a cancel during the 1s wait kills the retry.
 		dbgAjaxErr("topUp retry=" + retryCount, xhr, status, err);
 		setTimeout(function () {
@@ -1554,7 +1383,6 @@ function callTopupAPI(retryCount, gen) {
 var currentUseVoucherXhr = null;
 function saveVoucherBtnAction() {
 	// Entry guard: Done double-tap and the wait-expiry auto-finalize used
-	// to fire concurrent /useVoucher posts (plus a racing /cancelTopUp).
 	if (window.__useVoucherBusy) { return; }
 	window.__useVoucherBusy = true;
 	$("#saveVoucherButton").prop('disabled', true);
@@ -1589,9 +1417,6 @@ function saveVoucherBtnAction() {
 		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
 			// Lost the race with the ESP wait-expiry: the vendo already
 			// registered the voucher and added the time itself (then cleared
-			// its session, hence "busy"). Prefer the validity riding on this
-			// response — with zero polls yet the checkCoin path stored
-			// nothing and mergeTempValidity would no-op the expiry.
 			if (data.validity) { setVouchValue(voucher, "tempValidity", data.validity); }
 			try { sfxPlayFile("success", snd("assets/sounds/success.mp3"), false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
@@ -1607,8 +1432,6 @@ function saveVoucherBtnAction() {
 		}
 		}, error: function (jqXHR, status, err) {
 			if (status === "abort") { window.__useVoucherBusy = false; return; }
-			// Release INSERT COIN: the old handler left insertingCoin true,
-			// bricking the button until reload.
 			insertingCoin = false;
 			window.__useVoucherBusy = false;
 			$("#loaderDiv").attr("class", "spinner hidden");
@@ -1628,8 +1451,6 @@ function autoLoginAfterUseVoucher() {
 	if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
 		// A reload alone keeps the same router session, whose
 		// time-left never picks up the extended limit. End the
-		// session like pause/resume does; boot auto-logs back
-		// in with the extended voucher for a fresh countdown.
 		try { dbgLog("autoLogin: extend path, ending session"); } catch (e) { }
 		setReLoginFlag();
 		setTimeout(function () {
@@ -1637,8 +1458,6 @@ function autoLoginAfterUseVoucher() {
 			catch (e) { location.reload(); }
 		}, 3000);
 	} else {
-		// Fresh purchase on login page: auto-login with the new voucher
-		// so the customer never has to click CONNECT manually.
 		try { dbgLog("autoLogin: purchase path, doLogin in 3s"); } catch (e) { }
 		setTimeout(function () {
 			try { doLogin(); } catch (e) { newLogin(); }
@@ -1649,8 +1468,6 @@ function autoLoginAfterUseVoucher() {
 var checkCoinFailStreak = 0;
 var currentTopUpXhr = null;
 var currentCheckCoinXhr = null;
-// One toast per coin-state transition: checkCoin ticks every second, so a
-// bare toast call here would stack one per poll while verifying.
 var coinToastKey = null;
 function coinToastOnce(key, opts) {
 	if (coinToastKey === key) { return false; }
@@ -1662,7 +1479,6 @@ function coinToastOnce(key, opts) {
 function checkCoin() {
 	// Skip the tick while a poll is still in flight — aborting it can kill
 	// the very response carrying status:true/newCoin (ESP is single-threaded
-	// and slow under telnet), which looked like "error, retry shows coins".
 	if (currentCheckCoinXhr) { return; }
 	currentCheckCoinXhr = $.ajax({
 		type: "POST",
@@ -1671,8 +1487,6 @@ function checkCoin() {
 		data: { voucher: voucher },
 		success: function (data) {
 			checkCoinFailStreak = 0;
-			// No reset here: notifyCoinSuccess keys by running total, and a
-			// reset per poll re-announced (and re-blipped) the same coin.
 			if (data.status == "true") {
 			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
 			totalCoinReceived = parseInt(data.totalCoin, 10);
@@ -1697,8 +1511,6 @@ function checkCoin() {
 				if (remainTime == 0) {
 					if (totalCoinReceived > 0) {
 						// Wait ran out with money in: finalize the purchase the
-						// same way Done does (POST /useVoucher, then auto-login)
-						// instead of just reloading and hoping the ESP filed it.
 						try { dbgLog("checkCoin: wait expired with coins=" + totalCoinReceived + ", auto-finalizing", "dbg-ok"); } catch (e) { }
 						$.toast({ title: 'Time is up', content: 'Confirming your purchase of ' + totalCoinReceived + ' peso(s)...', type: 'info', delay: 4000 });
 						$("#saveVoucherButton").prop('disabled', true);
@@ -1720,7 +1532,6 @@ function checkCoin() {
 					bar.html(remainTime + "s");
 				}
 			} else if (data.errorCode == "coinslot.busy") {
-				// Session cleared on the vendo side (manual cancel).
 				closeCoinModal();
 				if (totalCoinReceived == 0) {
 					try { dbgLog("checkCoin: slot cleared, no coins", "dbg-err"); } catch (e) { }
@@ -1732,8 +1543,6 @@ function checkCoin() {
 				}
 			} else if (data.errorCode == "coin.is.reading") {
 				// Transient: coin pulse is being verified on the ESP.
-				// Keep polling — killing the timer here is what forced a
-				// re-tap to reveal already-latched coins.
 				coinToastOnce("reading", { title: 'Verifying coin', content: 'Verifying coin, please wait..', type: 'info', delay: 2500 });
 			} else {
 				coinToastKey = null;
@@ -1751,7 +1560,6 @@ function checkCoin() {
 				coinToastOnce("unreachable", { title: 'Connection lost', content: 'ESP unreachable — check power & WiFi, then tap Cancel to retry.', type: 'warning', delay: 4000 });
 			}
 			// Give up instead of polling forever with insertingCoin stuck:
-			// the customer can Cancel and retry on their own terms.
 			if (checkCoinFailStreak >= 8) {
 				clearInterval(timer);
 				timer = null;
@@ -1796,17 +1604,12 @@ function pause() {
 	try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); window.__logoutTimer = null; } } catch (e) {}
 	setPausedFlag();
 	// Store seconds, not markup: the old code saved $("#remainTime").html()
-	// (tbox spans) and restored it via .html() — editable storage turned
-	// that into an XSS sink. Regenerate markup locally on restore.
 	setVouchValue(vc, "remain", String(window.__remainSecs == null ? -1 : window.__remainSecs));
 	try { dbgLog("pause: remain saved"); } catch (e) { }
-	// Freeze any auto-reload while pausing, then render paused instantly.
 	insertingCoin = true;
 	render("paused");
 	// End the router session in the background without navigating, so no
 	// reload can win the race and bounce the client back to status. A
-	// failed logout used to leave paused UI over a still-ticking session —
-	// revert to status with a toast instead.
 	try {
 		var pauseCtl = null;
 		try { pauseCtl = new AbortController(); setTimeout(function () { try { pauseCtl.abort(); } catch (e) {} }, 5000); } catch (e) { pauseCtl = null; }
@@ -1829,10 +1632,7 @@ function resume() {
 	removePausedFlag();
 	insertingCoin = false;
 	// Keep the voucher + remain until the router verdict: the old code
-	// deleted both before doLogin, so a rejected resume lost the code with
-	// no retry. Invalid/uptime paths in resumeSession() clear it instead.
 	if (!vc) { location.reload(); return; }
-	// Re-login directly: no reload, no login-page flash.
 	voucher = vc;
 	setActiveVoucher( vc);
 	$('#voucherInput').val(vc);
@@ -1849,8 +1649,6 @@ function notifyCoinSlotError(errorCode) {
 
 function notifyCoinSuccess(coin) {
 	// checkCoin polls every second and the ESP may repeat status:true for
-	// the same coin — key by running total so each coin announces (and
-	// blips) exactly once, repeats swallowed.
 	if (coinToastOnce("coin-" + totalCoinReceived, { title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 })) {
 		coinBlip();
 	}
