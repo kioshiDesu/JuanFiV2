@@ -353,6 +353,13 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     color: #fff;
     font-weight: 700;
 }
+.hero .vouchline.metatable {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+}
+.hero .vouchline .metaleft { text-align: left; }
+.hero .vouchline .metaright { text-align: right; }
 .pausenote {
     margin: 10px 0 2px 0;
     padding: 10px 12px;
