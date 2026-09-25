@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=31";
+var SOUND_V = "?v=32";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -265,9 +265,9 @@ function setActiveVoucher(v) {
 	return setStorageValue(scopedKey('activeVoucher'), v);
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
-// Voucher history: venue-scoped, max 5, newest first — a new entry pushes
-// the oldest out. Codes only (member usernames never recorded).
-var VOUCH_HISTORY_MAX = 5;
+// Voucher history: venue-scoped, max 30, newest first — a new entry pushes
+// the oldest out. List only, codes only (member usernames never recorded).
+var VOUCH_HISTORY_MAX = 30;
 function getVoucherHistory() { try { var h = JSON.parse(getStorageValue(scopedKey('voucherHistory')) || "[]"); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
 function pushVoucherHistory(vc) {
 	vc = String(vc || "").trim();
@@ -280,30 +280,39 @@ function pushVoucherHistory(vc) {
 function useHistoryVoucher(vc) {
 	voucher = String(vc || "");
 	try { $('#voucherInput').val(voucher); } catch (e) {}
-	try { doLogin(); } catch (e) { try { newLogin(); } catch (e2) {} }
+	try { closeHistoryView(); } catch (e) {}
 }
 function paintVoucherHistory() {
+	var box = document.getElementById('vhistFull');
+	if (!box) { return; }
 	var h = getVoucherHistory();
-	["Login", "Status", "Paused"].forEach(function (s) {
-		var box = document.getElementById('vhist' + s);
-		if (!box) { return; }
-		box.innerHTML = "";
-		if (!h.length) { box.style.display = "none"; return; }
-		box.style.display = "";
-		var lab = document.createElement('span');
-		lab.className = 'vhist-label';
-		lab.textContent = 'Recent:';
-		box.appendChild(lab);
-		h.forEach(function (e) {
-			var b = document.createElement('button');
-			b.type = 'button';
-			b.className = 'vhist-chip';
-			b.textContent = e.v;
-			b.setAttribute('data-vc', e.v);
-			b.addEventListener('click', function () { useHistoryVoucher(this.getAttribute('data-vc')); });
-			box.appendChild(b);
-		});
+	box.innerHTML = "";
+	if (!h.length) { box.textContent = "No vouchers yet."; return; }
+	h.forEach(function (e) {
+		var r = document.createElement('button');
+		r.type = 'button';
+		r.className = 'vhist-row';
+		var c = document.createElement('span');
+		c.className = 'vhist-code';
+		c.textContent = e.v;
+		var d = document.createElement('span');
+		d.className = 'vhist-date';
+		try { d.textContent = new Date(e.t).toLocaleDateString(); } catch (err) { d.textContent = ""; }
+		r.appendChild(c);
+		r.appendChild(d);
+		r.setAttribute('data-vc', e.v);
+		r.addEventListener('click', function () { useHistoryVoucher(this.getAttribute('data-vc')); });
+		box.appendChild(r);
 	});
+}
+function showHistoryView() {
+	try { paintVoucherHistory(); } catch (e) {}
+	try { document.getElementById('view-history').style.display = "block"; } catch (e) {}
+	window.__histOpen = true;
+}
+function closeHistoryView() {
+	try { document.getElementById('view-history').style.display = "none"; } catch (e) {}
+	window.__histOpen = false;
 }
 // Per-voucher keys (remain/tempValidity/validity) are venue-scoped like
 // activeVoucher itself, or the same VCxxxxxx code collides across
@@ -876,7 +885,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v31"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v32"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -940,6 +949,10 @@ function showCoinPanel() {
 		window.__coinEscBound = true;
 		try {
 			document.addEventListener("keydown", function (ev) {
+				if ((ev.key === "Escape" || ev.keyCode === 27) && window.__histOpen) {
+					try { closeHistoryView(); } catch (e) {}
+					return;
+				}
 				if ((ev.key === "Escape" || ev.keyCode === 27) && window.__coinOpen) {
 					try { cancelCoin(); } catch (e) {}
 				}

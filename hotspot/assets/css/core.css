@@ -590,25 +590,60 @@ hr.foot-hr {
     height: 48px;
     font-weight: 700;
 }
-.vhist {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    margin-top: 10px;
-}
-.vhist-label {
-    font-size: 12px;
-    color: #b4bcc6;
-}
-.vhist-chip {
-    min-height: 44px;
-    padding: 6px 12px;
-    border-radius: 999px;
+.iconbtn {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     border: 1px solid #485460;
     background: #232a31;
     color: #fff;
-    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#view-history {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: #101418;
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+}
+.histhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    max-width: 480px;
+    margin: 0 auto 12px;
+}
+.vhistlist {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 480px;
+    margin: 0 auto;
+    color: #b4bcc6;
+}
+.vhist-row {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: 1px solid #485460;
+    background: #232a31;
+    color: #fff;
+    font-size: 15px;
+    width: 100%;
+    text-align: left;
+}
+.vhist-date {
+    font-size: 12px;
+    color: #b4bcc6;
 }
 #totalCoin, #totalTime,
 #remainTime, #pauseRemainTime,
