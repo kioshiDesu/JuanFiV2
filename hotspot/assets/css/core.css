@@ -358,8 +358,8 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     grid-template-columns: 1fr 1fr;
     gap: 2px 12px;
 }
-.hero .vouchline .metaleft { text-align: left; }
-.hero .vouchline .metaright { text-align: right; }
+.hero .vouchline .metaleft { text-align: right; border-right: 1px solid rgba(255,255,255,.25); padding-right: 10px; }
+.hero .vouchline .metaright { text-align: left; padding-left: 10px; }
 .pausenote {
     margin: 10px 0 2px 0;
     padding: 10px 12px;
