@@ -30,11 +30,18 @@ var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 var currencySym = "₱";
 var showMemberSection = true;
-try {
-	var __setReq = new XMLHttpRequest();
-	__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
-	__setReq.send(null);
-	if (__setReq.status === 200) {
+	try {
+		var __setReq = new XMLHttpRequest();
+		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
+		try { __setReq.send(null); } catch (e) { __setReq = null; }
+		if ((!__setReq || __setReq.status !== 200)) {
+			try {
+				__setReq = new XMLHttpRequest();
+				__setReq.open("GET", "settings.json?t=" + new Date().getTime(), false);
+				__setReq.send(null);
+			} catch (e2) { __setReq = null; }
+		}
+		if (__setReq && __setReq.status === 200) {
 		var __setJson = JSON.parse(__setReq.responseText || "{}");
 		if (typeof __setJson.isMultiVendo === "boolean") { isMultiVendo = __setJson.isMultiVendo; }
 		if (typeof __setJson.multiVendoOption === "number") { multiVendoOption = __setJson.multiVendoOption; }
@@ -126,7 +133,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=69";
+var SOUND_V = "?v=70";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
