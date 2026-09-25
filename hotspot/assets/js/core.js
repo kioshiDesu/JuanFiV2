@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=54";
+var SOUND_V = "?v=55";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -913,7 +913,7 @@ function applyFlags() {
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v54"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v55"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1002,8 +1002,10 @@ function restoreCoinChrome() {
 	$("#view-status .btnrow").attr("style", "");
 	$("#voucherBlock").attr("style", "");
 	try { $("#voucherBlock").removeAttr("aria-hidden"); } catch (e) {}
-	$("#memberSection").attr("style", "");
-	try { $("#memberSection").removeAttr("aria-hidden"); } catch (e) {}
+	if (typeof showMemberSection === 'undefined' || showMemberSection) {
+		$("#memberSection").attr("style", "");
+		try { $("#memberSection").removeAttr("aria-hidden"); } catch (e) {}
+	}
 	try {
 		var back = (typeof STATE !== "undefined" && STATE == "status") ? "#extendBtn" : "#insertBtn";
 		var b = document.querySelector(back);
