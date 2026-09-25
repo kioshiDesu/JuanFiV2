@@ -205,20 +205,14 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
    `data/site-id.txt` there).
 3. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
-4. Display flags live in `hotspot/settings.json` (data-only config, no
-   JS editing — bad JSON falls back to `config.js` defaults). Upload
-   ships it with the folder; edit on the router copy per site:
+4. Display flags live in `hotspot/assets/js/config.js` — edit on the
+   router copy per site:
 
-```json
-{
-  "isMultiVendo": false,
-  "multiVendoOption": 0,
-  "currency": "₱",
-  "footer_text": "@NETBRO",
-  "show_voucher_input": true,
-  "show_pause_button": true,
-  "show_member_login": true
-}
+```js
+var currencySym = "₱";
+var showVoucherInput = true;
+var showPauseButton = true;
+var showMemberLogin = true;
 ```
 
    No trial flag on purpose — the portal has no trial UI. No

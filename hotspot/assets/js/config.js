@@ -25,7 +25,7 @@ var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 
-// Display defaults — settings.json overrides these at boot when valid.
+// Display flags — edit per site on the router copy.
 // (Brand stays here on purpose: MT telegram scripts read it from this file.)
 var currencySym = "₱";
 var showVoucherInput = true;
