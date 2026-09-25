@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=14">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=14">
-	<title>HOTSPOT Portal</title>
+	<link rel="stylesheet" href="assets/css/core.css?v=15">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=15">
+	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="theme-color" content="#1a1a2e">
-	<script src="assets/js/config.js?v=14"></script>
+	<meta name="theme-color" content="#3d4044">
+	<script src="assets/js/config.js?v=15"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -51,11 +51,11 @@
 <noscript><div style="padding:20px;text-align:center">This portal needs JavaScript. Please enable it and reload.</div></noscript>
 
 <div id="app" style="display: none">
-<div id="coinDim"></div>
+<div id="coinDim" title="Finish or cancel in the coin panel below"></div>
 <div class="portal">
 	<header class="topbar">
 		<div class="brandmark">
-			<span class="brand-big" id="brandHeader">JuanFi<em>V2</em></span>
+			<h1 class="brand-big" id="brandHeader">JuanFi<em>V2</em></h1>
 		</div>
 	</header>
 	<div class="clientline"><span id="clientIp">10.0.0.1</span> &bull; <span id="clientMac">AA:BB:CC:DD:EE:FF</span></div>
@@ -75,7 +75,7 @@
 					<div id="voucherBlock" style="margin-top: 15px;">
 			<label for="voucherInput" class="vouchlabel">Voucher code</label>
 			<div class="voucher-pill">
-				<input type="text" class="form-control" id="voucherInput" aria-label="Voucher code" placeholder="Voucher here…" autocomplete="off" spellcheck="false">
+				<input type="text" class="form-control" id="voucherInput" aria-label="Voucher code" placeholder="Voucher code" autocomplete="off" spellcheck="false">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
 			<div id="voucherErr" role="alert"></div>
@@ -109,7 +109,7 @@
 
 	<div id="view-status" style="display: none">
 		<div class="hero" id="statusHero">
-			<div class="sub">Time left — auto logout at 0</div>
+			<h2 class="sub">Time left — auto logout at 0</h2>
 			<div class="big odometer timeboxes" id="remainTime" aria-live="off" aria-atomic="true"></div>
 			<div class="vouchline">Voucher <span id="statusVoucher"></span> &bull; Code expiry <span id="expirationTime"></span></div>
 			<div class="vouchline">Uploaded <span id="upUsed"></span> &bull; Downloaded <span id="downUsed"></span></div>
@@ -124,7 +124,7 @@
 
 	<div id="view-paused" style="display: none">
 		<div class="hero">
-			<div class="sub">Paused</div>
+			<h2 class="sub">Paused</h2>
 			<div class="big timeboxes" id="pauseRemainTime" aria-live="off" aria-atomic="true"></div>
 			<div class="vouchline">Voucher <span id="pausedVoucher"></span> &bull; Expiry <span id="expirationTimePaused"></span></div>
 		</div>
@@ -145,7 +145,7 @@
 
 	<div id="coinPanel" style="display: none">
 		<div class="hero">
-			<div class="sub" id="coinPanelTitle" tabindex="-1">Please insert the coin</div>
+			<h2 class="sub" id="coinPanelTitle" tabindex="-1">Please insert coins</h2>
 			<div class="big"><span id="totalCoin">0</span><span class="cur"> Php</span></div>
 			<div class="vouchline">Time <span id="totalTime"></span></div>
 			<div class="vouchline">Your code is <span id="codeGenerated" style="color: #4cd137">*****</span></div>
@@ -170,7 +170,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:11px;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:11px;">v14</span>
+			<span class="brand-sub" id="portalVer" style="font-size:11px;">v15</span>
 		</div>
 	</div>
 
@@ -182,7 +182,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=14"></script>
+		<script src="assets/js/core.js?v=15"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
