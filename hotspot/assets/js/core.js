@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=30";
+var SOUND_V = "?v=31";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -265,6 +265,46 @@ function setActiveVoucher(v) {
 	return setStorageValue(scopedKey('activeVoucher'), v);
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
+// Voucher history: venue-scoped, max 5, newest first — a new entry pushes
+// the oldest out. Codes only (member usernames never recorded).
+var VOUCH_HISTORY_MAX = 5;
+function getVoucherHistory() { try { var h = JSON.parse(getStorageValue(scopedKey('voucherHistory')) || "[]"); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
+function pushVoucherHistory(vc) {
+	vc = String(vc || "").trim();
+	if (!vc) { return; }
+	var h = getVoucherHistory().filter(function (e) { return String((e && e.v) || "") !== vc; });
+	h.unshift({ v: vc, t: Date.now() });
+	try { setStorageValue(scopedKey('voucherHistory'), JSON.stringify(h.slice(0, VOUCH_HISTORY_MAX))); } catch (e) {}
+	try { paintVoucherHistory(); } catch (e) {}
+}
+function useHistoryVoucher(vc) {
+	voucher = String(vc || "");
+	try { $('#voucherInput').val(voucher); } catch (e) {}
+	try { doLogin(); } catch (e) { try { newLogin(); } catch (e2) {} }
+}
+function paintVoucherHistory() {
+	var h = getVoucherHistory();
+	["Login", "Status", "Paused"].forEach(function (s) {
+		var box = document.getElementById('vhist' + s);
+		if (!box) { return; }
+		box.innerHTML = "";
+		if (!h.length) { box.style.display = "none"; return; }
+		box.style.display = "";
+		var lab = document.createElement('span');
+		lab.className = 'vhist-label';
+		lab.textContent = 'Recent:';
+		box.appendChild(lab);
+		h.forEach(function (e) {
+			var b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'vhist-chip';
+			b.textContent = e.v;
+			b.setAttribute('data-vc', e.v);
+			b.addEventListener('click', function () { useHistoryVoucher(this.getAttribute('data-vc')); });
+			box.appendChild(b);
+		});
+	});
+}
 // Per-voucher keys (remain/tempValidity/validity) are venue-scoped like
 // activeVoucher itself, or the same VCxxxxxx code collides across
 function vKey(vc, suffix) { return (vc ? scopedKey(vc + suffix) : null); }
@@ -413,6 +453,7 @@ function loadSiteId() {
 			} catch (e) {}
 				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
 				try { renderSiteTag(); } catch (e) {}
+			try { paintVoucherHistory(); } catch (e) {}
 			}
 		})
 		.fail(function (xhr, status, err) {
@@ -637,6 +678,7 @@ function renderStoredRemain(sel, vc) {
 
 function render(state) {
 	setPortalState(state);
+	try { paintVoucherHistory(); } catch (e) {}
 	try { dbgLog("render: " + state); } catch (e) { }
 	// Login succeeded (status/paused views): arm the next auto-login.
 	try { if (state != "login") { clearAutoLoginTried(); } } catch (e) {}
@@ -834,7 +876,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v30"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v31"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

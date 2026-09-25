@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=30">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=30">
+	<link rel="stylesheet" href="assets/css/core.css?v=31">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=31">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#3d4044">
-	<script src="assets/js/config.js?v=30"></script>
+	<script src="assets/js/config.js?v=31"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -80,6 +80,7 @@
 			</div>
 			<div id="voucherErr" role="alert"></div>
 		</div>
+		<div id="vhistLogin" class="vhist" style="display: none"></div>
 
 		<div id="memberSection">
 			<button type="button" class="panelTitle toggle member-toggle" id="memberSectionBodyHead" aria-expanded="false" aria-controls="memberSectionBody" onclick="toggleBlock('memberSectionBody'); return false;">
@@ -125,6 +126,7 @@
 			<button type="button" id="pauseTimeBtn" onClick="pause(); return false" class="btn btn-danger">PAUSE TIME</button>
 		</div>
 		<div id="coinSlot-status"></div>
+		<div id="vhistStatus" class="vhist" style="display: none"></div>
 	</div>
 
 	<div id="view-paused" style="display: none">
@@ -139,6 +141,7 @@
 		</div>
 
 		<div class="pausenote">Time is <b>paused</b> — feel free to turn off your Wi-Fi and close this browser. Connecting to the Wi-Fi again will log you in automatically — or tap <b>RESUME</b>.</div>
+		<div id="vhistPaused" class="vhist" style="display: none"></div>
 	</div>
 
 	<div id="ratesSection">
@@ -175,7 +178,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v30</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v31</span>
 		</div>
 	</div>
 
@@ -187,7 +190,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=30"></script>
+		<script src="assets/js/core.js?v=31"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -218,8 +221,9 @@
 				}
 				try { dbgLog("doLogin: submit chap=" + (!!window.chapId) + " len=" + vc.length); } catch (e) { }
 				try { if (typeof markAutoLoginTried === "function") { markAutoLoginTried(); } } catch (e) { }
-			setActiveVoucher(vc);
-			mergeTempValidity(vc);
+		setActiveVoucher(vc);
+		try { if (typeof pushVoucherHistory === "function") { pushVoucherHistory(vc); } } catch (e) {}
+		mergeTempValidity(vc);
 			document.sendin.username.value = vc;
 			// Post-login landing: router redirects to the pre-login URL
 			// (stock dst behavior). Empty = router default (status page).
