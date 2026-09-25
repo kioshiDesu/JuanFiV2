@@ -221,9 +221,9 @@ var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
 
-- Vendo picker (multi-vendo only): set `showVendoSelect = true` in
-  `config.js` to reveal the dropdown (hidden by default). Manual mode
-  (`multiVendoOption = 0`) needs it; auto modes resolve silently.
+- Vendo picker (multi-vendo only): `isMultiVendo = true` is the
+  single switch. Manual mode shows the dropdown automatically; auto
+  modes resolve silently. Single vendo stays hidden.
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)

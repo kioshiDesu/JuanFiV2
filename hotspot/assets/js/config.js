@@ -4,9 +4,7 @@
 var isMultiVendo = false;
 var multiVendoOption = 0;
 
-// Vendo picker visibility — false (default) hides the dropdown entirely
-// (auto modes still resolve silently). Set true to let customers pick.
-var showVendoSelect = false;
+
 
 //list here all nodemcu address for multi vendo setup, add coma for adding more
 var multiVendoAddresses = [

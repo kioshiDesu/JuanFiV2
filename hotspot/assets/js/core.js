@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=45";
+var SOUND_V = "?v=46";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -866,9 +866,9 @@ function applyFlags() {
 				setStorageValue('selectedVendo', vendorIpAddress);
 			});
 			$("#vendoSelected").trigger("change");
-			if (typeof showVendoSelect !== 'undefined' && showVendoSelect) {
-				$("#vendoSelectDiv").attr("style", "display: block");
-			}
+			// Manual multi-vendo: isMultiVendo is the single switch,
+			// picker always shows here (auto modes resolve silently).
+			$("#vendoSelectDiv").attr("style", "display: block");
 		}
 	}
 
@@ -896,7 +896,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v45"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v46"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
