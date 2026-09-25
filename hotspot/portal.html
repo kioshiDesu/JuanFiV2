@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=13">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=13">
+	<link rel="stylesheet" href="assets/css/core.css?v=14">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=14">
 	<title>HOTSPOT Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#1a1a2e">
-	<script src="assets/js/config.js?v=13"></script>
+	<script src="assets/js/config.js?v=14"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -41,11 +41,12 @@
 
 <body id="loginBody">
 
-<div id="bootLoader" role="status" aria-live="polite">
+<div id="bootLoader" role="status" aria-live="off">
 	<div class="spinner-ring"></div>
 	<div><b id="bootBrand">Loading your data…</b></div>
 	<div id="bootText"></div>
 </div>
+<div id="readyNote" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></div>
 
 <noscript><div style="padding:20px;text-align:center">This portal needs JavaScript. Please enable it and reload.</div></noscript>
 
@@ -72,10 +73,12 @@
 		</div>
 
 					<div id="voucherBlock" style="margin-top: 15px;">
+			<label for="voucherInput" class="vouchlabel">Voucher code</label>
 			<div class="voucher-pill">
 				<input type="text" class="form-control" id="voucherInput" aria-label="Voucher code" placeholder="Voucher here…" autocomplete="off" spellcheck="false">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
+			<div id="voucherErr" role="alert"></div>
 		</div>
 
 		<div id="memberSection">
@@ -84,7 +87,7 @@
 					<span class="member-title">Member Login</span>
 					<span class="member-hint">Have an account? Sign in</span>
 				</span>
-				<span class="member-chev">&#9656;</span>
+				<span class="member-chev" aria-hidden="true">&#9656;</span>
 			</button>
 			<div id="memberSectionBody" style="display: none">
 			<div class="memdiv">
@@ -106,10 +109,10 @@
 
 	<div id="view-status" style="display: none">
 		<div class="hero" id="statusHero">
-			<div class="sub">Remaining Time</div>
+			<div class="sub">Time left — auto logout at 0</div>
 			<div class="big odometer timeboxes" id="remainTime" aria-live="off" aria-atomic="true"></div>
-			<div class="vouchline">Voucher <span id="statusVoucher"></span> &bull; Expiry <span id="expirationTime"></span></div>
-			<div class="vouchline">Up <span id="upUsed"></span> &bull; Down <span id="downUsed"></span></div>
+			<div class="vouchline">Voucher <span id="statusVoucher"></span> &bull; Code expiry <span id="expirationTime"></span></div>
+			<div class="vouchline">Uploaded <span id="upUsed"></span> &bull; Downloaded <span id="downUsed"></span></div>
 		</div>
 
 		<div class="btnrow">
@@ -142,13 +145,13 @@
 
 	<div id="coinPanel" style="display: none">
 		<div class="hero">
-			<div class="sub" id="coinPanelTitle">Please insert the coin</div>
+			<div class="sub" id="coinPanelTitle" tabindex="-1">Please insert the coin</div>
 			<div class="big"><span id="totalCoin">0</span><span class="cur"> Php</span></div>
 			<div class="vouchline">Time <span id="totalTime"></span></div>
 			<div class="vouchline">Your code is <span id="codeGenerated" style="color: #4cd137">*****</span></div>
 		</div>
 		<div class="progress" style="margin: 10px 0">
-			<div id="progressDiv" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+			<div id="progressDiv" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Waiting for coins" style="width: 0%"></div>
 		</div>
 
 		<div style="text-align: center">
@@ -166,8 +169,8 @@
 		<div class="brandmark">
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
-			<span class="brand-sub" id="siteTag" style="opacity:.65;font-size:10px;"></span>
-			<span class="brand-sub" id="portalVer" style="opacity:.65;font-size:10px;">v13</span>
+			<span class="brand-sub" id="siteTag" style="font-size:11px;"></span>
+			<span class="brand-sub" id="portalVer" style="font-size:11px;">v14</span>
 		</div>
 	</div>
 
@@ -179,7 +182,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=13"></script>
+		<script src="assets/js/core.js?v=14"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
@@ -195,6 +198,17 @@
 				if (vc == "") {
 					try { dbgLog("doLogin: empty voucher"); } catch (e) { }
 					$.toast({ title: 'Error', content: 'Please enter your voucher code first', type: 'error', delay: 3000 });
+					try {
+						$("#voucherErr").text("Please enter your voucher code first").show();
+						var vi = document.getElementById("voucherInput");
+						if (vi && vi.focus) { vi.focus(); }
+						var pill = document.querySelector(".voucher-pill");
+						if (pill) {
+							pill.classList.remove("vshake");
+							void pill.offsetWidth;
+							pill.classList.add("vshake");
+						}
+					} catch (e) {}
 					return false;
 				}
 				try { dbgLog("doLogin: submit chap=" + (!!window.chapId) + " len=" + vc.length); } catch (e) { }

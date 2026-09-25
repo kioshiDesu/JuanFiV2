@@ -113,7 +113,7 @@ function sfxVibrate(pattern) {
 }
 // Named sound files (assets/sounds/): silent no-op when unavailable.
 // ?v= key so browsers HTTP-cache them across visits, same as first-party assets.
-var SOUND_V = "?v=13";
+var SOUND_V = "?v=14";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -190,8 +190,15 @@ function sfxStopLoop() {
 		b.textContent = o.title || "";
 		var s = document.createElement("span");
 		s.textContent = o.content || "";
+		var x = document.createElement("button");
+		x.className = "jclose";
+		x.setAttribute("type", "button");
+		x.setAttribute("aria-label", "Dismiss");
+		x.textContent = "×";
+		x.onclick = function () { try { if (el.parentNode) { el.parentNode.removeChild(el); } } catch (e) {} };
 		el.appendChild(b);
 		el.appendChild(s);
+		el.appendChild(x);
 		box.appendChild(el);
 		setTimeout(function () { el.classList.add("show"); }, 10);
 		setTimeout(function () {
@@ -489,6 +496,7 @@ function hideBoot() {
 	// so the fade dissolves over real content, then drop the overlay.
 	$("#app").attr("style", "display: block");
 	try { $("#bootLoader").addClass("boot-fade"); } catch (e) {}
+	try { $("#readyNote").text("Portal ready"); } catch (e) {}
 	try { drainAutoLogin(); } catch (e) {}
 	setTimeout(function () {
 		$("#bootLoader").attr("style", "display: none");
@@ -796,6 +804,22 @@ function fitCountdown(sel) {
 	__fitCache[sel] = node.textContent;
 }
 
+// Plain-words SR label for the visual countdown boxes ("mashed" spans
+// otherwise). aria-live stays off, so per-tick updates never chatter.
+function paintRemainA11y(time) {
+	try {
+		var t = Math.max(0, parseInt(time || 0, 10));
+		var d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600);
+		var m = Math.floor(t % 3600 / 60), s = t % 60;
+		var parts = [];
+		if (d) { parts.push(d + (d == 1 ? " day" : " days")); }
+		if (h) { parts.push(h + (h == 1 ? " hour" : " hours")); }
+		if (m) { parts.push(m + (m == 1 ? " minute" : " minutes")); }
+		if (s || !parts.length) { parts.push(s + (s == 1 ? " second" : " seconds")); }
+		$("#remainTime").attr("aria-label", parts.join(" ") + " left");
+	} catch (e) {}
+}
+
 function startCountdown() {
 	if ($("#remainTime").length == 0 || window.sessiontime == null) { return; }
 	var time = window.sessiontime;
@@ -811,6 +835,7 @@ function startCountdown() {
 	var total = time;
 	var warned5 = false, warned1 = false;
 	$("#remainTime").html(boxesDhms(time));
+	paintRemainA11y(time);
 	paintCountdownUrgency(time);
 	fitCountdown("#remainTime");
 	if (window.remainingTimer != null) { clearInterval(window.remainingTimer); }
@@ -818,6 +843,7 @@ function startCountdown() {
 		time--;
 		window.__remainSecs = time;
 		$("#remainTime").html(boxesDhms(time));
+		paintRemainA11y(time);
 		paintCountdownUrgency(time);
 		fitCountdown("#remainTime");
 		// One-shot low-time notices (in-page: no permission needed, works
@@ -933,7 +959,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v13"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v14"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -999,10 +1025,33 @@ function showCoinPanel() {
 	$("#coinPanel").attr("style", "display: block");
 	var el = document.getElementById("coinPanel");
 	if (el && el.scrollIntoView) { el.scrollIntoView(); }
+	// Keyboard users land on the panel title; Escape backs out.
+	try {
+		var t = document.getElementById("coinPanelTitle");
+		if (t && t.focus) { t.focus({ preventScroll: true }); }
+	} catch (e) {}
+	if (!window.__coinEscBound) {
+		window.__coinEscBound = true;
+		try {
+			document.addEventListener("keydown", function (ev) {
+				if ((ev.key === "Escape" || ev.keyCode === 27) && window.__coinOpen) {
+					try { cancelCoin(); } catch (e) {}
+				}
+			});
+		} catch (e) {}
+	}
+	window.__coinOpen = true;
+}
+
+// Done button says what it does: CLAIM CODE on purchase, ADD TIME extend.
+function paintSaveBtn() {
+	var t = $("#saveVoucherButton").attr('data-save-type') || "purchase";
+	$("#saveVoucherButton").text(t == "extend" ? "Add Time" : "Claim Code");
 }
 
 function restoreCoinChrome() {
 	document.body.classList.remove("coin-focus");
+	window.__coinOpen = false;
 	$("#statusHero").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
 	$("#voucherBlock").attr("style", "");
@@ -1010,6 +1059,12 @@ function restoreCoinChrome() {
 	try {
 		$("#voucherBlock").removeAttr("aria-hidden");
 		$("#memberSection").removeAttr("aria-hidden");
+	} catch (e) {}
+	// Return focus where the coin flow started.
+	try {
+		var back = (typeof STATE !== "undefined" && STATE == "status") ? "#extendBtn" : "#insertBtn";
+		var b = document.querySelector(back);
+		if (b && b.focus) { b.focus({ preventScroll: true }); }
 	} catch (e) {}
 }
 
@@ -1079,9 +1134,10 @@ function setPortalState(s) {
 	$("#view-login").attr("style", s == "login" ? "display: block" : "display: none");
 	$("#view-status").attr("style", s == "status" ? "display: block" : "display: none");
 	$("#view-paused").attr("style", s == "paused" ? "display: block" : "display: none");
-	// Paused screen stays minimal: resume/cancel only, rates hidden.
-	$("#ratesSection").attr("style", s == "paused" ? "display: none" : "display: block");
+	// Rates stay visible on every view (paused keeps comparison context).
+	$("#ratesSection").attr("style", "display: block");
 	$("#saveVoucherButton").attr('data-save-type', s == "status" ? "extend" : "purchase");
+	try { paintSaveBtn(); } catch (e) {}
 	// boot() already queues showValidity() as a job after render(); only
 	// refresh here for later transitions (cancel/pause/resume) so the boot
 	// path doesn't fire the same /data/*.txt GET twice.
@@ -1369,8 +1425,10 @@ function insertBtnAction() {
 	insertingCoin = true;
 	coinToastKey = null;
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
+	try { paintSaveBtn(); } catch (e) {}
 	try { dbgLog("insert: type=" + $("#saveVoucherButton").attr('data-save-type') + " page=" + PAGE); } catch (e) { }
 	$("#progressDiv").css('width', '100%');
+	$("#progressDiv").attr("aria-valuenow", 100).attr("aria-valuetext", "Waiting for coins");
 	$("#progressDiv").removeClass("time-half time-low").addClass("time-ok");
 	$("#progressDiv").html("");
 	$("#saveVoucherButton").prop('disabled', true);

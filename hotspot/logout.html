@@ -3,8 +3,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=13">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=13">
+	<link rel="stylesheet" href="assets/css/core.css?v=14">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=14">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>JuanFiV2 - Logged out</title>
@@ -30,10 +30,15 @@
 	<div class="vouchline">Uploaded <span id="loUp"></span> &bull; Downloaded <span id="loDown"></span></div>
 
 	<div class="btnrow">
-		<a id="loLogin" href="login" class="btn btn-info btn-block" style="display: block; width: 100%;">LOG IN AGAIN</a>
+		<a id="loLogin" href="login" class="btn btn-info btn-block" style="display: block; width: 100%; min-height: 48px; line-height: 32px;">LOG IN AGAIN</a>
 	</div>
 
-	<div class="pausenote">Returning to login in <span id="loCount">10</span>s — your saved code auto-connects there.</div>
+	<div class="btnrow">
+		<button type="button" id="loStay" class="btn btn-success btn-block" style="display: block; width: 100%; min-height: 48px;">STAY HERE</button>
+		<button type="button" id="loCopy" class="btn btn-primary btn-block" style="display: block; width: 100%; min-height: 48px;">COPY VOUCHER</button>
+	</div>
+
+	<div class="pausenote" id="loNote">Returning to login in <span id="loCount">10</span>s — your saved code auto-connects there.</div>
 </div>
 
 <script>
@@ -53,6 +58,21 @@
 			if (n <= 0) { clearInterval(iv); window.location.replace(link); return; }
 			try { el.textContent = n; } catch (e) {}
 		}, 1000);
+		document.getElementById("loStay").onclick = function () {
+			try { clearInterval(iv); } catch (e) {}
+			try { document.getElementById("loNote").textContent = "Staying here — tap LOG IN AGAIN when ready."; } catch (e) {}
+		};
+		document.getElementById("loCopy").onclick = function () {
+			var code = t("loU");
+			function done(ok) {
+				try { document.getElementById("loNote").textContent = ok ? "Voucher copied." : "Copy failed — long-press the code above."; } catch (e) {}
+			}
+			try {
+				if (code && navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
+				} else { done(false); }
+			} catch (e) { done(false); }
+		};
 	} catch (e) {}
 })();
 </script>

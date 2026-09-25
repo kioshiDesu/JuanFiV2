@@ -229,7 +229,7 @@
 .tbox .tlab {
     display: block;
     margin-top: 3px;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: .08em;
     text-transform: uppercase;
@@ -249,6 +249,16 @@
     color: #e74c3c;
 }
 @media (max-width: 380px) {
+    .hero {
+        padding: 8px 0;
+        margin: 6px 0 8px 0;
+    }
+    .hero #insertBtn {
+        margin-top: 14px;
+    }
+    #insertBtn {
+        margin: 14px auto 12px auto;
+    }
     .tbox {
         min-width: 60px;
         padding: 8px 5px 6px 5px;
@@ -281,7 +291,7 @@
 }
 .clientline {
     color: #b4bcc6;
-    font-size: 11px;
+    font-size: 12px;
     padding: 0 2px 6px 2px;
     font-variant-numeric: tabular-nums;
 }
@@ -326,7 +336,7 @@
 }
 .hero .sub {
     color: #c9cfd7;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: .25em;
     text-transform: uppercase;
@@ -385,6 +395,55 @@
 .jtoast b {
     display: block;
     margin-bottom: 2px;
+}
+/* M1: coin-panel action targets, fat-finger safe. */
+#saveVoucherButton, #cncl {
+    min-height: 48px;
+    min-width: 48px;
+    font-size: 16px;
+}
+/* M9: toast dismiss. */
+.jtoast {
+    position: relative;
+    padding-right: 34px;
+}
+.jtoast .jclose {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    border: none;
+    background: none;
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    min-width: 28px;
+    min-height: 28px;
+    cursor: pointer;
+}
+/* M10: voucher error shake. */
+@keyframes vshake {
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+.vshake {
+    animation: vshake 180ms ease-in-out 2;
+}
+/* M13: visible voucher label. */
+.vouchlabel {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #c9cfd7;
+    margin: 0 2px 4px 2px;
+    text-align: left;
+}
+#voucherErr {
+    display: none;
+    color: #ff8a80;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 6px;
+    text-align: center;
 }
 .hero #insertBtn {
     margin-top: 28px;
@@ -561,7 +620,7 @@ hr.foot-hr {
 /* Motion + keyboard: kill infinite coin animations for vestibular safety,
    keep a visible focus ring on the coin button for keyboard users. */
 @media (prefers-reduced-motion: reduce) {
-	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated { animation: none !important; }
+	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low { animation: none !important; }
 	#bootLoader.boot-fade { transition: none !important; }
 }
 #insertBtn:focus-visible, #insertBtn:focus { outline: 3px solid #4cd137; outline-offset: 3px; }
