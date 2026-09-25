@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=66";
+var SOUND_V = "?v=67";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -586,7 +586,6 @@ function boot() {
 		}
 	} catch (e) { }
 	$("#footYear").text(new Date().getFullYear());
-	try { loadSettings(); } catch (e) {}
 	applyFlags();
 	try { sfxPreload(); } catch (e) {}
 	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
@@ -871,16 +870,6 @@ function paintCountdownUrgency(time) {
 	else if (time <= 300) { el.addClass("time-warn"); }
 }
 
-function loadSettings() {
-	try {
-		$.ajax({ url: "settings.json?ts=" + new Date().getTime(), dataType: "json", async: false, timeout: 3000 })
-		.done(function (s) {
-			if (!s) { return; }
-			if (typeof s.currency !== "undefined" && s.currency) { currencySym = s.currency; }
-			if (typeof s.showMemberSection !== "undefined") { showMemberSection = !!s.showMemberSection; }
-		});
-	} catch (e) {}
-}
 function applyFlags() {
 	if (typeof isMultiVendo !== 'undefined' && isMultiVendo && $("#vendoSelected").length > 0) {
 		if (multiVendoOption == 1) {
@@ -945,7 +934,7 @@ function applyFlags() {
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v66"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v67"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

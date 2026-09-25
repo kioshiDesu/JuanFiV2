@@ -205,17 +205,29 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
    `data/site-id.txt` there).
 3. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
-4. Display toggles live in `hotspot/settings.json` — edit on the
-   router copy per site (self-reading names, no JS):
+4. All portal config lives in `hotspot/settings.json` — edit on
+   the router copy per site (self-reading names, no JS):
 
 ```json
 {
+  "isMultiVendo": false,
+  "multiVendoOption": 0,
+  "multiVendoAddresses": [
+    { "vendoName": "Vendo 1", "vendoIp": "10.0.0.254",
+      "hotspotAddress": "10.0.0.1", "interfaceName": "vlan1" }
+  ],
+  "vendorIpAddress": "10.0.0.254",
+  "portalDebug": false,
+  "brandHeaderHtml": "BROBRO <em>PISOWIFI</em>",
+  "footerBrandText": "@NETBRO",
+  "footerSubText": "INTERNET SERVICES",
   "currency": "₱",
   "showMemberSection": true
 }
 ```
-   `false` on `showMemberSection` = voucher-only portal. `config.js`
-   holds the same defaults as fallback when the JSON is missing.
+   `false` on `showMemberSection` = voucher-only portal.
+   `config.js` is a fallback loader now (same defaults + sync JSON
+   fetch) — the portal survives a missing JSON.
 
    No trial flag on purpose — the portal has no trial UI. No
    subscription/theme keys either (not adopted).

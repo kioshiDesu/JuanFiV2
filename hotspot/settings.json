@@ -1,4 +1,19 @@
 {
+  "isMultiVendo": false,
+  "multiVendoOption": 0,
+  "multiVendoAddresses": [
+    {
+      "vendoName": "Vendo 1",
+      "vendoIp": "10.0.0.254",
+      "hotspotAddress": "10.0.0.1",
+      "interfaceName": "vlan1"
+    }
+  ],
+  "vendorIpAddress": "10.0.0.254",
+  "portalDebug": false,
+  "brandHeaderHtml": "BROBRO <em>PISOWIFI</em>",
+  "footerBrandText": "@NETBRO",
+  "footerSubText": "INTERNET SERVICES",
   "currency": "₱",
   "showMemberSection": true
 }
