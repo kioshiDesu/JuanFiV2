@@ -4,7 +4,7 @@
 <head>
    <title>Congratulations</title>
    <link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-    <link rel="stylesheet" href="assets/css/core.css?v=60">
+    <link rel="stylesheet" href="assets/css/core.css?v=61">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#101418">
    <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -37,8 +37,16 @@
 <body>
    <div class="spinner" role="status" style="text-align:center">
       <div class="spinner-ring" style="margin:0 auto"></div>
+      <div><b id="aloginBrand">Loading your data…</b></div>
       <p style="color:#c9cfd7">Connecting…</p>
    </div>
    <noscript><p>Portal needs JavaScript. Enable it and reload.</p></noscript>
+   <script src="assets/js/config.js?v=61"></script>
+   <script>
+      try {
+         var ab = String(typeof brandHeaderHtml !== "undefined" ? brandHeaderHtml : "").replace(/<[^>]*>/g, "") || "Loading your data…";
+         document.getElementById("aloginBrand").textContent = ab;
+      } catch (e) {}
+   </script>
 </body>
 </html>
