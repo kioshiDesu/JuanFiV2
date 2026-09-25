@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=39";
+var SOUND_V = "?v=40";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -562,13 +562,19 @@ function boot() {
 		var sv = getActiveVoucher();
 		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
 		try { markAutoLoginTried(); } catch (e) {}
-		var goReLogin = function () { queueAutoLogin(function () { try { doLogin(); } catch (e) { newLogin(); } }); };
+		try { setBootText("Renewing session…"); } catch (e) {}
+		var goReLogin = function () {
+			setTimeout(function () {
+				var code = $("#voucherInput").val() || voucher || getActiveVoucher();
+				if (!code) { hideBoot(); return; }
+				try { doLogin(); } catch (e) { newLogin(); }
+			}, 500);
+		};
 		try {
 			window.__siteIdLoaded = true;
 			var siteP = loadSiteId();
 			if (siteP && siteP.always) { siteP.always(goReLogin); } else { goReLogin(); }
 		} catch (e) { goReLogin(); }
-		hideBoot();
 		return;
 	}
 	try { if (!window.__siteIdLoaded) { loadSiteId(); } } catch (e) {}
@@ -890,7 +896,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v39"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v40"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
