@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=57";
+var SOUND_V = "?v=58";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -122,7 +122,6 @@ function sfxPlayFile(name, src, loop, fallback) {
 	}
 }
 function sfxStartLoop() {
-	if (window.__sfxMuted) { return; }
 	try { if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; } } catch (e) {}
 	sfxStopLoop();
 	sfxPlayFile("insert", snd("assets/sounds/insertcoinbg.mp3"), true, null);
@@ -135,7 +134,6 @@ function sfxPreload() {
 	} catch (e) {}
 }
 function coinBlip() {
-	if (window.__sfxMuted) { return; }
 	sfxPlayFile("inserted", snd("assets/sounds/insertedcoin.mp3"), false, null);
 	sfxVibrate(40);
 }
@@ -145,13 +143,6 @@ function sfxStopLoop() {
 		if (a) { a.pause(); try { a.currentTime = 0; } catch (e) {} }
 	} catch (e) {}
 	sfxVibrate(0);
-}
-function sfxToggleMute(btn) {
-	try {
-		window.__sfxMuted = !window.__sfxMuted;
-		if (window.__sfxMuted) { sfxStopLoop(); }
-		if (btn) { btn.textContent = window.__sfxMuted ? "UNMUTE" : "MUTE"; }
-	} catch (e) {}
 }
 
 (function ($) {
@@ -943,7 +934,7 @@ function applyFlags() {
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v57"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v58"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

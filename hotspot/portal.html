@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=57">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=57">
+	<link rel="stylesheet" href="assets/css/core.css?v=58">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=58">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#3d4044">
-	<script src="assets/js/config.js?v=57"></script>
+	<script src="assets/js/config.js?v=58"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -162,7 +162,6 @@
 	<div id="coinPanel" style="display: none">
 		<div class="hero">
 			<h2 class="sub" id="coinPanelTitle" tabindex="-1">Please insert coins</h2>
-			<button type="button" id="sfxMute" class="btn btn-info btn-sm" onclick="sfxToggleMute(this); return false;" style="margin:6px 0 0;">MUTE</button>
 			<div class="big"><span id="totalCoin">0</span><span class="cur"> Php</span></div>
 			<div class="vouchline">Time: <span id="totalTime"></span></div>
 			<div class="vouchline">Voucher Code: <span id="codeGenerated" translate="no" style="color: #4cd137">*****</span></div>
@@ -188,7 +187,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v57</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v58</span>
 		</div>
 	</div>
 
@@ -200,7 +199,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=57"></script>
+		<script src="assets/js/core.js?v=58"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
