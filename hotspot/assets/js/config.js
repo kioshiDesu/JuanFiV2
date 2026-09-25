@@ -27,3 +27,6 @@ var footerSubText = "INTERNET SERVICES";
 
 // Currency symbol — edit per site on the router copy.
 var currencySym = "₱";
+
+// Member login section — false hides it entirely (voucher-only portal).
+var showMemberSection = true;
