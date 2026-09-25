@@ -438,7 +438,7 @@ function macNoColon() {
 // vendorIp step does. Missing file (scheduler not installed yet) fails fast
 // to a 404 and keeps vendorIp scoping.
 function loadSiteId() {
-	$.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: ROUTER_TIMEOUT })
+	return $.ajax({ type: "GET", url: "/data/site-id.txt?date=" + (new Date().getTime()), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
 			var m = String(data == null ? "" : data).replace(/[^A-Za-z0-9]/g, "");
 			if (/^[A-Za-z0-9]{4,32}$/.test(m)) {
@@ -583,12 +583,19 @@ function boot() {
 		var sv = getActiveVoucher();
 		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
 		try { markAutoLoginTried(); } catch (e) {}
-		queueAutoLogin(function () { try { doLogin(); } catch (e) { newLogin(); } });
+		// Site scope arrives async — submit only after it lands, or the
+		// scoped read misses and doLogin posts empty.
+		var goReLogin = function () { queueAutoLogin(function () { try { doLogin(); } catch (e) { newLogin(); } }); };
+		try {
+			window.__siteIdLoaded = true;
+			var siteP = loadSiteId();
+			if (siteP && siteP.always) { siteP.always(goReLogin); } else { goReLogin(); }
+		} catch (e) { goReLogin(); }
 		hideBoot();
 		return;
 	}
 	// Site scope arrives async (site-id file); re-scope again on arrival.
-	try { loadSiteId(); } catch (e) {}
+	try { if (!window.__siteIdLoaded) { loadSiteId(); } } catch (e) {}
 	if (voucher != "" && $("#voucherInput").length > 0) {
 		$('#voucherInput').val(voucher);
 	}
@@ -1369,6 +1376,18 @@ function insertBtnAction() {
 	return false;
 }
 
+// Failed fresh topUp: hand the stashed code back so cancelTopUp and
+// retry have a real voucher instead of "".
+function restoreStashedVoucher() {
+	try {
+		if (window.__stashedVoucher) {
+			voucher = window.__stashedVoucher;
+			setActiveVoucher(voucher);
+			if (!$("#voucherInput").val()) { $("#voucherInput").val(voucher); }
+			window.__stashedVoucher = null;
+		}
+	} catch (e) {}
+}
 function callTopupAPI(retryCount, gen) {
 	if (typeof gen === 'undefined') { gen = topUpGen; }
 	// Stale generation (cancelled/superseded while in flight): never retry.
@@ -1380,9 +1399,11 @@ function callTopupAPI(retryCount, gen) {
 	if (retryCount === 0 && !isExtend && totalCoinReceived == 0) {
 		var storedVoucher = getActiveVoucher();
 		if (storedVoucher != null) {
+			// Stash, don't wipe: the fresh post still sends voucher:"",
+			// but a failed topUp restores the code for cancel + retry.
+			try { window.__stashedVoucher = storedVoucher; } catch (e) {}
 			voucher = "";
 			$("#voucherInput").val('');
-			removeActiveVoucher();
 		}
 	}
 
@@ -1398,6 +1419,7 @@ function callTopupAPI(retryCount, gen) {
 			try { dbgLog("topUp ok voucher=" + (data && data.voucher ? data.voucher : "?"), "dbg-ok"); } catch (e) { }
 		if (gen !== topUpGen) { return; }
 		if (data.status == "true") {
+			try { window.__stashedVoucher = null; } catch (e) {}
 			voucher = data.voucher;
 			setActiveVoucher(voucher);
 			// Pin the voucher for cancelTopUp: the global gets cleared on
@@ -1420,6 +1442,7 @@ function callTopupAPI(retryCount, gen) {
 				clearInterval(timer);
 				timer = null;
 				insertingCoin = false;
+				restoreStashedVoucher();
 			}
 	}, error: function (xhr, status, err) {
 		// ESP dead / timeout: retry quickly, then show unreachable error.
@@ -1433,6 +1456,7 @@ function callTopupAPI(retryCount, gen) {
 					$("#loaderDiv").attr("class", "spinner hidden");
 					notifyCoinSlotError("coin.slot.notavailable");
 					insertingCoin = false;
+					restoreStashedVoucher();
 				}
 			}, 1000);
 		}
@@ -1485,6 +1509,10 @@ function saveVoucherBtnAction() {
 			autoLoginAfterUseVoucher();
 		} else {
 			notifyCoinSlotError(data.errorCode);
+			// Release both locks or Done + Insert stay bricked till reload.
+			insertingCoin = false;
+			window.__useVoucherBusy = false;
+			$("#loaderDiv").attr("class", "spinner hidden");
 			$("#saveVoucherButton").prop('disabled', false);
 			$("#cncl").prop('disabled', false);
 		}
