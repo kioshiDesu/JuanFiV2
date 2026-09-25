@@ -205,14 +205,11 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
    `data/site-id.txt` there).
 3. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
-4. Display flags live in `hotspot/assets/js/config.js` — edit on the
-   router copy per site:
+4. Currency symbol lives in `hotspot/assets/js/config.js` — edit on
+   the router copy per site:
 
 ```js
 var currencySym = "₱";
-var showVoucherInput = true;
-var showPauseButton = true;
-var showMemberLogin = true;
 ```
 
    No trial flag on purpose — the portal has no trial UI. No

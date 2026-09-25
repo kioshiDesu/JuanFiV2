@@ -25,9 +25,5 @@ var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 
-// Display flags — edit per site on the router copy.
-// (Brand stays here on purpose: MT telegram scripts read it from this file.)
+// Currency symbol — edit per site on the router copy.
 var currencySym = "₱";
-var showVoucherInput = true;
-var showPauseButton = true;
-var showMemberLogin = true;

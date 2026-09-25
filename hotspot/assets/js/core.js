@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=48";
+var SOUND_V = "?v=49";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -896,11 +896,8 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
-		try { if (typeof showVoucherInput !== 'undefined' && !showVoucherInput) $("#voucherBlock").attr("style", "display: none"); } catch (e) {}
-		try { if (typeof showMemberLogin !== 'undefined' && !showMemberLogin) $("#memberSection").attr("style", "display: none"); } catch (e) {}
-		try { if (typeof showPauseButton !== 'undefined' && !showPauseButton) $("#pauseTimeBtn").attr("style", "display: none"); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v48"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v49"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -987,14 +984,10 @@ function restoreCoinChrome() {
 	window.__coinOpen = false;
 	$("#statusHero").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
-	if (typeof showVoucherInput === 'undefined' || showVoucherInput) {
-		$("#voucherBlock").attr("style", "");
-		try { $("#voucherBlock").removeAttr("aria-hidden"); } catch (e) {}
-	}
-	if (typeof showMemberLogin === 'undefined' || showMemberLogin) {
-		$("#memberSection").attr("style", "");
-		try { $("#memberSection").removeAttr("aria-hidden"); } catch (e) {}
-	}
+	$("#voucherBlock").attr("style", "");
+	try { $("#voucherBlock").removeAttr("aria-hidden"); } catch (e) {}
+	$("#memberSection").attr("style", "");
+	try { $("#memberSection").removeAttr("aria-hidden"); } catch (e) {}
 	try {
 		var back = (typeof STATE !== "undefined" && STATE == "status") ? "#extendBtn" : "#insertBtn";
 		var b = document.querySelector(back);
