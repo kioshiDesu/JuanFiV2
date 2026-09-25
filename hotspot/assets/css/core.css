@@ -91,6 +91,9 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     background: rgba(0, 0, 0, .28);
     color: #fff;
 }
+#ratesBody .rates-err {
+    color: #f0aaaa;
+}
 #ratesSection .panelTitle {
     display: block;
     font-weight: 800;

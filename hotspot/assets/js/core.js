@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=51";
+var SOUND_V = "?v=52";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -912,7 +912,7 @@ function applyFlags() {
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v51"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v52"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1130,7 +1130,7 @@ function loadRates() {
 		var why = (status === "timeout")
 			? "Rates unavailable — vendo not answering (timeout). Check power & WiFi."
 			: "Rates unavailable — vendo error (" + (xhr && xhr.status ? "HTTP " + xhr.status : status || "network") + ").";
-		$("#ratesBody").html("<p>" + why + "</p>");
+		$("#ratesBody").html('<p class="rates-err">' + why + "</p>");
 		dbgAjaxErr("getRates", xhr, status, err);
 	});
 }
