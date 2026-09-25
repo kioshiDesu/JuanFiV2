@@ -205,12 +205,17 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
    `data/site-id.txt` there).
 3. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
-4. Currency symbol lives in `hotspot/assets/js/config.js` — edit on
-   the router copy per site:
+4. Display toggles live in `hotspot/settings.json` — edit on the
+   router copy per site (self-reading names, no JS):
 
-```js
-var currencySym = "₱";
+```json
+{
+  "currency": "₱",
+  "showMemberSection": true
+}
 ```
+   `false` on `showMemberSection` = voucher-only portal. `config.js`
+   holds the same defaults as fallback when the JSON is missing.
 
    No trial flag on purpose — the portal has no trial UI. No
    subscription/theme keys either (not adopted).

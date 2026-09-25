@@ -25,8 +25,8 @@ var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 
-// Currency symbol — edit per site on the router copy.
+// Currency symbol — default only; settings.json "currency" wins.
 var currencySym = "₱";
 
-// Member login section — false hides it entirely (voucher-only portal).
+// Member login section — default only; settings.json "showMemberSection" wins.
 var showMemberSection = true;
