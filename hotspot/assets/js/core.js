@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=49";
+var SOUND_V = "?v=50";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -273,7 +273,9 @@ function pushVoucherHistory(vc) {
 	vc = String(vc || "").trim();
 	if (!vc) { return; }
 	var h = getVoucherHistory().filter(function (e) { return String((e && e.v) || "") !== vc; });
-	h.unshift({ v: vc, t: Date.now() });
+	var m = "";
+	try { m = String(window.mac || "").toUpperCase(); } catch (e2) {}
+	h.unshift({ v: vc, t: Date.now(), m: m });
 	try { setStorageValue(scopedKey('voucherHistory'), JSON.stringify(h.slice(0, VOUCH_HISTORY_MAX))); } catch (e) {}
 	try { paintVoucherHistory(); } catch (e) {}
 }
@@ -296,14 +298,27 @@ function paintVoucherHistory() {
 		var r = document.createElement('button');
 		r.type = 'button';
 		r.className = 'vhist-row';
+		var left = document.createElement('span');
+		left.className = 'vhist-left';
 		var c = document.createElement('span');
 		c.className = 'vhist-code';
 		c.textContent = e.v;
-		var d = document.createElement('span');
-		d.className = 'vhist-date';
-		try { d.textContent = new Date(e.t).toLocaleDateString(); } catch (err) { d.textContent = ""; }
-		r.appendChild(c);
-		r.appendChild(d);
+		left.appendChild(c);
+		var sub = "";
+		try { sub = new Date(e.t).toLocaleDateString(); } catch (err) {}
+		if (e.m) { sub += (sub ? " · " : "") + e.m; }
+		if (sub) {
+			var s = document.createElement('span');
+			s.className = 'vhist-sub';
+			s.textContent = sub;
+			left.appendChild(s);
+		}
+		r.appendChild(left);
+		var cp = document.createElement('span');
+		cp.className = 'vhist-copy';
+		cp.setAttribute('aria-hidden', 'true');
+		cp.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+		r.appendChild(cp);
 		r.setAttribute('data-vc', e.v);
 		r.addEventListener('click', function () { useHistoryVoucher(this.getAttribute('data-vc')); });
 		box.appendChild(r);
@@ -897,7 +912,7 @@ function applyFlags() {
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v49"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v50"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
