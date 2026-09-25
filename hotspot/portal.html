@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=44">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=44">
+	<link rel="stylesheet" href="assets/css/core.css?v=45">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=45">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#3d4044">
-	<script src="assets/js/config.js?v=44"></script>
+	<script src="assets/js/config.js?v=45"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -162,8 +162,8 @@
 		<div class="hero">
 			<h2 class="sub" id="coinPanelTitle" tabindex="-1">Please insert coins</h2>
 			<div class="big"><span id="totalCoin">0</span><span class="cur"> Php</span></div>
-			<div class="vouchline">Time <span id="totalTime"></span></div>
-			<div class="vouchline">Your code is <span id="codeGenerated" style="color: #4cd137">*****</span></div>
+			<div class="vouchline">Time: <span id="totalTime"></span></div>
+			<div class="vouchline">Voucher Code: <span id="codeGenerated" style="color: #4cd137">*****</span></div>
 		</div>
 		<div class="progress" style="margin: 10px 0">
 			<div id="progressDiv" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Waiting for coins" style="width: 0%"></div>
@@ -185,7 +185,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v44</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v45</span>
 		</div>
 	</div>
 
@@ -197,7 +197,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=44"></script>
+		<script src="assets/js/core.js?v=45"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
