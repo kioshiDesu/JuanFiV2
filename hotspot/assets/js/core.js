@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=46";
+var SOUND_V = "?v=47";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -550,6 +550,7 @@ function boot() {
 		}
 	} catch (e) { }
 	$("#footYear").text(new Date().getFullYear());
+	try { loadSettings(); } catch (e) {}
 	applyFlags();
 	try { sfxPreload(); } catch (e) {}
 	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
@@ -834,6 +835,24 @@ function paintCountdownUrgency(time) {
 	else if (time <= 300) { el.addClass("time-warn"); }
 }
 
+// settings.json (data-only config, old-portal pattern): overrides the
+// config.js display defaults when valid JSON. Sync fetch so applyFlags
+// below sees final values with no flash; any failure keeps config.js.
+function loadSettings() {
+	try {
+		$.ajax({ url: "settings.json?query=" + new Date().getTime(), dataType: "json", async: false, timeout: 3000 })
+		.done(function (s) {
+			if (!s) { return; }
+			if (typeof s.isMultiVendo === "boolean") { isMultiVendo = s.isMultiVendo; }
+			if (typeof s.multiVendoOption === "number") { multiVendoOption = s.multiVendoOption; }
+			if (typeof s.currency === "string" && s.currency) { currencySym = s.currency; }
+			if (typeof s.footer_text === "string" && s.footer_text) { footerBrandText = s.footer_text; }
+			if (typeof s.show_voucher_input === "boolean") { showVoucherInput = s.show_voucher_input; }
+			if (typeof s.show_pause_button === "boolean") { showPauseButton = s.show_pause_button; }
+			if (typeof s.show_member_login === "boolean") { showMemberLogin = s.show_member_login; }
+		});
+	} catch (e) {}
+}
 function applyFlags() {
 	if (typeof isMultiVendo !== 'undefined' && isMultiVendo && $("#vendoSelected").length > 0) {
 		if (multiVendoOption == 1) {
@@ -895,8 +914,12 @@ function applyFlags() {
 			document.title = plain + " Portal";
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
+		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
+		try { if (typeof showVoucherInput !== 'undefined' && !showVoucherInput) $("#voucherBlock").attr("style", "display: none"); } catch (e) {}
+		try { if (typeof showMemberLogin !== 'undefined' && !showMemberLogin) $("#memberSection").attr("style", "display: none"); } catch (e) {}
+		try { if (typeof showPauseButton !== 'undefined' && !showPauseButton) $("#pauseTimeBtn").attr("style", "display: none"); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v46"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v47"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -983,12 +1006,14 @@ function restoreCoinChrome() {
 	window.__coinOpen = false;
 	$("#statusHero").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
-	$("#voucherBlock").attr("style", "");
-	$("#memberSection").attr("style", "");
-	try {
-		$("#voucherBlock").removeAttr("aria-hidden");
-		$("#memberSection").removeAttr("aria-hidden");
-	} catch (e) {}
+	if (typeof showVoucherInput === 'undefined' || showVoucherInput) {
+		$("#voucherBlock").attr("style", "");
+		try { $("#voucherBlock").removeAttr("aria-hidden"); } catch (e) {}
+	}
+	if (typeof showMemberLogin === 'undefined' || showMemberLogin) {
+		$("#memberSection").attr("style", "");
+		try { $("#memberSection").removeAttr("aria-hidden"); } catch (e) {}
+	}
 	try {
 		var back = (typeof STATE !== "undefined" && STATE == "status") ? "#extendBtn" : "#insertBtn";
 		var b = document.querySelector(back);
@@ -1001,7 +1026,7 @@ function cancelCoin() {
 	// suppressed in CNA sheets, which used to strand paid credit (a stray
 	if (totalCoinReceived > 0) {
 		try {
-			$("#forfeitText").text("₱" + totalCoinReceived + " inserted — cancelling forfeits it.");
+			$("#forfeitText").text(currencySym + totalCoinReceived + " inserted — cancelling forfeits it.");
 			$("#forfeitBar").show();
 			$("#forfeitYes").off("click").on("click", function () { try { $("#forfeitBar").hide(); } catch (e) {} cancelCoinForfeit(); });
 			$("#forfeitNo").off("click").on("click", function () {
@@ -1029,7 +1054,7 @@ function cancelCoinForfeit() {
 	if (currentUseVoucherXhr) { try { currentUseVoucherXhr.abort(); } catch(e){} currentUseVoucherXhr = null; }
 	$("#loaderDiv").attr("class", "spinner hidden");
 	if (forfeited > 0) {
-		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled — ₱' + forfeited + ' forfeited', type: 'info', delay: 3000 });
+		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled — ' + currencySym + forfeited + ' forfeited', type: 'info', delay: 3000 });
 	} else {
 		$.toast({ title: 'Cancelled', content: 'Coin insertion cancelled', type: 'info', delay: 3000 });
 	}
@@ -1128,7 +1153,7 @@ function escHtml(s) {
 function rateDisplay(raw) {
 	var t = String(raw == null ? "" : raw).trim();
 	var m = t.match(/(\d+(?:\.\d+)?)/);
-	if (m) { return "₱" + m[1]; }
+	if (m) { return currencySym + m[1]; }
 	return t;
 }
 

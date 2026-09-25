@@ -4,8 +4,6 @@
 var isMultiVendo = false;
 var multiVendoOption = 0;
 
-
-
 //list here all nodemcu address for multi vendo setup, add coma for adding more
 var multiVendoAddresses = [
 	{
@@ -23,8 +21,13 @@ var vendorIpAddress = "10.0.0.254"; //ESP Address
 // so copyDebugLog() in devtools works even when this is false.
 var portalDebug = false;
 
-// Branding — header + footer (change per site without touching portal.html)
-var brandHeaderHtml = "BROBRO<em>PISOWIFI</em>";
+var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
 var footerBrandText = "@NETBRO";
-
 var footerSubText = "INTERNET SERVICES";
+
+// Display defaults — settings.json overrides these at boot when valid.
+// (Brand stays here on purpose: MT telegram scripts read it from this file.)
+var currencySym = "₱";
+var showVoucherInput = true;
+var showPauseButton = true;
+var showMemberLogin = true;

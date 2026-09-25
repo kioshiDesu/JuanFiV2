@@ -205,6 +205,24 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
    `data/site-id.txt` there).
 3. Never remove the `IAMNOTLOGINSTRINGPLEASEDONTREMOVE` comment on
    `login.html` line 2 — the router needs that sentinel.
+4. Display flags live in `hotspot/settings.json` (data-only config, no
+   JS editing — bad JSON falls back to `config.js` defaults). Upload
+   ships it with the folder; edit on the router copy per site:
+
+```json
+{
+  "isMultiVendo": false,
+  "multiVendoOption": 0,
+  "currency": "₱",
+  "footer_text": "@NETBRO",
+  "show_voucher_input": true,
+  "show_pause_button": true,
+  "show_member_login": true
+}
+```
+
+   No trial flag on purpose — the portal has no trial UI. No
+   subscription/theme keys either (not adopted).
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
@@ -216,7 +234,7 @@ Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
 - Branding (per site, on the router copy only — never commit):
 
 ```js
-var brandHeaderHtml = "BRO<em>BRO</em>";
+var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 ```
