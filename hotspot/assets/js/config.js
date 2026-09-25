@@ -11,7 +11,7 @@ var multiVendoAddresses = [
 ];
 var vendorIpAddress = "10.0.0.254";
 var portalDebug = false;
-var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
+var brandHeaderHtml = "JUANFI<em>V2</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 var currencySym = "₱";

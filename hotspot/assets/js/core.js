@@ -15,6 +15,41 @@ var errorCodeMap = {
 	'invalid.request': 'Invalid request, please try again'
 };
 
+// ---------- settings (config.js folded in) ----------
+// Single source of truth is settings.json; below are offline fallbacks
+// used when the JSON fetch fails. Same key names (currency→currencySym).
+var isMultiVendo = false;
+var multiVendoOption = 0;
+var multiVendoAddresses = [
+	{ vendoName: "Vendo 1", vendoIp: "10.0.0.254", hotspotAddress: "10.0.0.1", interfaceName: "vlan1" }
+];
+var vendorIpAddress = "10.0.0.254";
+var portalDebug = false;
+var brandHeaderHtml = "JUANFI<em>V2</em>";
+var footerBrandText = "@NETBRO";
+var footerSubText = "INTERNET SERVICES";
+var currencySym = "₱";
+var showMemberSection = true;
+try {
+	var __setReq = new XMLHttpRequest();
+	__setReq.open("GET", "settings.json?t=" + new Date().getTime(), false);
+	__setReq.timeout = 3000;
+	__setReq.send(null);
+	if (__setReq.status === 200) {
+		var __setJson = JSON.parse(__setReq.responseText || "{}");
+		if (typeof __setJson.isMultiVendo === "boolean") { isMultiVendo = __setJson.isMultiVendo; }
+		if (typeof __setJson.multiVendoOption === "number") { multiVendoOption = __setJson.multiVendoOption; }
+		if (__setJson.multiVendoAddresses instanceof Array) { multiVendoAddresses = __setJson.multiVendoAddresses; }
+		if (typeof __setJson.vendorIpAddress === "string" && __setJson.vendorIpAddress) { vendorIpAddress = __setJson.vendorIpAddress; }
+		if (typeof __setJson.portalDebug === "boolean") { portalDebug = __setJson.portalDebug; }
+		if (typeof __setJson.brandHeaderHtml === "string" && __setJson.brandHeaderHtml) { brandHeaderHtml = __setJson.brandHeaderHtml; }
+		if (typeof __setJson.footerBrandText === "string" && __setJson.footerBrandText) { footerBrandText = __setJson.footerBrandText; }
+		if (typeof __setJson.footerSubText === "string" && __setJson.footerSubText) { footerSubText = __setJson.footerSubText; }
+		if (typeof __setJson.currency === "string" && __setJson.currency) { currencySym = __setJson.currency; }
+		if (typeof __setJson.showMemberSection === "boolean") { showMemberSection = __setJson.showMemberSection; }
+	}
+} catch (e) {}
+
 var ROUTER_TIMEOUT = 3000;
 var VENDO_TIMEOUT = 5000;
 

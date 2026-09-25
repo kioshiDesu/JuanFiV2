@@ -198,7 +198,7 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
 
 ### F. Portal files
 
-1. In `hotspot/assets/js/config.js` set `vendorIpAddress` to your vendo
+1. In `hotspot/settings.json` set `vendorIpAddress` to your vendo
    IP (`10.0.0.254` by default).
 2. Upload the `hotspot/` folder contents to the router's `hotspot`
    directory (overwrite, don't delete — the scheduler keeps
@@ -226,14 +226,14 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
 }
 ```
    `false` on `showMemberSection` = voucher-only portal.
-   `config.js` is a fallback loader now (same defaults + sync JSON
-   fetch) — the portal survives a missing JSON.
+   `core.js` carries the same defaults built in + a sync JSON
+   fetch — the portal survives a missing JSON. No `config.js` file.
 
    No trial flag on purpose — the portal has no trial UI. No
    subscription/theme keys either (not adopted).
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
-`JuanFiV2.css`, `config.js`, `boot.js`, `core.js` in `portal.html` +
+`JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +
 router shells) on every portal change so phones don't serve stale JS.
 Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
 
