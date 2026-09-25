@@ -7,14 +7,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=55">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=55">
+	<link rel="stylesheet" href="assets/css/core.css?v=56">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=56">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="theme-color" content="#3d4044">
-	<script src="assets/js/config.js?v=55"></script>
+	<script src="assets/js/config.js?v=56"></script>
 	<script src="assets/js/md5.js?v=26"></script>
 	<script>
 		// Shared globals: router shells set these BEFORE this file loads;
@@ -76,7 +76,7 @@
 					<div id="voucherBlock" style="margin-top: 15px;">
 			<label for="voucherInput" class="vouchlabel">Voucher code</label>
 			<div class="voucher-pill">
-				<input type="text" class="form-control" id="voucherInput" aria-label="Voucher code" placeholder="Voucher code" autocomplete="off" spellcheck="false">
+				<input type="text" class="form-control" id="voucherInput" name="voucher" aria-label="Voucher code" placeholder="Voucher code" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" enterkeyhint="go" translate="no">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
 			<div id="voucherErr" role="alert"></div>
@@ -169,12 +169,13 @@
 			<div id="progressDiv" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Waiting for coins" style="width: 0%"></div>
 		</div>
 
+		<div id="coinErr" role="alert" tabindex="-1" style="display: none; text-align: center; color: #f0aaaa; font-weight: bold; margin-top: 8px;"></div>
 		<div style="text-align: center">
 			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-primary">Done</button>
 			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger">Cancel</button>
 		</div>
 		<div id="forfeitBar" style="display: none; text-align: center; margin-top: 10px;">
-			<div id="forfeitText" style="margin-bottom: 8px; font-weight: bold;"></div>
+			<div id="forfeitText" role="alert" style="margin-bottom: 8px; font-weight: bold;"></div>
 			<button type="button" id="forfeitYes" class="btn btn-danger">FORFEIT</button>
 			<button type="button" id="forfeitNo" class="btn btn-success">KEEP GOING</button>
 		</div>
@@ -185,7 +186,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v55</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v56</span>
 		</div>
 	</div>
 
@@ -197,7 +198,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=55"></script>
+		<script src="assets/js/core.js?v=56"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

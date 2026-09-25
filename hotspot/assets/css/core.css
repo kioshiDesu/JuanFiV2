@@ -366,7 +366,10 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     color: #fff;
     font-weight: 700;
 }
-.hero .vouchline.metatable { display: grid; grid-template-columns: 1fr 1fr; }
+.hero .vouchline.metatable { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+/* Long homeowner brands, vouchers and meta values must wrap, never clip. */
+.brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
+.btnrow .btn { min-width: 0; }
 .hero .vouchline .metacol.metaleft { border-right: 1px solid rgba(255,255,255,.18); padding-right: 10px; }
 .hero .vouchline .metacol.metaright { padding-left: 10px; }
 .hero .vouchline .metarow { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
@@ -622,6 +625,7 @@ hr.foot-hr {
     background: #101418;
     padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 .histhead {
     display: flex;

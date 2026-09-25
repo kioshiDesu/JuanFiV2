@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=55";
+var SOUND_V = "?v=56";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -325,14 +325,33 @@ function paintVoucherHistory() {
 	});
 }
 function showHistoryView() {
+	try { window.__histOpener = document.activeElement; } catch (e) {}
 	try { paintVoucherHistory(); } catch (e) {}
 	try { document.getElementById('view-history').style.display = "block"; } catch (e) {}
 	window.__histOpen = true;
+	try { document.getElementById('histBack').focus(); } catch (e) {}
 }
 function closeHistoryView() {
 	try { document.getElementById('view-history').style.display = "none"; } catch (e) {}
 	window.__histOpen = false;
+	try { if (window.__histOpener && document.contains(window.__histOpener)) { window.__histOpener.focus(); } window.__histOpener = null; } catch (e) {}
 }
+// Keep Tab inside the history overlay while open (it lives inside #app,
+// so inert on #app would trap the overlay itself).
+if (!window.__histTrapBound) { window.__histTrapBound = true; try {
+document.getElementById('view-history').addEventListener('keydown', function (ev) {
+	if (ev.key !== 'Tab' || !window.__histOpen) { return; }
+	var f = Array.prototype.filter.call(this.querySelectorAll('button,[href],[tabindex]:not([tabindex="-1"])'), function (el) { return !el.disabled && el.offsetParent !== null; });
+	if (!f.length) { return; }
+	var first = f[0], last = f[f.length - 1];
+	if (ev.shiftKey && document.activeElement === first) { last.focus(); ev.preventDefault(); }
+	else if (!ev.shiftKey && document.activeElement === last) { first.focus(); ev.preventDefault(); }
+});
+} catch (e) {} }
+// Warn before back/refresh/CNA reclaim forfeits inserted coins.
+window.addEventListener("beforeunload", function (e) {
+	try { if (typeof insertingCoin !== "undefined" && insertingCoin && totalCoinReceived > 0) { e.preventDefault(); e.returnValue = ""; } } catch (err) {}
+});
 // Per-voucher keys (remain/tempValidity/validity) are venue-scoped like
 // activeVoucher itself, or the same VCxxxxxx code collides across
 function vKey(vc, suffix) { return (vc ? scopedKey(vc + suffix) : null); }
@@ -913,7 +932,7 @@ function applyFlags() {
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v55"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v56"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1020,6 +1039,7 @@ function cancelCoin() {
 		try {
 			$("#forfeitText").text(currencySym + totalCoinReceived + " inserted — cancelling forfeits it.");
 			$("#forfeitBar").show();
+			try { $("#forfeitYes").focus(); } catch (e) {}
 			$("#forfeitYes").off("click").on("click", function () { try { $("#forfeitBar").hide(); } catch (e) {} cancelCoinForfeit(); });
 			$("#forfeitNo").off("click").on("click", function () {
 				try { $("#forfeitBar").hide(); } catch (e) {}
@@ -1729,7 +1749,9 @@ function notifyCoinSlotError(errorCode) {
 	try {
 		sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null);
 	} catch (e) { }
-	$.toast({ title: 'Error', content: errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again'), type: 'error', delay: 5000 });
+	var coinMsg = errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again');
+	try { $("#coinErr").text(coinMsg).show(); $("#coinErr").focus(); } catch (e) {}
+	$.toast({ title: 'Error', content: coinMsg, type: 'error', delay: 5000 });
 }
 
 function notifyCoinSuccess(coin) {
