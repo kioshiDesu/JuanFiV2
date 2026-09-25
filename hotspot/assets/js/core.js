@@ -32,8 +32,7 @@ var currencySym = "₱";
 var showMemberSection = true;
 try {
 	var __setReq = new XMLHttpRequest();
-	__setReq.open("GET", "settings.json?t=" + new Date().getTime(), false);
-	__setReq.timeout = 3000;
+	__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
 	__setReq.send(null);
 	if (__setReq.status === 200) {
 		var __setJson = JSON.parse(__setReq.responseText || "{}");
