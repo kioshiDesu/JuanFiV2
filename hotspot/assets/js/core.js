@@ -75,7 +75,7 @@ var totalCoinReceived = 0;
 var timer = null;
 var bootDone = false;
 // Pending auto-login: queued by resumeSession/reLogin, drained by hideBoot
-var AUTO_LOGIN_DWELL_MS = 2000;
+var AUTO_LOGIN_DWELL_MS = 1000;
 window.__pendingAutoLogin = null;
 function queueAutoLogin(fn) {
 	window.__pendingAutoLogin = fn;
@@ -92,7 +92,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=38";
+var SOUND_V = "?v=39";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -890,7 +890,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v38"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v39"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

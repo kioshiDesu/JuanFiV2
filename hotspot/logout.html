@@ -3,11 +3,20 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=38">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=38">
+	<link rel="stylesheet" href="assets/css/core.css?v=39">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=39">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>JuanFiV2 - Logged out</title>
+	<script>
+	// Auto-login pending: leave before first paint, no receipt flash.
+	try {
+		var r = null;
+		if (typeof localStorage !== 'undefined' && localStorage) { r = localStorage.getItem("reLogin"); }
+		if (r == null) { var m = document.cookie.match(/(?:^|; )reLogin=([^;]*)/); r = m ? decodeURIComponent(m[1]) : null; }
+		if (r === "1") { window.location.replace("login"); }
+	} catch (e) {}
+	</script>
 </head>
 
 <!-- Router vars are user-adjacent ($(username) is typed at login): never
