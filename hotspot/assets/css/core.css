@@ -152,6 +152,10 @@ body { -webkit-tap-highlight-color: transparent; }
     letter-spacing: normal;
     margin: 10px 0 0 0;
 }
+.loginopts{display:flex;gap:8px;align-items:stretch;}
+.loginopts #memberSection{flex:1 1 0;min-width:0;}
+.loginopts #trialWrap{margin-top:0;flex:0 0 auto;}
+.loginopts #trialBtn{height:100%;display:inline-flex;align-items:center;white-space:nowrap;}
 #memberSection .member-text {
     display: flex;
     flex-direction: column;
