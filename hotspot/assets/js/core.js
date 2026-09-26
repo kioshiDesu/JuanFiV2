@@ -137,7 +137,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=82";
+var SOUND_V = "?v=83";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -563,6 +563,11 @@ function loadSiteId() {
 		.fail(function (xhr, status, err) {
 			dbgAjaxErr("siteScope", xhr, status, err);
 			try { dbgLog("site-id missing, fallback scope in use"); } catch (e) { }
+			try {
+				if ((window.__pendingHistPush && window.__pendingHistPush.length) || (typeof voucher !== "undefined" && voucher)) {
+					$.toast({ title: "Site ID missing", content: "Failed saving voucher history. Site ID file is missing - paste Scripts-F first.", type: "error", delay: 6000 });
+				}
+			} catch (e) { }
 		});
 }
 
