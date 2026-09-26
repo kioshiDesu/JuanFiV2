@@ -516,7 +516,7 @@ body { -webkit-tap-highlight-color: transparent; }
     margin: 28px auto 22px auto;
     padding: 0;
     border-radius: 50%;
-    border: 6px dashed rgba(121, 85, 0, .55);
+    border: 6px solid rgba(121, 85, 0, .55);
     background: radial-gradient(circle at 35% 30%, #ffe082, #f9a825 55%, #c17900);
     color: #4e342e;
     font-family: inherit;
