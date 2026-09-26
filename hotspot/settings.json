@@ -16,6 +16,6 @@
   "footerSubText": "INTERNET SERVICES",
   "currency": "₱",
   "showMemberSection": true,
-  "showTrialLogin": false,
+  "showTrialLogin": true,
   "trialNoExtend": true
 }

@@ -137,7 +137,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=81";
+var SOUND_V = "?v=82";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -315,10 +315,17 @@ function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVouch
 // Voucher history: venue-scoped, max 30, newest first — a new entry pushes
 // the oldest out. List only, codes only (member usernames never recorded).
 var VOUCH_HISTORY_MAX = 30;
+var __pendingHistPush = [];
+function siteScopeReady() { try { return typeof siteIdSuffix !== 'undefined' && !!siteIdSuffix; } catch (e) { return false; } }
+function flushPendingHistory() {
+	var q = __pendingHistPush; __pendingHistPush = [];
+	for (var i = 0; i < q.length; i++) { try { pushVoucherHistory(q[i]); } catch (e) {} }
+}
 function getVoucherHistory() { try { var h = JSON.parse(getStorageValue(scopedKey('voucherHistory')) || "[]"); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
 function pushVoucherHistory(vc) {
 	vc = String(vc || "").trim();
 	if (!vc) { return; }
+	if (!siteScopeReady()) { try { if (__pendingHistPush.indexOf(vc) === -1 && __pendingHistPush.length < 30) { __pendingHistPush.push(vc); } } catch (e) {} return; }
 	var h = getVoucherHistory().filter(function (e) { return String((e && e.v) || "") !== vc; });
 	var m = "";
 	try { m = String(window.mac || "").toUpperCase(); } catch (e2) {}
@@ -338,6 +345,7 @@ function useHistoryVoucher(vc) {
 function paintVoucherHistory() {
 	var box = document.getElementById('vhistFull');
 	if (!box) { return; }
+	if (!siteScopeReady()) { box.textContent = ""; return; }
 	var h = getVoucherHistory();
 	box.innerHTML = "";
 	if (!h.length) { box.textContent = "No vouchers yet."; return; }
@@ -546,8 +554,10 @@ function loadSiteId() {
 				}
 			} catch (e) {}
 				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
-				try { renderSiteTag(); } catch (e) {}
-			try { paintVoucherHistory(); } catch (e) {}
+			try { renderSiteTag(); } catch (e) {}
+		try { removeStorageValue('voucherHistory'); } catch (e) {}
+		try { flushPendingHistory(); } catch (e) {}
+		try { paintVoucherHistory(); } catch (e) {}
 			}
 		})
 		.fail(function (xhr, status, err) {
