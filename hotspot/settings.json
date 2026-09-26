@@ -17,5 +17,7 @@
   "currency": "₱",
   "showMemberSection": true,
   "showTrialLogin": false,
-  "trialNoExtend": false
+  "trialNoExtend": true,
+  "showInternetStatus": true,
+  "offlineText": "No internet connection as of the moment, please try again later"
 }
