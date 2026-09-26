@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=89">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=89">
+	<link rel="stylesheet" href="assets/css/core.css?v=90">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=90">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -136,6 +136,7 @@
 		<div class="btnrow">
 			<button type="button" id="extendBtn" onclick="insertBtnAction(); return false" class="btn btn-success">EXTEND TIME</button>
 			<button type="button" id="pauseTimeBtn" onClick="pause(); return false" class="btn btn-danger">PAUSE TIME</button>
+			<a id="iptvBtn" class="btn btn-info" style="display: none;" href="iptv.html">TV</a>
 		</div>
 		<div id="coinSlot-status"></div>
 	</div>
@@ -209,7 +210,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=89"></script>
+		<script src="assets/js/core.js?v=90"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

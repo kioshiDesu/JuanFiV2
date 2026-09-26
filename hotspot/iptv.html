@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<link rel="stylesheet" href="assets/css/core.css?v=90">
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="theme-color" content="#101418">
+	<title>TV - JuanFiV2 Portal</title>
+	<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+</head>
+
+<body>
+	<noscript><div style="text-align:center;padding:20px;">TV needs JavaScript enabled.</div></noscript>
+	<div class="portal">
+		<div class="topbar">
+			<a class="btn btn-info" href="status">&lt; BACK</a>
+			<span class="brand-big">JuanFi<em>V2</em></span>
+		</div>
+
+		<video id="tvPlayer" controls playsinline style="width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;"></video>
+		<div id="tvErr" style="display:none;text-align:center;color:#f0aaaa;margin-top:8px;" role="alert"></div>
+		<ul id="tvList" class="vhistlist"></ul>
+	</div>
+
+<script>
+(function () {
+	var FALLBACK_LIST = "https://iptv-org.github.io/iptv/countries/ph.m3u";
+	function fail(msg) {
+		var e = document.getElementById("tvErr");
+		e.textContent = msg;
+		e.style.display = "block";
+	}
+	function play(url) {
+		var v = document.getElementById("tvPlayer");
+		try {
+			if (window.Hls && window.Hls.isSupported() && /\.m3u8(\?|$)/i.test(url)) {
+				if (window.__hls) { try { window.__hls.destroy(); } catch (e) {} }
+				var h = new window.Hls();
+				window.__hls = h;
+				h.loadSource(url);
+				h.attachMedia(v);
+				h.on(window.Hls.Events.ERROR, function (ev, data) {
+					if (data && data.fatal) { fail("Stream error."); }
+				});
+			} else {
+				v.src = url;
+			}
+			var p = v.play();
+			if (p && p.catch) { p.catch(function () {}); }
+		} catch (e) { fail("Cannot play this channel."); }
+	}
+	function parseM3U(text) {
+		var out = [], name = "";
+		String(text || "").split("\n").forEach(function (line) {
+			line = line.trim();
+			if (!line) { return; }
+			if (line.charAt(0) === "#") {
+				var m = line.match(/,(.*)$/);
+				name = m ? m[1].trim() : "";
+				return;
+			}
+			if (/^https?:\/\//i.test(line)) {
+				out.push({ name: name || line, url: line });
+				name = "";
+			}
+		});
+		return out;
+	}
+	function render(list) {
+		var ul = document.getElementById("tvList");
+		ul.textContent = "";
+		if (!list.length) { fail("Channel list is empty."); return; }
+		list.forEach(function (ch) {
+			var li = document.createElement("li");
+			li.className = "vhist-row";
+			li.setAttribute("tabindex", "0");
+			var left = document.createElement("span");
+			left.className = "vhist-left";
+			var code = document.createElement("span");
+			code.className = "vhist-code";
+			code.textContent = ch.name;
+			left.appendChild(code);
+			li.appendChild(left);
+			function go() { play(ch.url); }
+			li.addEventListener("click", go);
+			li.addEventListener("keydown", function (ev) {
+				if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); go(); }
+			});
+			ul.appendChild(li);
+		});
+	}
+	function load(url) {
+		fetch(url, { cache: "no-store" }).then(function (r) {
+			if (!r.ok) { throw new Error("http " + r.status); }
+			return r.text();
+		}).then(function (t) {
+			render(parseM3U(t));
+		}).catch(function () { fail("Channel list unavailable."); });
+	}
+	try {
+		fetch("settings.json", { cache: "no-store" }).then(function (r) {
+			return r.ok ? r.json() : {};
+		}).then(function (s) {
+			var u = FALLBACK_LIST;
+			if (s && typeof s.iptvPlaylistUrl === "string" && s.iptvPlaylistUrl) { u = s.iptvPlaylistUrl; }
+			load(u);
+		}).catch(function () { load(FALLBACK_LIST); });
+	} catch (e) { load(FALLBACK_LIST); }
+})();
+</script>
+</body>
+
+</html>
