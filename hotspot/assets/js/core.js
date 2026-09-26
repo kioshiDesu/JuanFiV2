@@ -316,6 +316,36 @@ function setActiveVoucher(v) {
 	return setStorageValue(scopedKey('activeVoucher'), v);
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
+// Cross-scope wipe: a submit saves under the then-current scope (often the
+// site-id scope), but the error page reload may read/clear under the fallback
+// scope (site-id not yet resolved) — single-scope remove then misses and the
+// wrong code refills the input forever. Clear every candidate + sweep strays.
+function clearAllVoucherScopes() {
+	var bases = ['activeVoucher', 'activeVoucher_ts'];
+	var suffixes = [''];
+	try {
+		var cands = [siteIdSuffix, vendorIpAddress, hotspotAddress];
+		for (var i = 0; i < cands.length; i++) {
+			var s = String(cands[i] || '').replace(/[^A-Za-z0-9]/g, '_');
+			if (s && suffixes.indexOf('_' + s) === -1) suffixes.push('_' + s);
+		}
+	} catch (e) {}
+	for (var b = 0; b < bases.length; b++) {
+		for (var k = 0; k < suffixes.length; k++) {
+			try { removeStorageValue(bases[b] + suffixes[k]); } catch (e2) {}
+		}
+	}
+	try {
+		if (typeof localStorage !== 'undefined' && localStorage != null) {
+			var kill = [];
+			for (var j = 0; j < localStorage.length; j++) {
+				var kn = localStorage.key(j);
+				if (kn && kn.indexOf('activeVoucher') === 0) kill.push(kn);
+			}
+			for (var m = 0; m < kill.length; m++) { try { localStorage.removeItem(kill[m]); } catch (e3) {} }
+		}
+	} catch (e4) {}
+}
 // Voucher history: venue-scoped, max 30, newest first — a new entry pushes
 // the oldest out. List only, codes only (member usernames never recorded).
 var VOUCH_HISTORY_MAX = 30;
@@ -1267,17 +1297,20 @@ function resumeSession() {
 	if (typeof STATE !== 'undefined' && STATE != "login") { d.resolve(); return d.promise(); }
 	// Router rejection lands back here with loginError set — show it
 	// BEFORE the one-shot guard below, or a failed submit (which marks
-	if (loginError != "" && voucher != "") {
+	var errVc = "";
+		try { errVc = voucher || getActiveVoucher() || ""; } catch (e0) {}
+		if (!errVc) { try { errVc = $("#voucherInput").val() || ""; } catch (e01) {} }
+	if (loginError != "" && errVc != "") {
 		removePausedFlag();
 		try { markAutoLoginTried(); } catch (e) {}
 		var loginErrLower = String(loginError).toLowerCase();
 		if (loginErrLower.indexOf("no more sessions") !== -1 || loginErrLower.indexOf("session limit") !== -1 || loginErrLower.indexOf("simultaneous") !== -1) {
 			// Code valid but online elsewhere (shared-users=1) — keep it
-			try { $('#voucherInput').val(voucher); } catch (e) {}
+			try { $('#voucherInput').val(errVc); } catch (e) {}
 			try { dbgLog("resume: code in use elsewhere, voucher kept", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'In use', content: "This code is online on another device — pause it there or wait 30s, then tap CONNECT to retry", type: 'warning', delay: 8000 });
 		} else if (loginErrLower.indexOf("uptime limit") !== -1) {
-			removeActiveVoucher();
+			clearAllVoucherScopes();
 			voucher = "";
 			try { dbgLog("resume: uptime exhausted, voucher cleared", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Expired', content: "This code has used up all its time", type: 'error', delay: 5000 });
@@ -1286,7 +1319,7 @@ function resumeSession() {
 			try { dbgLog("resume: member bad credentials", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Login failed', content: "Wrong username or password — check and try again", type: 'error', delay: 5000 });
 		} else {
-			removeActiveVoucher();
+			clearAllVoucherScopes();
 			voucher = "";
 			try { dbgLog("resume: rejected by loginError, voucher cleared", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Error', content: "Invalid voucher, please make sure voucher is valid", type: 'error', delay: 5000 });
@@ -1316,7 +1349,7 @@ function resumeSession() {
 			var validUntil = hash < 0 ? null : parseValidity(str.slice(hash + 1));
 				// Stale session file (empty, dateless, or expired voucher):
 				if (fileVoucher == "" || validUntil == null || validUntil.getTime() < new Date().getTime()) {
-					removeActiveVoucher();
+					clearAllVoucherScopes();
 					try { dbgLog("resume: stale session file, skipping auto-connect"); } catch (e) { }
 					d.resolve();
 					return;
