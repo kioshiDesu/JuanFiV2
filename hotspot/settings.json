@@ -16,6 +16,8 @@
   "footerSubText": "INTERNET SERVICES",
   "currency": "₱",
   "showMemberSection": true,
-  "showTrialLogin": true,
-  "trialNoExtend": true
+  "showTrialLogin": false,
+  "trialNoExtend": true,
+  "showInternetStatus": true,
+  "offlineText": "No internet connection as of the moment, please try again later"
 }

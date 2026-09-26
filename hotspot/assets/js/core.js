@@ -31,6 +31,8 @@ var footerSubText = "INTERNET SERVICES";
 var currencySym = "₱";
 var showMemberSection = true;
 var showTrialLogin = false;
+var showInternetStatus = true;
+var offlineText = "No internet connection as of the moment, please try again later";
 var trialNoExtend = true;
 	try {
 		var __setReq = new XMLHttpRequest();
@@ -56,6 +58,8 @@ var trialNoExtend = true;
 		if (typeof __setJson.currency === "string" && __setJson.currency) { currencySym = __setJson.currency; }
 		if (typeof __setJson.showMemberSection === "boolean") { showMemberSection = __setJson.showMemberSection; }
 		if (typeof __setJson.showTrialLogin === "boolean") { showTrialLogin = __setJson.showTrialLogin; }
+		if (typeof __setJson.showInternetStatus === "boolean") { showInternetStatus = __setJson.showInternetStatus; }
+		if (typeof __setJson.offlineText === "string" && __setJson.offlineText) { offlineText = __setJson.offlineText; }
 		if (typeof __setJson.trialNoExtend === "boolean") { trialNoExtend = __setJson.trialNoExtend; }
 	}
 } catch (e) {}
@@ -137,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=83";
+var SOUND_V = "?v=84";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -630,6 +634,27 @@ function timedStep(label, promise, soft) {
 	return promise;
 }
 
+function checkNetStatus() {
+	var d = $.Deferred();
+	try {
+		if (typeof showInternetStatus !== "undefined" && !showInternetStatus) { d.resolve(); return d.promise(); }
+	} catch (e) { d.resolve(); return d.promise(); }
+	$.ajax({ type: "GET", url: "data/netstatus.txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT, dataType: "text" })
+	.done(function (t) {
+		try {
+			if (String(t || "").toLowerCase().indexOf("up") === 0) { $("#netBanner").hide(); }
+			else {
+				var msg = "No internet connection as of the moment, please try again later";
+				try { if (typeof offlineText !== "undefined" && offlineText) { msg = offlineText; } } catch (e2) {}
+				$("#netBanner").text(msg).show();
+			}
+		} catch (e) {}
+		d.resolve();
+	})
+	.fail(function () { try { $("#netBanner").hide(); } catch (e) {} d.resolve(); });
+	return d.promise();
+}
+
 function boot() {
 	__bootTotal = 0;
 	__bootDoneCount = 0;
@@ -690,7 +715,7 @@ function boot() {
 		try { dbgLog("boot state=" + state); } catch (e) { }
 		bootStateKnown = true;
 		render(state);
-		var jobs = [timedStep("Loading Wi-Fi rates", loadRates(), true)];
+		var jobs = [timedStep("Loading Wi-Fi rates", loadRates(), true), timedStep("Checking internet", checkNetStatus(), true)];
 		if (state == "login") {
 			jobs.push(timedStep("Checking session", resumeSession(), true));
 		} else {

@@ -258,6 +258,21 @@ Bump the `?v=N` query on every first-party asset (`core.css`,
 router shells) on every portal change so phones don't serve stale JS.
 Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
 
+### G. Internet status (netwatch)
+
+Writes `hotspot/data/netstatus.txt` (`up`/`down`) so the portal banner
+knows the uplink state. Adjust the path if your hotspot lives at
+`flash/hotspot`:
+
+```bash
+/tool netwatch add host=8.8.8.8 interval=1m timeout=1000 comment="vendo net status" \
+  up-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; /file set hotspot/data/netstatus.txt contents=\"up\"" \
+  down-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; /file set hotspot/data/netstatus.txt contents=\"down\""
+```
+
+The portal reads it at boot (`showInternetStatus`, `offlineText` in
+`settings.json`); a missing file keeps the banner hidden.
+
 ## Optional
 
 - Branding (per site, on the router copy only — never commit):

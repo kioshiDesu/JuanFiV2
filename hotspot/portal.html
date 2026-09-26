@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=83">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=83">
+	<link rel="stylesheet" href="assets/css/core.css?v=84">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=84">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -66,6 +66,8 @@
 		<select class="form-control" name="vendoSelected" id="vendoSelected">
 		</select>
 	</div>
+
+	<div id="netBanner" style="display: none; text-align: center; background: rgba(255,60,60,.12); border: 1px solid rgba(255,110,110,.5); color: #f0aaaa; border-radius: 10px; padding: 8px 10px; margin: 10px 12px 0;" role="alert"></div>
 
 	<div id="view-login">
 		<div class="hero">
@@ -207,7 +209,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=83"></script>
+		<script src="assets/js/core.js?v=84"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
