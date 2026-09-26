@@ -61,8 +61,6 @@ var trialNoExtend = true;
 		if (typeof __setJson.showInternetStatus === "boolean") { showInternetStatus = __setJson.showInternetStatus; }
 		if (typeof __setJson.offlineText === "string" && __setJson.offlineText) { offlineText = __setJson.offlineText; }
 		if (typeof __setJson.trialNoExtend === "boolean") { trialNoExtend = __setJson.trialNoExtend; }
-		if (typeof __setJson.showIptv === "boolean") { showIptv = __setJson.showIptv; }
-		if (typeof __setJson.iptvPlaylistUrl === "string" && __setJson.iptvPlaylistUrl) { iptvPlaylistUrl = __setJson.iptvPlaylistUrl; }
 	}
 } catch (e) {}
 
@@ -143,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=90";
+var SOUND_V = "?v=89";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -832,7 +830,6 @@ function render(state) {
 	if (state == "status") {
 		$("#statusVoucher").text(voucher);
 		try { if (typeof trialNoExtend !== "undefined" && trialNoExtend && voucher && voucher.indexOf("T-") === 0) { $("#statusVoucher").text("FREE TRIAL"); $("#extendBtn").hide(); } } catch (e) {}
-		try { if (typeof showIptv !== "undefined" && showIptv) { $("#iptvBtn").show(); } } catch (e) {}
 		try {
 			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); }
 			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); }

@@ -247,9 +247,7 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
   "showTrialLogin": false,
   "trialNoExtend": true,
   "showInternetStatus": true,
-  "offlineText": "No internet connection as of the moment, please try again later",
-  "showIptv": false,
-  "iptvPlaylistUrl": "https://iptv-org.github.io/iptv/countries/ph.m3u"
+  "offlineText": "No internet connection as of the moment, please try again later"
 }
 ```
    `false` on `showMemberSection` = voucher-only portal.
