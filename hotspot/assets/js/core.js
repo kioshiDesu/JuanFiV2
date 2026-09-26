@@ -141,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=87";
+var SOUND_V = "?v=88";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -652,7 +652,7 @@ function checkNetStatus() {
 		} catch (e) {}
 		d.resolve();
 	})
-	.fail(function () { try { $("#netBanner").hide(); } catch (e) {} d.resolve(); });
+	.fail(function () { try { $("#netBanner").hide(); } catch (e) {} try { if ((typeof showInternetStatus === "undefined" || showInternetStatus) && !getSessionValue("__netWarned")) { setSessionValue("__netWarned", "1"); $.toast({ title: "Status file missing", content: "Internet status file missing — paste Scripts-G init line to create data/netstatus.txt", type: "error", delay: 5000 }); } } catch (e2) {} d.resolve(); });
 	return d.promise();
 }
 
