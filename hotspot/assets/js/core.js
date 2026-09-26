@@ -141,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=88";
+var SOUND_V = "?v=89";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -570,7 +570,7 @@ function loadSiteId() {
 			try {
 				if (((window.__pendingHistPush && window.__pendingHistPush.length) || (typeof voucher !== "undefined" && voucher)) && !getSessionValue("__siteIdWarned")) {
 					try { setSessionValue("__siteIdWarned", "1"); } catch (e) {}
-					$.toast({ title: "Site ID missing", content: "Failed saving voucher history. Site ID file is missing - paste Scripts-F first.", type: "error", delay: 6000 });
+					$.toast({ title: "Site ID missing", content: "Failed saving voucher history. Site ID file is missing.", type: "error", delay: 6000 });
 				}
 			} catch (e) { }
 		});
@@ -652,7 +652,7 @@ function checkNetStatus() {
 		} catch (e) {}
 		d.resolve();
 	})
-	.fail(function () { try { $("#netBanner").hide(); } catch (e) {} try { if ((typeof showInternetStatus === "undefined" || showInternetStatus) && !getSessionValue("__netWarned")) { setSessionValue("__netWarned", "1"); $.toast({ title: "Status file missing", content: "Internet status file missing — paste Scripts-G init line to create data/netstatus.txt", type: "error", delay: 5000 }); } } catch (e2) {} d.resolve(); });
+	.fail(function () { try { $("#netBanner").hide(); } catch (e) {} try { if ((typeof showInternetStatus === "undefined" || showInternetStatus) && !getSessionValue("__netWarned")) { setSessionValue("__netWarned", "1"); $.toast({ title: "Status file missing", content: "Internet status file missing.", type: "error", delay: 5000 }); } } catch (e2) {} d.resolve(); });
 	return d.promise();
 }
 
