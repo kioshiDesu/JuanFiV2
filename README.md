@@ -55,7 +55,7 @@ user profile:
 
 ```bash
 /ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap,trial
-/ip hotspot profile set [find name="hsprof1"] trial-uptime=30m/1d trial-user-profile=default
+/ip hotspot profile set [find name="hsprof1"] trial-uptime=5m/1d trial-user-profile=default
 ```
 
 The portal shows its trial button only when both the router serves
