@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=76">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=76">
+	<link rel="stylesheet" href="assets/css/core.css?v=77">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=77">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -51,7 +51,7 @@
 
 	<div id="app" style="display: none">
 
-<div id="coinDim" title="Finish or cancel in the coin panel below"></div>
+<div id="coinDim" aria-hidden="true"></div>
 	<div class="portal" id="main">
 	<header class="topbar">
 		<div class="brandmark">
@@ -180,7 +180,7 @@
 
 		<div id="coinErr" role="alert" tabindex="-1" style="display: none; text-align: center; color: #f0aaaa; font-weight: bold; margin-top: 8px;"></div>
 		<div style="text-align: center">
-			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-primary">Done</button>
+			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-primary">Claim Code</button>
 			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger">Cancel</button>
 		</div>
 		<div id="forfeitBar" style="display: none; text-align: center; margin-top: 10px;">
@@ -207,7 +207,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=76"></script>
+		<script src="assets/js/core.js?v=77"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

@@ -135,7 +135,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=76";
+var SOUND_V = "?v=77";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -584,7 +584,7 @@ function __stepSecs(t0) {
 var __bootTotal = 0;
 var __bootDoneCount = 0;
 function __renderBoot() {
-	setBootText("Loading... " + __bootDoneCount + "/" + __bootTotal);
+	setBootText("Loading… " + __bootDoneCount + "/" + __bootTotal);
 }
 function __bootSettle(label, t0, promise, soft) {
 	__bootDoneCount++;
@@ -664,7 +664,7 @@ function boot() {
 	var bootStateKnown = false;
 	setTimeout(function () {
 		if (bootStateKnown) { hideBoot(); return; }
-		setBootText("Loading... still trying, check your connection.");
+		setBootText("Loading… still trying, check your connection.");
 		setTimeout(hideBoot, 11000);
 	}, 9000);
 
@@ -1664,7 +1664,7 @@ function checkCoin() {
 					if (totalCoinReceived > 0) {
 						// Wait ran out with money in: finalize the purchase the
 						try { dbgLog("checkCoin: wait expired with coins=" + totalCoinReceived + ", auto-finalizing", "dbg-ok"); } catch (e) { }
-						$.toast({ title: 'Time is up', content: 'Confirming your purchase of ' + totalCoinReceived + ' peso(s)...', type: 'info', delay: 4000 });
+						$.toast({ title: 'Time is up', content: 'Confirming your purchase of ' + totalCoinReceived + ' peso(s)…', type: 'info', delay: 4000 });
 						$("#saveVoucherButton").prop('disabled', true);
 						$("#cncl").prop('disabled', true);
 						saveVoucherBtnAction();

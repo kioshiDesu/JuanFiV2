@@ -95,6 +95,7 @@ body {
 .memfield {
 	margin-bottom: 10px;
 }
+.memfield:focus-within { outline: 3px solid #4cd137; outline-offset: 2px; border-radius: 8px; }
 
 .memfield label {
 	display: block;

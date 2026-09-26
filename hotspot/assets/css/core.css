@@ -407,8 +407,8 @@ body { -webkit-tap-highlight-color: transparent; }
 }
 #juanfi-toasts {
     position: fixed;
-    top: 12px;
-    right: 12px;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
     z-index: 11000;
     display: flex;
     flex-direction: column;
@@ -558,12 +558,12 @@ body { -webkit-tap-highlight-color: transparent; }
     margin-top: 2px;
 }
 @-webkit-keyframes coinGlow {
-    0%, 100% { -webkit-filter: brightness(1); }
-    50% { -webkit-filter: brightness(1.14); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: .88; }
 }
 @keyframes coinGlow {
-    0%, 100% { filter: brightness(1); }
-    50% { filter: brightness(1.14); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: .88; }
 }
 
 #extendBtn {
@@ -605,6 +605,8 @@ hr.foot-hr {
     align-items: stretch;
     margin-top: 10px;
 }
+.voucher-pill:hover { background: rgba(255,255,255,.06); }
+.voucher-pill:focus-within { outline: 3px solid #4cd137; outline-offset: 2px; }
 .voucher-pill input {
     flex: 1 1 auto;
     min-width: 0;
@@ -736,7 +738,7 @@ hr.foot-hr {
 /* Motion + keyboard: kill infinite coin animations for vestibular safety,
    keep a visible focus ring on the coin button for keyboard users. */
 @media (prefers-reduced-motion: reduce) {
-	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low { animation: none !important; }
+	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low, .vshake { animation: none !important; }
 	#bootLoader.boot-fade { transition: none !important; }
 }
-#insertBtn:focus-visible, #insertBtn:focus { outline: 3px solid #4cd137; outline-offset: 3px; }
+#insertBtn:focus-visible { outline: 3px solid #4cd137; outline-offset: 3px; }
