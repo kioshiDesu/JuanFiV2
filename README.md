@@ -63,6 +63,10 @@ trial (`$(if trial == 'yes')` must render) and `showTrialLogin` is true
 in `settings.json`. Caveats: trial users are MAC-tied (rotation eats
 the trial) and vanish on router reboot — vouchers stay the real product.
 
+Trial sessions can hide EXTEND TIME (`trialNoExtend`, default true in
+`settings.json`) and show FREE TRIAL on the dashboard instead of the
+`T-…` code — the original trial code still lands in voucher history.
+
 Already ran with cookies before? Paste once on the router
 (off-hours — kicks actives) to drop the old login methods and
 flush issued cookies:

@@ -31,6 +31,7 @@ var footerSubText = "INTERNET SERVICES";
 var currencySym = "₱";
 var showMemberSection = true;
 var showTrialLogin = false;
+var trialNoExtend = true;
 	try {
 		var __setReq = new XMLHttpRequest();
 		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
@@ -55,6 +56,7 @@ var showTrialLogin = false;
 		if (typeof __setJson.currency === "string" && __setJson.currency) { currencySym = __setJson.currency; }
 		if (typeof __setJson.showMemberSection === "boolean") { showMemberSection = __setJson.showMemberSection; }
 		if (typeof __setJson.showTrialLogin === "boolean") { showTrialLogin = __setJson.showTrialLogin; }
+		if (typeof __setJson.trialNoExtend === "boolean") { trialNoExtend = __setJson.trialNoExtend; }
 	}
 } catch (e) {}
 
@@ -135,7 +137,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=80";
+var SOUND_V = "?v=81";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -786,6 +788,7 @@ function render(state) {
 	}
 	if (state == "status") {
 		$("#statusVoucher").text(voucher);
+		try { if (typeof trialNoExtend !== "undefined" && trialNoExtend && voucher && voucher.indexOf("T-") === 0) { $("#statusVoucher").text("FREE TRIAL"); $("#extendBtn").hide(); } } catch (e) {}
 		try {
 			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); }
 			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); }
@@ -1138,6 +1141,7 @@ function setPortalState(s) {
 	$("#coinPanel").attr("style", "display: none");
 	$("#insertBtn").attr("style", "");
 	$("#extendBtn").attr("style", "");
+	try { if (typeof trialNoExtend !== "undefined" && trialNoExtend && voucher && voucher.indexOf("T-") === 0) { $("#extendBtn").hide(); } } catch (e) {}
 	restoreCoinChrome();
 	$("#view-login").attr("style", s == "login" ? "display: block" : "display: none");
 	$("#view-status").attr("style", s == "status" ? "display: block" : "display: none");
