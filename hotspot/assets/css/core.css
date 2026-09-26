@@ -152,8 +152,10 @@ body { -webkit-tap-highlight-color: transparent; }
     letter-spacing: normal;
     margin: 10px 0 0 0;
 }
-.loginopts{display:flex;gap:8px;align-items:stretch;}
-.loginopts #memberSection{flex:1 1 0;min-width:0;}
+.loginopts{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;}
+#memberSection{display:contents;}
+.loginopts .member-toggle{flex:1 1 0;min-width:0;}
+#memberSectionBody{flex:1 1 100%;min-width:0;}
 .loginopts #trialWrap{margin-top:0;flex:1 1 0;min-width:0;}
 .loginopts #trialBtn{display:flex;align-items:center;height:100%;box-sizing:border-box;min-height:56px;background:rgba(255,255,255,.03);border:1px solid rgba(164,176,190,.25);border-radius:10px;padding:10px 14px;color:#fff;text-decoration:none;}
 .loginopts #trialBtn .member-text{display:flex;flex-direction:column;gap:2px;text-align:left;}
