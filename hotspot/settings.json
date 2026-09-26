@@ -15,5 +15,6 @@
   "footerBrandText": "@NETBRO",
   "footerSubText": "INTERNET SERVICES",
   "currency": "₱",
-  "showMemberSection": true
+  "showMemberSection": true,
+  "showTrialLogin": false
 }

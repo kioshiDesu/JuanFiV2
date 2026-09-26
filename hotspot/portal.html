@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=70">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=70">
+	<link rel="stylesheet" href="assets/css/core.css?v=71">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=71">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -82,7 +82,9 @@
 			<div id="voucherErr" role="alert"></div>
 		</div>
 		
-
+		<div id="trialWrap" style="display: none; text-align: center; margin-top: 10px;">
+			<a id="trialBtn" class="btn btn-success" href="#">Try FREE trial</a>
+		</div>
 		<div id="memberSection">
 			<button type="button" class="panelTitle toggle member-toggle" id="memberSectionBodyHead" aria-expanded="false" aria-controls="memberSectionBody" onclick="toggleBlock('memberSectionBody'); return false;">
 				<span class="member-text">
@@ -198,7 +200,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=70"></script>
+		<script src="assets/js/core.js?v=71"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

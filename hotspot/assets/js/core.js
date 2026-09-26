@@ -30,6 +30,7 @@ var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
 var currencySym = "₱";
 var showMemberSection = true;
+var showTrialLogin = false;
 	try {
 		var __setReq = new XMLHttpRequest();
 		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
@@ -53,6 +54,7 @@ var showMemberSection = true;
 		if (typeof __setJson.footerSubText === "string" && __setJson.footerSubText) { footerSubText = __setJson.footerSubText; }
 		if (typeof __setJson.currency === "string" && __setJson.currency) { currencySym = __setJson.currency; }
 		if (typeof __setJson.showMemberSection === "boolean") { showMemberSection = __setJson.showMemberSection; }
+		if (typeof __setJson.showTrialLogin === "boolean") { showTrialLogin = __setJson.showTrialLogin; }
 	}
 } catch (e) {}
 
@@ -133,7 +135,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=70";
+var SOUND_V = "?v=71";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -975,6 +977,7 @@ function applyFlags() {
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
+		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin && window.trialAllowed && window.trialUrl) { $("#trialBtn").attr("href", window.trialUrl); $("#trialWrap").show(); } } catch (e) {}
 		try { if (!$("#portalVer").text()) { $("#portalVer").text("v67"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}

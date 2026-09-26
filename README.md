@@ -49,6 +49,20 @@ Keepalive Timeout `30s`, Status Autorefresh `1m`.
 /ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m
 ```
 
+Free trial logins (optional): add `trial` to the login methods, then
+set the per-MAC trial allowance (uptime + reset wait) and the trial
+user profile:
+
+```bash
+/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap,trial
+/ip hotspot profile set [find name="hsprof1"] trial-uptime=30m/1d trial-user-profile=default
+```
+
+The portal shows its trial button only when both the router serves
+trial (`$(if trial == 'yes')` must render) and `showTrialLogin` is true
+in `settings.json`. Caveats: trial users are MAC-tied (rotation eats
+the trial) and vanish on router reboot — vouchers stay the real product.
+
 Already ran with cookies before? Paste once on the router
 (off-hours — kicks actives) to drop the old login methods and
 flush issued cookies:
