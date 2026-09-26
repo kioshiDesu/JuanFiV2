@@ -516,7 +516,7 @@ body { -webkit-tap-highlight-color: transparent; }
     margin: 28px auto 22px auto;
     padding: 0;
     border-radius: 50%;
-    border: 6px solid rgba(121, 85, 0, .55);
+    border: 6px dashed rgba(121, 85, 0, .55);
     background: radial-gradient(circle at 35% 30%, #ffe082, #f9a825 55%, #c17900);
     color: #4e342e;
     font-family: inherit;
@@ -537,7 +537,7 @@ body { -webkit-tap-highlight-color: transparent; }
     position: absolute;
     inset: -45%;
     border-radius: 50%;
-    background: conic-gradient(transparent 0deg, rgba(255, 255, 255, .55) 25deg, transparent 60deg);
+    background: conic-gradient(transparent 0deg, rgba(255, 255, 255, .12) 45deg, transparent 100deg);
     -webkit-animation: coinSpin 3.2s linear infinite;
     animation: coinSpin 3.2s linear infinite;
     pointer-events: none;
