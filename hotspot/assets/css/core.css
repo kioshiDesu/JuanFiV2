@@ -155,7 +155,7 @@ body { -webkit-tap-highlight-color: transparent; }
 .loginopts{display:flex;gap:8px;align-items:stretch;}
 .loginopts #memberSection{flex:1 1 0;min-width:0;}
 .loginopts #trialWrap{margin-top:0;flex:1 1 0;min-width:0;}
-.loginopts #trialBtn{display:flex;align-items:center;height:100%;background:rgba(255,255,255,.03);border:1px solid rgba(164,176,190,.25);border-radius:12px;padding:12px 14px;color:#fff;text-decoration:none;}
+.loginopts #trialBtn{display:flex;align-items:center;height:100%;box-sizing:border-box;min-height:56px;background:rgba(255,255,255,.03);border:1px solid rgba(164,176,190,.25);border-radius:10px;padding:10px 14px;color:#fff;text-decoration:none;}
 .loginopts #trialBtn .member-text{display:flex;flex-direction:column;gap:2px;text-align:left;}
 .loginopts #trialBtn .member-title{font-size:15px;font-weight:700;}
 .loginopts #trialBtn .member-hint{font-size:12px;color:#a4b0be;}
