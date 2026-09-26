@@ -102,8 +102,11 @@ field is small), OK. No System → Scripts entry needed for this one.
 :local HSFilePath "hotspot";
 :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
 :local rawNote [/ip hotspot user get [find name="$user"] comment];
-:if ($rawNote = "") do={
-  :log warning ("On-Login(" . $user . "): empty comment, voucher timer skipped");
+:local isTrial ([:pick $user 0 2] = "T-");
+# Trial sessions expire natively via trial-uptime (Scripts-B) — never
+# delete trial rows here, that resets the MAC wait.
+:if (($rawNote = "") or ($isTrial)) do={
+  :log warning ("On-Login(" . $user . "): trial/empty comment, voucher timer skipped");
 } else={
 :local aUsrNote [:toarray $rawNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
