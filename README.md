@@ -243,7 +243,11 @@ serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
   "footerBrandText": "@NETBRO",
   "footerSubText": "INTERNET SERVICES",
   "currency": "₱",
-  "showMemberSection": true
+  "showMemberSection": true,
+  "showTrialLogin": false,
+  "trialNoExtend": true,
+  "showInternetStatus": true,
+  "offlineText": "No internet connection as of the moment, please try again later"
 }
 ```
    `false` on `showMemberSection` = voucher-only portal.
@@ -268,6 +272,12 @@ knows the uplink state. Adjust the path if your hotspot lives at
 /tool netwatch add host=8.8.8.8 interval=1m timeout=1000 comment="vendo net status" \
   up-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; /file set hotspot/data/netstatus.txt contents=\"up\"" \
   down-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; /file set hotspot/data/netstatus.txt contents=\"down\""
+```
+
+Run once now so the file exists before the first state change:
+
+```bash
+/file print file="hotspot/data/netstatus.txt" where name="dummyfile"; /file set hotspot/data/netstatus.txt contents="up"
 ```
 
 The portal reads it at boot (`showInternetStatus`, `offlineText` in
