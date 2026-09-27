@@ -141,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=90";
+var SOUND_V = "?v=91";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -293,8 +293,7 @@ function venueScopeSuffix() {
 	var v = "";
 	try {
 		if (typeof siteIdSuffix !== 'undefined' && siteIdSuffix) v = siteIdSuffix;
-		else if (typeof vendorIpAddress !== 'undefined' && vendorIpAddress) v = vendorIpAddress;
-		else if (typeof hotspotAddress !== 'undefined' && hotspotAddress) v = hotspotAddress;
+		else v = "ERROR SITE ID";
 	} catch (e) { }
 	return String(v).replace(/[^A-Za-z0-9]/g, "_");
 }
@@ -1023,7 +1022,7 @@ function applyFlags() {
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v90"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v91"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
