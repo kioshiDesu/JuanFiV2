@@ -381,7 +381,8 @@ body { -webkit-tap-highlight-color: transparent; }
     color: #fff;
     font-weight: 700;
 }
-.hero .vouchline.metatable { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin-top: 14px; }
+.hero .vouchline.metatable { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin-top: 14px; position: relative; }
+.hero .vouchline.metatable::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,.18); }
 /* Long homeowner brands, vouchers and meta values must wrap, never clip. */
 .brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
 .btnrow .btn { min-width: 0; }
