@@ -147,8 +147,7 @@ body { -webkit-tap-highlight-color: transparent; }
     padding: 10px 14px;
     border: 1px solid rgba(164, 176, 190, .25);
     border-radius: 10px;
-    background: rgba(255, 255, 255, .03);
-    text-transform: none;
+    background: rgba(255, 255, 255, .03);    text-transform: none;
     letter-spacing: normal;
     margin: 10px 0 0 0;
 }
@@ -382,7 +381,8 @@ body { -webkit-tap-highlight-color: transparent; }
     font-weight: 700;
 }
 .hero .vouchline.metatable { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin-top: 14px; position: relative; }
-.hero .vouchline.metatable::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,.18); }
+.hero .vouchline.metatable::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.22) 22%, rgba(255,255,255,.22) 78%, transparent); }
+.hero .vouchline.metatable.nohline::before { display: none; }
 /* Long homeowner brands, vouchers and meta values must wrap, never clip. */
 .brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
 .btnrow .btn { min-width: 0; }
@@ -598,8 +598,9 @@ body.coin-focus #ratesSection {
 
 hr.foot-hr {
     border: none;
-    border-top: 1px solid #485460;
+    height: 1px;
     margin: 14px 2px 0 2px;
+    background: linear-gradient(90deg, transparent, #485460 25%, #485460 75%, transparent);
 }
 .voucher-pill {
     display: flex;
@@ -740,6 +741,42 @@ hr.foot-hr {
    keep a visible focus ring on the coin button for keyboard users. */
 @media (prefers-reduced-motion: reduce) {
 	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low, .vshake { animation: none !important; }
+
+/* ---- cosmetic pass: drain gauge, hero haze, card hover ---- */
+.hero { position: relative; }
+.hero::before {
+    content: "";
+    position: absolute;
+    left: -12px; right: -12px; top: -18px; height: 190px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255,193,7,.07), transparent 70%);
+    pointer-events: none;
+}
+.hero > * { position: relative; }
+
+.drain {
+    width: 78%;
+    margin: 10px auto 0;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.09);
+    overflow: hidden;
+}
+.drain-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #f5b301, #ffd75e);
+    transition: width .9s linear, background .4s ease;
+}
+
+#memberSection .member-toggle, #trialBtn {
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+#memberSection .member-toggle:hover, #trialBtn:hover {
+    transform: translateY(-1px);
+    background: rgba(255,255,255,.055);
+    border-color: rgba(164,176,190,.4);
+}
 	#bootLoader.boot-fade { transition: none !important; }
 }
 #insertBtn:focus-visible { outline: 3px solid #4cd137; outline-offset: 3px; }

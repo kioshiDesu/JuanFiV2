@@ -141,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=102";
+var SOUND_V = "?v=103";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -899,6 +899,17 @@ function paintRemainA11y(time) {
 	} catch (e) {}
 }
 
+// Fuel-gauge bar under the countdown: fills at session start, drains per
+// tick. Width-only (compositor safe), colour flips to red inside the last 5.
+function paintDrain(time, total) {
+	var fill = document.getElementById("drainFill");
+	if (!fill) { return; }
+	var pct = (total > 0) ? Math.max(0, Math.min(100, (time / total) * 100)) : 0;
+	fill.style.width = pct.toFixed(1) + "%";
+	fill.style.background = (pct <= 8) ? "linear-gradient(90deg, #e0483d, #ff6a5e)"
+		: "linear-gradient(90deg, #f5b301, #ffd75e)";
+}
+
 function startCountdown() {
 	if ($("#remainTime").length == 0 || window.sessiontime == null) { return; }
 	var time = window.sessiontime;
@@ -914,6 +925,7 @@ function startCountdown() {
 	$("#remainTime").html(boxesDhms(time));
 	paintRemainA11y(time);
 	paintCountdownUrgency(time);
+	paintDrain(time, total);
 	fitCountdown("#remainTime");
 	if (window.remainingTimer != null) { clearInterval(window.remainingTimer); }
 	window.remainingTimer = setInterval(function () {
@@ -922,6 +934,7 @@ function startCountdown() {
 		$("#remainTime").html(boxesDhms(time));
 		paintRemainA11y(time);
 		paintCountdownUrgency(time);
+		paintDrain(time, total);
 		fitCountdown("#remainTime");
 		if (!warned5 && total > 300 && time <= 300) {
 			warned5 = true;
@@ -1027,7 +1040,7 @@ function applyFlags() {
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v102"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v103"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
