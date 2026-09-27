@@ -309,11 +309,11 @@ body { -webkit-tap-highlight-color: transparent; }
         padding-bottom: 12px;
     }
     #insertBtn {
-        width: 104px;
-        height: 104px;
+        width: 112px;
+        height: 112px;
     }
     #insertBtn .coin-peso {
-        font-size: 26px;
+        font-size: 32px;
     }
 }
 .clientline {
@@ -512,20 +512,20 @@ body { -webkit-tap-highlight-color: transparent; }
     align-items: center;
     position: relative;
     overflow: hidden;
-    width: 132px;
-    height: 132px;
+    width: 140px;
+    height: 140px;
     margin: 28px auto 22px auto;
     padding: 0;
     border-radius: 50%;
-    border: 6px dashed rgba(121, 85, 0, .55);
-    background: radial-gradient(circle at 35% 30%, #ffe082, #f9a825 55%, #c17900);
+    border: 6px dashed rgba(255, 224, 130, .85);
+    background: radial-gradient(circle at 35% 30%, #fff3c4, #ffd54f 45%, #f9a825 75%, #c17900);
     color: #4e342e;
     font-family: inherit;
     font-weight: 800;
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
-    box-shadow: 0 6px 0 #7c5a00, 0 10px 18px rgba(0, 0, 0, .5);
+    box-shadow: 0 6px 0 #7c5a00, 0 0 26px rgba(255, 193, 7, .5), 0 12px 22px rgba(0, 0, 0, .55);
     -webkit-animation: coinGlow 2.4s ease-in-out infinite;
     animation: coinGlow 2.4s ease-in-out infinite;
 }
@@ -550,13 +550,15 @@ body { -webkit-tap-highlight-color: transparent; }
     to { transform: rotate(360deg); }
 }
 #insertBtn .coin-peso {
-    font-size: 34px;
+    font-size: 42px;
     line-height: 1;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .4);
 }
 #insertBtn .coin-label {
-    font-size: 12px;
-    letter-spacing: .12em;
-    margin-top: 2px;
+    font-size: 13px;
+    letter-spacing: .18em;
+    margin-top: 4px;
+    color: #5d4037;
 }
 @-webkit-keyframes coinGlow {
     0%, 100% { opacity: 1; }
