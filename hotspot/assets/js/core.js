@@ -141,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=93";
+var SOUND_V = "?v=94";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -642,11 +642,16 @@ function checkNetStatus() {
 	$.ajax({ type: "GET", url: "data/netstatus.txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT, dataType: "text" })
 	.done(function (t) {
 		try {
-			if (String(t || "").toLowerCase().indexOf("up") === 0) { $("#netBanner").hide(); }
-			else {
+			var raw = String(t || "").toLowerCase();
+			// Script writes plain up/down, but a RouterOS-created file can
+			// carry print-header comments — only an explicit "down" means offline.
+			if (raw.indexOf("down") !== -1) {
 				var msg = "No internet connection as of the moment, please try again later";
 				try { if (typeof offlineText !== "undefined" && offlineText) { msg = offlineText; } } catch (e2) {}
 				$("#netBanner").text(msg).show();
+			} else {
+				try { dbgLog("net: up"); } catch (e2) {}
+				$("#netBanner").hide();
 			}
 		} catch (e) {}
 		d.resolve();
@@ -1022,7 +1027,7 @@ function applyFlags() {
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v93"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v94"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

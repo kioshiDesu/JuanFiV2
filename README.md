@@ -270,15 +270,24 @@ knows the uplink state. Adjust the path if your hotspot lives at
 
 ```bash
 /tool netwatch add host=8.8.8.8 interval=1m timeout=1000 comment="vendo net status" \
-  up-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; /file set hotspot/data/netstatus.txt contents=\"up\"" \
-  down-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; /file set hotspot/data/netstatus.txt contents=\"down\""
+  up-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; :local x 3; :while ((\$x>0) and ([/file find name=\"hotspot/data/netstatus.txt\"]=\"\")) do={ :set x (\$x-1); :delay 1s }; /file set hotspot/data/netstatus.txt contents=\"up\"" \
+  down-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; :local x 3; :while ((\$x>0) and ([/file find name=\"hotspot/data/netstatus.txt\"]=\"\")) do={ :set x (\$x-1); :delay 1s }; /file set hotspot/data/netstatus.txt contents=\"down\""
 ```
 
-Run once now so the file exists before the first state change:
+Run once now so the file exists before the first state change (the
+wait loop matters — `/file print` creates the file a moment after the
+script starts, so an immediate `/file set` silently no-ops and you end
+up with a file that only holds RouterOS print comments):
 
 ```bash
-/file print file="hotspot/data/netstatus.txt" where name="dummyfile"; /file set hotspot/data/netstatus.txt contents="up"
+/file print file="hotspot/data/netstatus.txt" where name="dummyfile"
+:local x 3; :while (($x>0) and ([/file find name="hotspot/data/netstatus.txt"]="")) do={ :set x ($x-1); :delay 1s };
+/file set hotspot/data/netstatus.txt contents="up"
 ```
+
+Check it: `/file print detail where name="netstatus.txt"` must show
+contents `up` — a file full of `# sep/...` comment lines means the set
+lost the race again, re-run the three lines above.
 
 The portal reads it at boot (`showInternetStatus`, `offlineText` in
 `settings.json`); a missing file keeps the banner hidden.

@@ -387,7 +387,7 @@ body { -webkit-tap-highlight-color: transparent; }
 .brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
 .btnrow .btn { min-width: 0; }
 .hero .vouchline .metacol.metaleft { border-right: 1px solid rgba(255,255,255,.18); padding-right: 14px; }
-.hero .vouchline .metacol.metaright { padding-left: 14px; }
+.hero .vouchline .metacol.metaright { padding-left: 14px; padding-right: 14px; }
 .hero .vouchline .metarow { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; }
 .hero .vouchline .metacol { display: flex; flex-direction: column; justify-content: center; }
 .hero .vouchline .metalabel { text-align: left; }
