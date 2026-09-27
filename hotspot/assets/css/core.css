@@ -538,7 +538,7 @@ body { -webkit-tap-highlight-color: transparent; }
     position: absolute;
     inset: -45%;
     border-radius: 50%;
-    background: conic-gradient(transparent 0deg, rgba(255, 255, 255, .28) 45deg, transparent 100deg);
+    background: conic-gradient(transparent 0deg, rgba(255, 255, 255, .5) 45deg, transparent 105deg, transparent 215deg, rgba(255, 255, 255, .22) 250deg, transparent 305deg);
     -webkit-animation: coinSpin 3.2s linear infinite;
     animation: coinSpin 3.2s linear infinite;
     pointer-events: none;
