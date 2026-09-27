@@ -741,6 +741,8 @@ hr.foot-hr {
    keep a visible focus ring on the coin button for keyboard users. */
 @media (prefers-reduced-motion: reduce) {
 	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low, .vshake { animation: none !important; }
+	#bootLoader.boot-fade { transition: none !important; }
+}
 
 /* ---- cosmetic pass: drain gauge, hero haze, card hover ---- */
 .hero { position: relative; }
@@ -776,7 +778,5 @@ hr.foot-hr {
     transform: translateY(-1px);
     background: rgba(255,255,255,.055);
     border-color: rgba(164,176,190,.4);
-}
-	#bootLoader.boot-fade { transition: none !important; }
 }
 #insertBtn:focus-visible { outline: 3px solid #4cd137; outline-offset: 3px; }
