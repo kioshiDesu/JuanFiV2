@@ -386,10 +386,10 @@ body { -webkit-tap-highlight-color: transparent; }
 .brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
 .btnrow .btn { min-width: 0; }
 .hero .vouchline .metacol.metaleft { border-right: 1px solid rgba(255,255,255,.18); }
-.hero .vouchline .metarow { display: flex; justify-content: space-between; align-items: center; min-height: 34px; padding: 7px 0; }
+.hero .vouchline .metarow { display: flex; justify-content: center; align-items: center; gap: 6px; min-height: 34px; padding: 7px 0; text-align: center; }
 .hero .vouchline .metacol { display: flex; flex-direction: column; justify-content: center; padding: 8px; }
-.hero .vouchline .metalabel { text-align: left; line-height: 20px; text-transform: uppercase; letter-spacing: .06em; }
-.hero .vouchline .metaval { text-align: right; line-height: 20px; }
+.hero .vouchline .metalabel { text-align: center; line-height: 20px; text-transform: uppercase; letter-spacing: .06em; display: inline-flex; align-items: center; }
+.hero .vouchline .metaval { text-align: center; line-height: 20px; }
 .hero .vouchline .mico { width: 15px; height: 15px; vertical-align: -2px; margin-right: 3px; }
 .pausenote {
     margin: 10px 0 2px 0;
