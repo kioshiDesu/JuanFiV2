@@ -192,19 +192,7 @@ body { -webkit-tap-highlight-color: transparent; }
     padding-bottom: max(16px, env(safe-area-inset-bottom));
     position: relative;
 }
-/* Footer ground: page fades from the panel grey down into black, so the
-   last row (brand, year, version) sits on a darker base. */
-.portal::after {
-    content: "";
-    position: absolute;
-    left: -12px;
-    right: -12px;
-    bottom: -16px;
-    height: 150px;
-    background: linear-gradient(180deg, transparent, rgba(0,0,0,.45));
-    pointer-events: none;
-    z-index: -1;
-}
+
 .topbar {
     display: flex;
     align-items: center;
@@ -657,6 +645,22 @@ body.coin-focus #ratesSection {
     margin-top: 20px;
 }
 
+/* Footer ground: the fade starts transparent at the separator and runs
+   to the bottom of the screen, so the last row sits on black. */
+.footer {
+    position: relative;
+}
+.footer::after {
+    content: "";
+    position: absolute;
+    left: -12px;
+    right: -12px;
+    top: -20px;
+    height: 100vh;
+    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.45) 45vh);
+    pointer-events: none;
+    z-index: -1;
+}
 hr.foot-hr {
     border: none;
     height: 2px;
