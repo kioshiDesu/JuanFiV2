@@ -646,6 +646,23 @@ body.coin-focus #ratesSection {
     margin-top: 20px;
 }
 
+/* Footer ground: a soft radial pool of black sitting behind the footer
+   text only. It does not climb the page, so nothing else gets darker. */
+.footer {
+    position: relative;
+    isolation: isolate;
+}
+.footer::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    width: 130vw;
+    height: 150px;
+    transform: translate(-50%, -38%);
+    background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, transparent 72%);
+    pointer-events: none;
+    z-index: -1;
+}
 hr.foot-hr {
     border: none;
     height: 2px;
