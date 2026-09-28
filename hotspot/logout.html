@@ -3,14 +3,14 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=139">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=139">
+	<link rel="stylesheet" href="assets/css/core.css?v=140">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=140">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="#101418">
-	<title>JuanFiV2 - Logged out</title>
+	<title>Logged out</title>
 	<script>
-	// Auto-login pending: leave before first paint, no receipt flash.
+	// Auto-login pending: leave before first paint, no screen flash.
 	try {
 		var r = null;
 		if (typeof localStorage !== 'undefined' && localStorage) { r = localStorage.getItem("reLogin"); }
@@ -20,49 +20,42 @@
 	</script>
 </head>
 
-<!-- Router vars are user-adjacent ($(username) is typed at login): never
-     inline them in JS strings or attributes — spans + textContent below. -->
+<!-- The router already ended the session by the time this page renders, so
+     there is no uptime/usage to show: just the voucher, one button, and the
+     way back. $(username) is user-typed, so it stays in a span and is read
+     via textContent — never inlined into JS or an attribute. -->
 <body id="loginBody">
 <noscript><div style="padding:20px;text-align:center">This portal needs JavaScript. Please enable it and reload.</div></noscript>
 <span id="loU" style="display:none">$(username)</span>
-<span id="loUp" style="display:none">$(uptime)</span>
-<span id="loIn" style="display:none">$(bytes-in-nice)</span>
-<span id="loOut" style="display:none">$(bytes-out-nice)</span>
 <span id="loLink" style="display:none">$(link-login)</span>
 
 <div class="portal">
 	<div class="hero">
-		<h1 class="sub">Logged out</h1>
+		<h1 class="sub">You are logged out</h1>
 		<div class="vouchline">Voucher <span id="loUser"></span></div>
 	</div>
 
-	<div class="vouchline">Session <span id="loUptime"></span></div>
-	<div class="vouchline">Uploaded <span id="loUp"></span> &bull; Downloaded <span id="loDown"></span></div>
-
 	<div class="btnrow">
-		<a id="loLogin" href="login" class="btn btn-info btn-block" style="display: block; width: 100%; min-height: 48px; line-height: 32px;">LOG IN AGAIN</a>
+		<a id="loLogin" href="login" class="btn btn-info btn-block" style="display: block; width: 100%; min-height: 48px; line-height: 34px;">CONNECT AGAIN</a>
 	</div>
 
 	<div class="btnrow">
-		<button type="button" id="loStay" class="btn btn-success btn-block" style="display: block; width: 100%; min-height: 48px;">STAY HERE</button>
 		<button type="button" id="loCopy" class="btn btn-primary btn-block" style="display: block; width: 100%; min-height: 48px;">COPY VOUCHER</button>
 	</div>
 
-	<div class="pausenote" id="loNote" role="status" aria-live="polite">Returning to login in <span id="loCount">10</span>s — your saved code auto-connects there.</div>
+	<p class="pausenote" id="loNote" role="status" aria-live="polite">Returning to login in <span id="loCount">10</span>s</p>
 </div>
 
 <script>
 (function () {
 	function t(id) { try { return document.getElementById(id).textContent || ""; } catch (e) { return ""; } }
 	try {
-		document.getElementById("loUser").textContent = t("loU");
-		document.getElementById("loUptime").textContent = t("loUp");
-		document.getElementById("loUp").textContent = t("loIn");
-		document.getElementById("loDown").textContent = t("loOut");
+		var code = t("loU");
+		document.getElementById("loUser").textContent = code || "—";
 		var link = t("loLink") || "login";
 		document.getElementById("loLogin").href = link;
-		// Auto-login pending (pause/renew set reLogin): skip the receipt
-		// preview entirely — the login page submits on its own.
+		// Auto-login pending (pause/renew set reLogin): the login page
+		// submits on its own, so leave at once.
 		var relogin = null;
 		try {
 			if (typeof localStorage !== 'undefined' && localStorage) { relogin = localStorage.getItem("reLogin"); }
@@ -79,12 +72,7 @@
 			if (n <= 0) { clearInterval(iv); window.location.replace(link); return; }
 			try { el.textContent = n; } catch (e) {}
 		}, 1000);
-		document.getElementById("loStay").onclick = function () {
-			try { clearInterval(iv); } catch (e) {}
-			try { document.getElementById("loNote").textContent = "Staying here — tap LOG IN AGAIN when ready."; } catch (e) {}
-		};
 		document.getElementById("loCopy").onclick = function () {
-			var code = t("loU");
 			function done(ok) {
 				try { document.getElementById("loNote").textContent = ok ? "Voucher copied." : "Copy failed — long-press the code above."; } catch (e) {}
 			}
