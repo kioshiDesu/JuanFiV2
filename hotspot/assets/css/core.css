@@ -145,7 +145,7 @@ body {
 }
 .portal { flex: 1 0 auto; }
 /* Overscroll bounce must reveal the gradient's end colour, not grey. */
-html { background-color: #0b0c0d; }
+html { background-color: #3d4044; }
 button, a, input, select { touch-action: manipulation; }
 body { -webkit-tap-highlight-color: transparent; }
 .skip { position: absolute; left: -999px; top: 0; z-index: 12000; background: #fff; color: #000; padding: 8px 12px; }
@@ -659,31 +659,6 @@ body.coin-focus #ratesSection {
     margin-top: 20px;
 }
 
-/* Footer ground: a soft radial pool of black sitting behind the footer
-   text only. It does not climb the page, so nothing else gets darker. */
-.footer {
-    position: relative;
-    isolation: isolate;
-}
-.footer::after {
-    content: "";
-    position: absolute;
-    /* Full-bleed so the wrap reaches both screen edges: the portal is
-       480px wide, the fade should not stop at its gutters. */
-    left: 50%;
-    width: 100vw;
-    transform: translateX(-50%);
-    /* top + bottom (no height) so the dark always runs past the viewport
-       edge, whatever the footer height is. */
-    top: -26px;
-    bottom: -100vh;
-    background-color: rgba(0,0,0,.82);
-    background-image: linear-gradient(180deg, transparent 0, rgba(0,0,0,.35) 22%, rgba(0,0,0,.82) 44%);
-    background-repeat: no-repeat;
-    background-size: 100% 300px;
-    pointer-events: none;
-    z-index: -1;
-}
 hr.foot-hr {
     border: none;
     height: 2px;
