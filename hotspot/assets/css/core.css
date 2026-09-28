@@ -132,6 +132,7 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     border-radius: 2px;
 #app .btn:focus-visible, #app .iconbtn:focus-visible, #app input:focus-visible, #app select:focus-visible, #app .vhist-row:focus-visible { outline: 3px solid #4cd137; outline-offset: 2px; }
 html { color-scheme: dark; }
+body { overflow-x: hidden; }
 button, a, input, select { touch-action: manipulation; }
 body { -webkit-tap-highlight-color: transparent; }
 .skip { position: absolute; left: -999px; top: 0; z-index: 12000; background: #fff; color: #000; padding: 8px 12px; }
@@ -653,8 +654,11 @@ body.coin-focus #ratesSection {
 .footer::after {
     content: "";
     position: absolute;
-    left: -12px;
-    right: -12px;
+    /* 100vw centered so the fade reaches both screen edges regardless of
+       the .portal / body padding; overflow-x hidden keeps it off the scrollbar. */
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
     top: -20px;
     height: 100vh;
     background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.45) 45vh);
