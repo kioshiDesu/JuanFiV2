@@ -569,8 +569,8 @@ body { -webkit-tap-highlight-color: transparent; }
     50% { opacity: .88; }
 }
 
-/* 4) Active-state cue: a hairline gold rule on the logged-in cards. */
-#view-status .hero, #view-paused .hero {
+/* 4) Hairline gold rule: login card too, so all three views share it. */
+#view-login .hero, #view-status .hero, #view-paused .hero {
     border-top: 2px solid rgba(255,193,7,.32);
     padding-top: 12px;
     border-radius: 0 0 12px 12px;
