@@ -141,7 +141,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=106";
+var SOUND_V = "?v=107";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -838,12 +838,24 @@ function render(state) {
 			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); }
 			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); }
 		} catch (e) {}
+		// Cache last known usage so the paused view can show it (router
+		// drops the byte counters once the session is paused/logged out).
+		try {
+			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { setStorageValue(scopedKey("lastUp"), window.bytesIn); }
+			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { setStorageValue(scopedKey("lastDown"), window.bytesOut); }
+		} catch (e) {}
 		startCountdown();
 		previewUrgencyHook();
 	}
 	if (state == "paused") {
 		$("#pausedVoucher").text(voucher);
 		renderStoredRemain("#pauseRemainTime", voucher);
+		try {
+			var lastUp = getStorageValue(scopedKey("lastUp"));
+			var lastDown = getStorageValue(scopedKey("lastDown"));
+			if (lastUp) { $("#upUsedPaused").text(lastUp); }
+			if (lastDown) { $("#downUsedPaused").text(lastDown); }
+		} catch (e) {}
 	}
 }
 
@@ -1027,7 +1039,7 @@ function applyFlags() {
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v106"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v107"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

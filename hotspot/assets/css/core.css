@@ -382,7 +382,6 @@ body { -webkit-tap-highlight-color: transparent; }
 }
 .hero .vouchline.metatable { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin-top: 14px; position: relative; }
 .hero .vouchline.metatable::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.22) 22%, rgba(255,255,255,.22) 78%, transparent); }
-.hero .vouchline.metatable.nohline::before { display: none; }
 /* Long homeowner brands, vouchers and meta values must wrap, never clip. */
 .brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
 .btnrow .btn { min-width: 0; }
@@ -598,17 +597,15 @@ body.coin-focus #ratesSection {
 
 hr.foot-hr {
     border: none;
-    height: 1px;
+    height: 2px;
     margin: 14px 2px 0 2px;
-    background: linear-gradient(90deg, transparent, #485460 25%, #485460 75%, transparent);
+    background: linear-gradient(90deg, transparent, rgba(201,207,215,.55) 20%, rgba(201,207,215,.55) 80%, transparent);
 }
 .voucher-pill {
     display: flex;
     align-items: stretch;
     margin-top: 10px;
 }
-.voucher-pill:hover { background: rgba(255,255,255,.06); }
-.voucher-pill:focus-within { outline: 3px solid #4cd137; outline-offset: 2px; }
 .voucher-pill input {
     flex: 1 1 auto;
     min-width: 0;
@@ -744,7 +741,7 @@ hr.foot-hr {
 	#bootLoader.boot-fade { transition: none !important; }
 }
 
-/* ---- cosmetic pass: hero haze, card hover ---- */
+/* ---- cosmetic pass: hero haze ---- */
 .hero { position: relative; }
 .hero::before {
     content: "";
@@ -755,12 +752,4 @@ hr.foot-hr {
 }
 .hero > * { position: relative; }
 
-#memberSection .member-toggle, #trialBtn {
-    transition: transform .15s ease, background .15s ease, border-color .15s ease;
-}
-#memberSection .member-toggle:hover, #trialBtn:hover {
-    transform: translateY(-1px);
-    background: rgba(255,255,255,.055);
-    border-color: rgba(164,176,190,.4);
-}
 #insertBtn:focus-visible { outline: 3px solid #4cd137; outline-offset: 3px; }
