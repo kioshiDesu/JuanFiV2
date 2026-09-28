@@ -635,10 +635,12 @@ body.coin-focus #ratesSection {
 }
 body.coin-focus #ratesSection {
     /* Opaque card in the page bg: the section paints above the veil, but
-       its transparent gaps would still show the darkened page through it. */
+       its transparent gaps would still show the darkened page through it.
+       Extra top margin keeps it clear of the coin panel's gold glow. */
     background: #3d4044;
     border-radius: 10px;
     padding: 10px 10px 12px 10px;
+    margin-top: 20px;
 }
 
 hr.foot-hr {
