@@ -616,6 +616,7 @@ body.coin-focus #coinDim {
    padding keeps the gauge and buttons off the edge. */
 body.coin-focus #coinPanel {
     padding: 0 14px 14px 14px;
+    border-radius: 0 0 12px 12px;
     animation: coinHalo 2.4s ease-in-out infinite;
 }
 @-webkit-keyframes coinHalo {
