@@ -133,6 +133,19 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
 #app .btn:focus-visible, #app .iconbtn:focus-visible, #app input:focus-visible, #app select:focus-visible, #app .vhist-row:focus-visible { outline: 3px solid #4cd137; outline-offset: 2px; }
 html { color-scheme: dark; }
 body { overflow-x: hidden; }
+/* Sticky footer: the portal grows so its footer always sits on the
+   viewport bottom instead of floating mid-page. dvh tracks the real
+   mobile viewport (100vh is the tallest, URL-bar-hidden one). */
+html, body { height: 100%; }
+body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+.portal { flex: 1 0 auto; }
+/* Overscroll bounce must reveal the gradient's end colour, not grey. */
+html { background-color: #0b0c0d; }
 button, a, input, select { touch-action: manipulation; }
 body { -webkit-tap-highlight-color: transparent; }
 .skip { position: absolute; left: -999px; top: 0; z-index: 12000; background: #fff; color: #000; padding: 8px 12px; }
@@ -663,6 +676,7 @@ body.coin-focus #ratesSection {
     top: -26px;
     height: 200%;
     background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.35) 30%, rgba(0,0,0,.62) 60%, rgba(0,0,0,.8) 100%);
+    padding-bottom: env(safe-area-inset-bottom);
     pointer-events: none;
     z-index: -1;
 }
