@@ -744,32 +744,16 @@ hr.foot-hr {
 	#bootLoader.boot-fade { transition: none !important; }
 }
 
-/* ---- cosmetic pass: drain gauge, hero haze, card hover ---- */
+/* ---- cosmetic pass: hero haze, card hover ---- */
 .hero { position: relative; }
 .hero::before {
     content: "";
     position: absolute;
-    left: -12px; right: -12px; top: -18px; height: 190px;
-    background: radial-gradient(ellipse at 50% 0%, rgba(255,193,7,.07), transparent 70%);
+    left: -12px; right: -12px; top: 4px; height: 210px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255,193,7,.12), transparent 72%);
     pointer-events: none;
 }
 .hero > * { position: relative; }
-
-.drain {
-    width: 78%;
-    margin: 10px auto 0;
-    height: 4px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.09);
-    overflow: hidden;
-}
-.drain-fill {
-    height: 100%;
-    width: 0;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #f5b301, #ffd75e);
-    transition: width .9s linear, background .4s ease;
-}
 
 #memberSection .member-toggle, #trialBtn {
     transition: transform .15s ease, background .15s ease, border-color .15s ease;
