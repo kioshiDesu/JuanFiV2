@@ -336,6 +336,7 @@ body { -webkit-tap-highlight-color: transparent; }
     font-size: clamp(30px, 11vw, 44px);
     font-weight: 800;
     color: #fff;
+    text-shadow: 0 0 22px rgba(255,193,7,.18), 0 0 6px rgba(255,193,7,.10);
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
