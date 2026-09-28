@@ -544,8 +544,8 @@ body { -webkit-tap-highlight-color: transparent; }
     inset: -45%;
     border-radius: 50%;
     background: conic-gradient(transparent 0deg, rgba(255, 255, 255, .5) 45deg, transparent 105deg, transparent 215deg, rgba(255, 255, 255, .22) 250deg, transparent 305deg);
-    -webkit-animation: coinSpin 3.2s linear infinite;
-    animation: coinSpin 3.2s linear infinite;
+    -webkit-animation: coinSpin 5.2s linear infinite;
+    animation: coinSpin 5.2s linear infinite;
     pointer-events: none;
 }
 @-webkit-keyframes coinSpin {
@@ -661,7 +661,7 @@ body.coin-focus #ratesSection {
     transform: translateX(-50%);
     top: -20px;
     height: 100vh;
-    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.72) 50vh);
+    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.85) 52vh);
     pointer-events: none;
     z-index: -1;
 }
