@@ -661,7 +661,9 @@ body.coin-focus #ratesSection {
     transform: translateX(-50%);
     top: -20px;
     height: 100vh;
-    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.85) 52vh);
+    /* Fills down to the screen edge, but the fade itself stops early so it
+       never becomes a wall of black behind the page. */
+    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.55) 26vh, rgba(0,0,0,.78) 46vh);
     pointer-events: none;
     z-index: -1;
 }
