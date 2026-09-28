@@ -14,85 +14,56 @@ vendo system. Portal files only — no firmware in this repo.
 - Logout receipt, live session Up/Down usage on the status view
 - `api.json` captive-portal API so phones show time left natively
 
-## Scripts (paste in order)
+## Scripts (paste in order: A (router setup), B (On-Login), C (On-Logout), D (portal files))
 
-### A. Router clock
+### A. Router setup (one paste)
 
-Fixes 1970-time voucher issues. Uses raw IPs (Google Public NTP) so the
-clock syncs even before DNS is up:
+Everything that is not the login/logout hook, in one idempotent script:
+clock, hotspot profile, free trial, cookie flush, FastTrack fix, the
+site-ID publisher and the internet-status netwatch. Safe to run twice —
+every step checks before it acts, and each step logs instead of aborting
+the rest.
 
-```bash
-# RouterOS v6
-/system ntp client set enabled=yes primary-ntp=216.239.35.8 secondary-ntp=216.239.35.4
-# RouterOS v7
-/system ntp client set enabled=yes servers=216.239.35.8,216.239.35.4
+**[`juanfi-setup.rsc`](juanfi-setup.rsc) is the file.** Copy it to the
+router and import it:
+
+```
+/import file=juanfi-setup.rsc
 ```
 
-Verify with `/system clock print` — year must be current, not 1970
-(stale clock = garbage scheduler `next-run` = garbage voucher validity).
-Set the timezone too: `/system clock set time-zone-name=Asia/Manila`
-(use your own zone).
+or drag it into Winbox → Files and double-click it. It prints the clock,
+site-id and netstatus values at the end so you see what landed. Re-paste
+it any time to re-apply; a daily scheduler (`juanfi-setup-daily`) runs it
+on its own, which is what restores `site-id.txt` and `netstatus.txt` if
+anyone deletes them.
 
-### B. Hotspot profile tuning
+Verify by hand if you like:
 
-Winbox: Hotspot → Server Profiles → your profile → **Login** tab:
-untick **Login by Cookie** + **Login by MAC Cookie**. Tick
-**HTTP CHAP + HTTP PAP only** (never HTTPS login —
-browsers block plain-HTTP vendo calls as mixed content).
-Cookie lifetimes gray out once both cookie methods are off.
-
-Hotspot → **User Profiles** → `default`: Idle Timeout `none`,
-Keepalive Timeout `30s`, Status Autorefresh `1m`.
-
-```bash
-/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap
-/ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m
+```
+/system clock print
+/file print detail where name="site-id.txt"
+/file print detail where name="netstatus.txt"
 ```
 
-Free trial logins (optional): add `trial` to the login methods, then
-set the per-MAC trial allowance (uptime + reset wait) and the trial
-user profile:
+The clock year must be current (a 1970 clock makes scheduler `next-run`
+garbage, which makes voucher validity garbage). `site-id.txt` must hold
+your board serial. `netstatus.txt` must read `up` — a file full of
+`# sep/...` comment lines means the set lost the race, so re-paste the
+file.
 
-```bash
-/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap,trial
-/ip hotspot profile set [find name="hsprof1"] trial-uptime=5m/1d trial-user-profile=default
-```
+Edit `PROF`, `NTP1/NTP2` and the timezone inside the script if your
+router differs. Trial logins are the `trial-uptime=5m/1d` line: drop
+`,trial` from `login-by` to turn the free trial off. The portal shows its
+trial button only when the router serves trial (`$(if trial == 'yes')`
+renders) *and* `showTrialLogin` is true in `settings.json`. Trials are
+MAC-tied (rotation eats the trial) and vanish on router reboot — vouchers
+stay the real product.
 
-The portal shows its trial button only when both the router serves
-trial (`$(if trial == 'yes')` must render) and `showTrialLogin` is true
-in `settings.json`. Caveats: trial users are MAC-tied (rotation eats
-the trial) and vanish on router reboot — vouchers stay the real product.
-
-Trial sessions can hide EXTEND TIME (`trialNoExtend`, default true in
-`settings.json`) and show FREE TRIAL on the dashboard instead of the
-`T-…` code — the original trial code still lands in voucher history.
-
-Already ran with cookies before? Paste once on the router
-(off-hours — kicks actives) to drop the old login methods and
-flush issued cookies:
-
-```bash
-/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap
-/ip hotspot cookie print
-/ip hotspot cookie remove [find]
-```
-
-Note: the status page's autorefresh counts as traffic. With autorefresh
-(`1m`) longer than keepalive (`30s`), idle expiry still works once the
-page is closed. If idle users never expire, check the defconf FastTrack
-firewall rule first (fasttracked traffic skips idle accounting) — accept
-hotspot traffic before it:
-
-```bash
-/ip firewall filter add chain=forward action=accept protocol=tcp dst-port=80,443 \
-  src-address=10.0.0.0/16 place-before=0 comment="hotspot before fasttrack"
-```
-
-### C. On-Login
+### B. On-Login
 
 Hotspot → Server Profiles → your profile → Login tab → On Login.
 `HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
-E). Paste E first so `data/site-id.txt` already exists when logins run.
+A). Run A first so `data/site-id.txt` already exists when logins run.
 
 Winbox method: same path in Winbox — double-click the profile →
 Login tab → paste into the On Login box (maximize the window, the
@@ -103,7 +74,7 @@ field is small), OK. No System → Scripts entry needed for this one.
 :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
 :local rawNote [/ip hotspot user get [find name="$user"] comment];
 :local isTrial ([:pick $user 0 2] = "T-");
-# Trial sessions expire natively via trial-uptime (Scripts-B) — never
+# Trial sessions expire natively via trial-uptime (Scripts-A) — never
 # delete trial rows here, that resets the MAC wait.
 :if (($rawNote = "") or ($isTrial)) do={
   :log warning ("On-Login(" . $user . "): trial/empty comment, voucher timer skipped");
@@ -170,7 +141,7 @@ tracker version? Delete the leftovers on the router: scripts
 Income`, `Reset Monthly Income`, `tg-creds-boot` — nothing reads
 them anymore.
 
-### D. On-Logout (same profile)
+### C. On-Logout (same profile)
 
 Winbox: same Login tab → On Logout box, paste, OK.
 
@@ -185,39 +156,7 @@ preserved, not forfeited):
 }
 ```
 
-### E. Site ID publisher
-
-Publishes the board serial to `data/site-id.txt` so saved vouchers are
-scoped per site. Write-once, runs at startup, needs no reachable vendo:
-
-```bash
-/system script add name="publish-site-id" policy=read,write,ftp,test source={
-  :local HSFilePath "hotspot";
-  :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
-  :local siteFile ($HSFilePath . "/data/site-id.txt");
-  :if ([/file find name=($HSFilePath . "/data")] = "") do={
-    :do { /tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/" } on-error={};
-  }
-  :local siteOld "";
-  :do { :set siteOld [/file get [find name=$siteFile] contents] } on-error={};
-  :if ($siteOld = "") do={
-    :local sn "";
-    :do { :set sn [/system routerboard get serial-number] } on-error={};
-    :if ([:len $sn] >= 4) do={
-      /file print file=$siteFile where name="dummyfile";
-      :local x 5;:while (($x>0) and ([/file find name=$siteFile]="")) do={:set x ($x-1);:delay 1s};
-      /file set "$siteFile" contents="$sn";
-    }
-  }
-};
-/system scheduler add name="publish-site-id" start-time=startup interval=1d policy=read,write,ftp,test on-event="/system script run publish-site-id";
-```
-
-Run `/system script run publish-site-id` once after pasting. Verify:
-`/file print where name="hotspot/data/site-id.txt"` must show your board
-serial. Boards without a serial (CHR/x86) fall back to vendorIp scoping.
-
-### F. Portal files
+### D. Portal files
 
 1. In `hotspot/settings.json` set `vendorIpAddress` to your vendo
    IP (`10.0.0.254` by default).
@@ -261,36 +200,6 @@ Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +
 router shells) on every portal change so phones don't serve stale JS.
 Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
-
-### G. Internet status (netwatch)
-
-Writes `hotspot/data/netstatus.txt` (`up`/`down`) so the portal banner
-knows the uplink state. Adjust the path if your hotspot lives at
-`flash/hotspot`:
-
-```bash
-/tool netwatch add host=8.8.8.8 interval=1m timeout=1000 comment="vendo net status" \
-  up-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; :local x 3; :while ((\$x>0) and ([/file find name=\"hotspot/data/netstatus.txt\"]=\"\")) do={ :set x (\$x-1); :delay 1s }; /file set hotspot/data/netstatus.txt contents=\"up\"" \
-  down-script="/file print file=\"hotspot/data/netstatus.txt\" where name=\"dummyfile\"; :local x 3; :while ((\$x>0) and ([/file find name=\"hotspot/data/netstatus.txt\"]=\"\")) do={ :set x (\$x-1); :delay 1s }; /file set hotspot/data/netstatus.txt contents=\"down\""
-```
-
-Run once now so the file exists before the first state change (the
-wait loop matters — `/file print` creates the file a moment after the
-script starts, so an immediate `/file set` silently no-ops and you end
-up with a file that only holds RouterOS print comments):
-
-```bash
-/file print file="hotspot/data/netstatus.txt" where name="dummyfile"
-:local x 3; :while (($x>0) and ([/file find name="hotspot/data/netstatus.txt"]="")) do={ :set x ($x-1); :delay 1s };
-/file set hotspot/data/netstatus.txt contents="up"
-```
-
-Check it: `/file print detail where name="netstatus.txt"` must show
-contents `up` — a file full of `# sep/...` comment lines means the set
-lost the race again, re-run the three lines above.
-
-The portal reads it at boot (`showInternetStatus`, `offlineText` in
-`settings.json`); a missing file keeps the banner hidden.
 
 ## Optional
 
