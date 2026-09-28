@@ -800,7 +800,7 @@ hr.foot-hr {
 }
 .hero > * { position: relative; }
 /* The coin panel supplies its own bottom spacing. */
-body.coin-focus #coinPanel .hero { margin-bottom: 0; }
+body.coin-focus #coinPanel .hero { margin: 0; padding: 0 0 4px 0; }
 
 #insertBtn:focus-visible { outline: 3px solid #4cd137; outline-offset: 3px; }
 
