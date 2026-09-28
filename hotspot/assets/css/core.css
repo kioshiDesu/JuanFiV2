@@ -646,27 +646,6 @@ body.coin-focus #ratesSection {
     margin-top: 20px;
 }
 
-/* Footer ground: the fade starts transparent at the separator and runs
-   to the bottom of the screen, so the last row sits on black. */
-.footer {
-    position: relative;
-}
-.footer::after {
-    content: "";
-    position: absolute;
-    /* 100vw centered so the fade reaches both screen edges regardless of
-       the .portal / body padding; overflow-x hidden keeps it off the scrollbar. */
-    left: 50%;
-    width: 100vw;
-    transform: translateX(-50%);
-    top: -20px;
-    height: 100vh;
-    /* Fills down to the screen edge, but the fade itself stops early so it
-       never becomes a wall of black behind the page. */
-    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.55) 26vh, rgba(0,0,0,.78) 46vh);
-    pointer-events: none;
-    z-index: -1;
-}
 hr.foot-hr {
     border: none;
     height: 2px;
