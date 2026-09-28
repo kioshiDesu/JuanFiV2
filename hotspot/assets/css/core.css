@@ -661,7 +661,7 @@ body.coin-focus #ratesSection {
     transform: translateX(-50%);
     top: -20px;
     height: 100vh;
-    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.45) 45vh);
+    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.72) 50vh);
     pointer-events: none;
     z-index: -1;
 }
