@@ -613,15 +613,16 @@ body.coin-focus #coinDim {
 /* 3) Coin-slot halo: while the paid panel is open, a slow gold ring tells
    the customer the machine is waiting on them. */
 body.coin-focus #coinPanel {
+    border-top: 1px solid rgba(255,193,7,.40);
     animation: coinHalo 2.4s ease-in-out infinite;
 }
 @-webkit-keyframes coinHalo {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(255,193,7,.28), 0 0 14px rgba(255,193,7,.10); }
-    50% { box-shadow: 0 0 0 1px rgba(255,193,7,.60), 0 0 26px rgba(255,193,7,.22); }
+    0%, 100% { border-top-color: rgba(255,193,7,.32); box-shadow: 0 6px 16px rgba(255,193,7,.10); }
+    50% { border-top-color: rgba(255,193,7,.70); box-shadow: 0 8px 28px rgba(255,193,7,.22); }
 }
 @keyframes coinHalo {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(255,193,7,.28), 0 0 14px rgba(255,193,7,.10); }
-    50% { box-shadow: 0 0 0 1px rgba(255,193,7,.60), 0 0 26px rgba(255,193,7,.22); }
+    0%, 100% { border-top-color: rgba(255,193,7,.32); box-shadow: 0 6px 16px rgba(255,193,7,.10); }
+    50% { border-top-color: rgba(255,193,7,.70); box-shadow: 0 8px 28px rgba(255,193,7,.22); }
 }
 
 body.coin-focus #coinPanel,
