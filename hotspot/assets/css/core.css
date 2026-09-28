@@ -615,7 +615,7 @@ body.coin-focus #coinDim {
 /* No rule: the panel breathes with a soft downward glow only, and the
    padding keeps the gauge and buttons off the edge. */
 body.coin-focus #coinPanel {
-    padding: 10px 4px 4px 4px;
+    padding: 0 14px 14px 14px;
     animation: coinHalo 2.4s ease-in-out infinite;
 }
 @-webkit-keyframes coinHalo {
