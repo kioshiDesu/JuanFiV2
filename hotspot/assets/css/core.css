@@ -336,7 +336,6 @@ body { -webkit-tap-highlight-color: transparent; }
     font-size: clamp(30px, 11vw, 44px);
     font-weight: 800;
     color: #fff;
-    text-shadow: 0 0 22px rgba(255,193,7,.18), 0 0 6px rgba(255,193,7,.10);
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -381,12 +380,15 @@ body { -webkit-tap-highlight-color: transparent; }
     color: #fff;
     font-weight: 700;
 }
-.hero .vouchline.metatable { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 18px; margin-top: 14px; position: relative; }
+.hero .vouchline.metatable { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin-top: 14px; position: relative; }
+.hero .vouchline.metatable::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.22) 22%, rgba(255,255,255,.22) 78%, transparent); }
 /* Long homeowner brands, vouchers and meta values must wrap, never clip. */
 .brand-big, .metaval, .vhist-code, .clientline { overflow-wrap: anywhere; min-width: 0; }
 .btnrow .btn { min-width: 0; }
-.hero .vouchline .metarow { display: flex; justify-content: center; align-items: center; gap: 6px; text-align: center; }
-.hero .vouchline .metacol { display: contents; }
+.hero .vouchline.metatable::after { content: ""; position: absolute; top: 6px; bottom: 6px; left: 50%; width: 1px; background: linear-gradient(180deg, transparent, rgba(255,255,255,.22) 25%, rgba(255,255,255,.22) 75%, transparent); }
+.hero .vouchline .metacol.metaleft { padding-right: 8px; }
+.hero .vouchline .metarow { display: flex; justify-content: center; align-items: center; gap: 6px; min-height: 34px; padding: 7px 0; text-align: center; }
+.hero .vouchline .metacol { display: flex; flex-direction: column; justify-content: center; padding: 8px; }
 .hero .vouchline .metalabel { text-align: center; line-height: 20px; text-transform: uppercase; letter-spacing: .06em; display: inline-flex; align-items: center; }
 .hero .vouchline .metaval { text-align: center; line-height: 20px; }
 .hero .vouchline .mico { width: 15px; height: 15px; vertical-align: -2px; margin-right: 3px; }
