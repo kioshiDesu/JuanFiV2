@@ -655,11 +655,14 @@ body.coin-focus #ratesSection {
 .footer::after {
     content: "";
     position: absolute;
+    /* Full-bleed so the wrap reaches both screen edges: the portal is
+       480px wide, the fade should not stop at its gutters. */
     left: 50%;
-    width: 130vw;
-    height: 150px;
-    transform: translate(-50%, -38%);
-    background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, transparent 72%);
+    width: 100vw;
+    transform: translateX(-50%);
+    top: -26px;
+    height: 200%;
+    background: linear-gradient(180deg, transparent 0, rgba(0,0,0,.35) 30%, rgba(0,0,0,.62) 60%, rgba(0,0,0,.8) 100%);
     pointer-events: none;
     z-index: -1;
 }
