@@ -1,9 +1,26 @@
-# Usage (RouterOS terminal, paste the whole file):
+# JuanFiV2 - router setup (everything except the login/logout hooks)
+#
+# Copy to the router, then:
 #   /import file=juanfi-setup.rsc
+# or drag it into Winbox -> Files and double-click it.
+#
+# Idempotent: every step checks before it acts, so re-importing is safe.
+# The script is removed before it is re-added, so a re-import replaces it
+# instead of stacking a second script with the same name.
+#
+# Edit these before importing if your router differs:
+#   PROF      hotspot server profile name   (line below)
+#   NTP1/NTP2 NTP servers - raw IPs, so DNS is not needed to sync
+#   time-zone-name further down
+#
+# Free trial is ON (trial-uptime=5m/1d). To turn it off, drop ",trial"
+# from the login-by value.
 
 :put "=== JuanFiV2 setup ==="
 
-/system script remove [find name="juanfi-setup"];
+# Guarded: /system script remove errors with "no such item" on a router
+# that has never run this, which would abort the whole import.
+:do { /system script remove [find name="juanfi-setup"] } on-error={};
 
 :do {
   /system script add name="juanfi-setup" policy=read,write,test,policy,ftp source={
