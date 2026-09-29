@@ -20,9 +20,9 @@ vendo system. Portal files only — no firmware in this repo.
 
 Everything that is not the login/logout hook, in one idempotent script:
 clock, hotspot profile, free trial, cookie flush, FastTrack fix, the
-site-ID publisher and the internet-status netwatch. Safe to run twice —
-every step checks before it acts, and each step logs instead of aborting
-the rest.
+site-ID publisher, the internet-status netwatch and the daily voucher
+orphan sweep. Safe to run twice — every step checks before it acts, and
+each step logs instead of aborting the rest.
 
 **[`juanfi-setup.rsc`](juanfi-setup.rsc) is the file.** Copy it to the
 router and import it:
@@ -43,6 +43,7 @@ Verify by hand if you like:
 /system clock print
 /file print detail where name="site-id.txt"
 /file print detail where name="netstatus.txt"
+/system script run juanfi-sweep
 ```
 
 The clock year must be current (a 1970 clock makes scheduler `next-run`
@@ -58,6 +59,34 @@ trial button only when the router serves trial (`$(if trial == 'yes')`
 renders) *and* `showTrialLogin` is true in `settings.json`. Trials are
 MAC-tied (rotation eats the trial) and vanish on router reboot — vouchers
 stay the real product.
+
+#### The orphan sweep (`juanfi-sweep`)
+
+The coin box picks a code at random and never asks the router whether
+that code already exists — its telnet helper writes commands without
+reading replies. A code that gets minted and never claimed therefore has
+no expiry scheduler, because only On-Login creates one, and nothing ever
+removed it. Those dead rows pile up until they occupy so much of the
+8,999-code space that new coins keep landing on a live account, which
+tops up the wrong customer and hands the buyer a shared login.
+
+`juanfi-sweep` reclaims that space daily at 04:20. It matches a user with
+a comment, no expiry scheduler and no live session — a minted-never-
+claimed voucher — appends today's date as a 5th comment field, and
+removes anything it stamped more than `GRACE` days ago. Members and
+trials carry an empty comment and are never touched. The box only ever
+*writes* that comment, so this is safe; fields 1-4 stay where it put
+them, which is what On-Login reads.
+
+First run only stamps, so installing it never mass-deletes — the worst
+case is that the oldest dead code lives four more days. Raise `GRACE`
+if buyers pay and log in late, lower it to shrink the collision window.
+
+The script logs every run:
+
+```
+/log print where message~"juanfi-sweep"
+```
 
 ### B. On-Login
 

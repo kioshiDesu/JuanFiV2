@@ -8,10 +8,20 @@
 # The script is removed before it is re-added, so a re-import replaces it
 # instead of stacking a second script with the same name.
 #
+# Installs two scripts:
+#   juanfi-setup   clock, hotspot profile, trial, FastTrack, site id,
+#                  net status file
+#   juanfi-sweep   deletes voucher codes that were minted but never
+#                  claimed, so the coin box's random codes stop
+#                  colliding with dead accounts
+#
 # Edit these before importing if your router differs:
 #   PROF      hotspot server profile name   (line below)
 #   NTP1/NTP2 NTP servers - raw IPs, so DNS is not needed to sync
 #   time-zone-name further down
+#   GRACE     days a never-claimed code survives inside juanfi-sweep.
+#             Raise it if buyers pay and log in late, lower it to shrink
+#             the collision window. 3 is a sane default.
 #
 # Free trial is ON (trial-uptime=5m/1d). To turn it off, drop ",trial"
 # from the login-by value.
@@ -86,7 +96,90 @@
       } on-error={ :log warning "setup: netstatus.txt not created" };
     }
   };
+
+  # Orphan sweep. The coin box mints random codes with no duplicate
+  # check and never tells the router the code already existed, so a
+  # minted-then-never-claimed code would sit in /ip hotspot user
+  # forever. Only On-Login creates the expiry scheduler, so nothing
+  # ever removed them. They pile up until they occupy so much of the
+  # code space that new coins keep landing on a live account and top
+  # up the wrong customer.
+  #
+  # The box only ever WRITES the user comment (never reads it back),
+  # so this script owns that field. It appends today's date as a 5th
+  # field, then deletes anything it saw more than GRACE days ago.
+  # Fields 1-4 stay where the box put them, so On-Login still reads
+  # the validity and extend flag correctly.
+  :do { /system script remove [find name="juanfi-sweep"] } on-error={};
+  :do {
+    /system script add name="juanfi-sweep" policy=read,write,test source={
+      :local GRACE 3;
+      :local MD {31;28;31;30;31;30;31;31;30;31;30;31};
+      :local today [:pick [/system clock get date-time] 0 10];
+
+      # Day number for a YYYY/MM/DD string. Exact across month, leap and
+      # century boundaries, so "3 days ago" never means 2 or 9.
+      :local Y [:tonum [:pick $today 0 4]];
+      :local M [:tonum [:pick $today 5 2]];
+      :local leap 0;
+      :if ((($Y % 4) = 0) and ((($Y % 100) != 0) or (($Y % 400) = 0))) do={ :set leap 1 };
+      :local doy [:tonum [:pick $today 8 2]];
+      :local k 1;
+      :while ($k < $M) do={
+        :set doy ($doy + ($MD->($k - 1)));
+        :if (($leap = 1) and ($k = 2)) do={ :set doy ($doy + 1) };
+        :set k ($k + 1);
+      };
+      :local todayNo ((($Y - 1970) * 365) + (($Y - 1) / 4 - ($Y - 1) / 100 + ($Y - 1) / 400) - 479 + $doy);
+      :local stamped 0;
+      :local removed 0;
+
+      # "minted, never claimed" = has a comment, has no expiry
+      # scheduler, has no live session. Members and trials carry an
+      # empty comment and are never matched.
+      :foreach u in=[/ip hotspot user find] do={
+        :local note [/ip hotspot user get $u comment];
+        :if ([:len $note] > 0) do={
+          :local name [/ip hotspot user get $u name];
+          :if ([:len [/system scheduler find name=$name]] = 0) do={
+            :if ([:len [/ip hotspot active find user=$name]] = 0) do={
+              :local f [:toarray $note];
+              :local seen "";
+              :if ([:len $f] > 4) do={ :set seen ($f->4) };
+              :if ($seen = "") do={
+                # First sighting: stamp only, never delete on the same
+                # run that discovers a code.
+                :do { /ip hotspot user set $u comment=($note . "," . $today) } on-error={};
+                :set stamped ($stamped + 1);
+              } else={
+                :local sY [:tonum [:pick $seen 0 4]];
+                :local sM [:tonum [:pick $seen 5 2]];
+                :local sLeap 0;
+                :if ((($sY % 4) = 0) and ((($sY % 100) != 0) or (($sY % 400) = 0))) do={ :set sLeap 1 };
+                :local sDoy [:tonum [:pick $seen 8 2]];
+                :local j 1;
+                :while ($j < $sM) do={
+                  :set sDoy ($sDoy + ($MD->($j - 1)));
+                  :if (($sLeap = 1) and ($j = 2)) do={ :set sDoy ($sDoy + 1) };
+                  :set j ($j + 1);
+                };
+                :local seenNo ((($sY - 1970) * 365) + (($sY - 1) / 4 - ($sY - 1) / 100 + ($sY - 1) / 400) - 479 + $sDoy);
+                :if (($todayNo - $seenNo) > $GRACE) do={
+                  :do { /ip hotspot active remove [find user=$name] } on-error={};
+                  :do { /ip hotspot user remove $u } on-error={};
+                  :set removed ($removed + 1);
+                }
+              }
+            }
+          }
+        }
+      }
+      :log info ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
+      :put ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
+    }
+  } on-error={ :log warning "setup: juanfi-sweep not created" };
   /system script run juanfi-setup;
+  :do { /system script run juanfi-sweep } on-error={};
   :put "=== done, verifying ===";
   :put [/system clock get date-time];
   :do { :put ("site-id  = " . [/file get [find name=($dataDir . "/site-id.txt")] contents]) } on-error={ :put "site-id  = MISSING" };
@@ -98,6 +191,13 @@
 :if ([:len [/system scheduler find name="juanfi-setup-daily"]] = 0) do={
   /system scheduler add name="juanfi-setup-daily" start-time=startup interval=1d \
     policy=read,write,test,policy,ftp on-event="/system script run juanfi-setup";
+}
+
+# Daily orphan sweep. See the juanfi-sweep script above for why this
+# has to exist. Run at a quiet hour so it never competes with a sale.
+:if ([:len [/system scheduler find name="juanfi-sweep-daily"]] = 0) do={
+  /system scheduler add name="juanfi-sweep-daily" start-time=04:20:00 interval=1d \
+    policy=read,write,test on-event="/system script run juanfi-sweep";
 }
 
 :put "=== juanfi-setup done ==="
