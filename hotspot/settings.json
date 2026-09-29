@@ -19,5 +19,6 @@
   "showTrialLogin": false,
   "trialNoExtend": true,
   "showInternetStatus": true,
-  "offlineText": "No internet connection as of the moment, please try again later"
+  "offlineText": "No internet connection as of the moment, please try again later",
+  "macAsVoucherCode": false
 }

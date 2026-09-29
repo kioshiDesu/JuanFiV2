@@ -215,7 +215,8 @@ preserved, not forfeited):
   "showTrialLogin": false,
   "trialNoExtend": true,
   "showInternetStatus": true,
-  "offlineText": "No internet connection as of the moment, please try again later"
+  "offlineText": "No internet connection as of the moment, please try again later",
+  "macAsVoucherCode": false
 }
 ```
    `false` on `showMemberSection` = voucher-only portal.
@@ -224,6 +225,18 @@ preserved, not forfeited):
 
    No trial flag on purpose — the portal has no trial UI. No
    subscription/theme keys either (not adopted).
+
+   `macAsVoucherCode: true` makes the portal send each client's own MAC
+   (colons stripped) as the voucher code. The coin box only mints a
+   random code when the `topUp` POST carries an empty voucher, so
+   filling it in makes the box register that MAC as the hotspot user —
+   a 48-bit namespace instead of 8,999 codes, which also retires the
+   silent-collision problem where a random mint lands on a live account
+   and tops up the wrong customer. The input stays editable and the
+   voucher box is not hidden, so a real `VC` code still works: `doLogin`
+   reads what is typed first. Turn it on per site if you want MAC
+   identity on sales; leave it off if you hand out typeable codes
+   (GCash, reselling) or need the admin-panel prefix to identify buyers.
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +

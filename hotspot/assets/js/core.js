@@ -34,6 +34,12 @@ var showTrialLogin = false;
 var showInternetStatus = true;
 var offlineText = "No internet connection as of the moment, please try again later";
 var trialNoExtend = true;
+// Send the client's own MAC as the voucher code. The coin box only mints
+// a random code when the topUp POST carries an empty voucher, so a
+// filled-in MAC makes it register that MAC as the hotspot user. The
+// namespace becomes 48 bits instead of 8,999 codes. Typeable codes are
+// not lost - the input stays editable and doLogin reads it first.
+var macAsVoucherCode = false;
 	try {
 		var __setReq = new XMLHttpRequest();
 		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
@@ -61,6 +67,7 @@ var trialNoExtend = true;
 		if (typeof __setJson.showInternetStatus === "boolean") { showInternetStatus = __setJson.showInternetStatus; }
 		if (typeof __setJson.offlineText === "string" && __setJson.offlineText) { offlineText = __setJson.offlineText; }
 		if (typeof __setJson.trialNoExtend === "boolean") { trialNoExtend = __setJson.trialNoExtend; }
+		if (typeof __setJson.macAsVoucherCode === "boolean") { macAsVoucherCode = __setJson.macAsVoucherCode; }
 	}
 } catch (e) {}
 
@@ -141,7 +148,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=141";
+var SOUND_V = "?v=142";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -1038,8 +1045,17 @@ function applyFlags() {
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
+		// Pre-fill the MAC as the voucher. Skipped when the box already
+		// holds something, so a returning customer keeps the code that
+		// actually has time on it.
+		try {
+			if (typeof macAsVoucherCode !== "undefined" && macAsVoucherCode && !$("#voucherInput").val() && !getActiveVoucher()) {
+				voucher = macNoColon();
+				$("#voucherInput").val(voucher);
+			}
+		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v141"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v142"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1530,7 +1546,10 @@ function callTopupAPI(retryCount, gen) {
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
 	try { dbgLog("topUp start retry=" + retryCount + " extend=" + (isExtend ? "1" : "0")); } catch (e) { }
 
-	if (retryCount === 0 && !isExtend && totalCoinReceived == 0) {
+	// With MAC-as-voucher the pre-fill IS the code being bought, so it
+	// must survive a fresh insert - otherwise the topUp posts an empty
+	// voucher and the box mints a random code again.
+	if (retryCount === 0 && !isExtend && totalCoinReceived == 0 && !macAsVoucherCode) {
 		var storedVoucher = getActiveVoucher();
 		if (storedVoucher != null) {
 			// Stash, don't wipe: the fresh post still sends voucher:"",
