@@ -20,9 +20,17 @@ vendo system. Portal files only — no firmware in this repo.
 
 Everything that is not the login/logout hook, in one idempotent script:
 clock, hotspot profile, free trial, cookie flush, FastTrack fix, the
-site-ID publisher, the internet-status netwatch and the daily voucher
+site-ID publisher, the internet-status writer and the daily voucher
 orphan sweep. Safe to run twice — every step checks before it acts, and
 each step logs instead of aborting the rest.
+
+Where the portal files live is resolved per router: the hotspot profile's
+`html-directory` first, then a probe for a file we ship. RouterOS never
+lists directories, so the old `[/file find name="flash/hotspot"]` check
+always came back empty and every write landed in the wrong folder — on an
+hEX that is exactly why `data/netstatus.txt` went missing and the offline
+banner never showed. The resolved path is printed as `portal files = ...`
+at the end.
 
 **[`juanfi-setup.rsc`](juanfi-setup.rsc) is the file.** Copy it to the
 router and import it:
@@ -32,15 +40,25 @@ router and import it:
 ```
 
 or drag it into Winbox → Files and double-click it. It prints the clock,
-site-id and netstatus values at the end so you see what landed. Re-paste
-it any time to re-apply; a daily scheduler (`juanfi-setup-daily`) runs it
-on its own, which is what restores `site-id.txt` and `netstatus.txt` if
-anyone deletes them.
+resolved portal path, site-id and netstatus values at the end so you see
+what landed. Re-paste it any time to re-apply; a daily scheduler
+(`juanfi-setup-daily`) runs it on its own, which is what restores
+`site-id.txt` and `netstatus.txt` if anyone deletes them.
+
+Three scripts land: `juanfi-setup` (this one), `juanfi-sweep` (orphan
+codes) and `juanfi-netstatus` (pings 8.8.8.8 and writes `up`/`down` into
+the portal's `data/` folder). `juanfi-netstatus-1m` is a scheduler that
+runs it every minute; it re-resolves the portal folder on each run rather
+than baking the path in at install time, and only writes when the value
+actually changed, so flash wear stays flat. A re-import also removes the
+older `vendo net status` netwatch and `juanfi-net-up` / `juanfi-net-down`
+scripts if a previous version left them behind.
 
 Verify by hand if you like:
 
 ```
 /system clock print
+/ip hotspot profile print detail
 /file print detail where name="site-id.txt"
 /file print detail where name="netstatus.txt"
 /system script run juanfi-sweep
@@ -91,16 +109,33 @@ The script logs every run:
 ### B. On-Login
 
 Hotspot → Server Profiles → your profile → Login tab → On Login.
-`HSFilePath` auto-detects `flash/hotspot` vs `hotspot` (same probe as
-A). Run A first so `data/site-id.txt` already exists when logins run.
+`HSFilePath` resolves where the portal files actually are, using the
+hotspot profile's `html-directory` first and then probing a file we ship
+(same logic as A). RouterOS never lists directories, so a plain
+`[/file find name="flash/hotspot"]` always comes back empty — that probe
+is why the offline banner went missing on flash storage. Run A first so
+`data/site-id.txt` already exists when logins run.
 
 Winbox method: same path in Winbox — double-click the profile →
 Login tab → paste into the On Login box (maximize the window, the
 field is small), OK. No System → Scripts entry needed for this one.
 
 ```bash
-:local HSFilePath "hotspot";
-:if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
+:local PROF "hsprof1";
+:local HSFilePath "";
+:do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
+:if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
+  :local cand "";
+  :foreach c in={"flash/hotspot"; "hotspot"} do={
+    :if ($cand = "") do={
+      :foreach f in={"portal.html"; "login.html"; "status.html"} do={
+        :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
+      };
+    };
+  };
+  :if ($cand != "") do={ :set HSFilePath $cand };
+};
+:if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
 :local rawNote [/ip hotspot user get [find name="$user"] comment];
 :local isTrial ([:pick $user 0 2] = "T-");
 # Trial sessions expire natively via trial-uptime (Scripts-A) — never
@@ -144,8 +179,9 @@ field is small), OK. No System → Scripts entry needed for this one.
     } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
     :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };
-  :if ([/file find name="$HSFilePath/data"]="") do={
-    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/"} on-error={ };
+  :if ([/file find name="$HSFilePath/data/site-id.txt"]="") do={
+    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="http://127.0.0.1/portal.html"} on-error={ };
+    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/portal.html"} on-error={ };
   }
   :local iValidUntil "";
   :if ([/system scheduler find name="$user"]!="") do={

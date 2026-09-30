@@ -8,12 +8,14 @@
 # The script is removed before it is re-added, so a re-import replaces it
 # instead of stacking a second script with the same name.
 #
-# Installs two scripts:
-#   juanfi-setup   clock, hotspot profile, trial, FastTrack, site id,
-#                  net status file
-#   juanfi-sweep   deletes voucher codes that were minted but never
-#                  claimed, so the coin box's random codes stop
-#                  colliding with dead accounts
+# Installs three scripts:
+#   juanfi-setup     clock, hotspot profile, trial, FastTrack, site id
+#   juanfi-sweep     deletes voucher codes that were minted but never
+#                    claimed, so the coin box's random codes stop
+#                    colliding with dead accounts
+#   juanfi-netstatus pings 8.8.8.8 and writes up/down into the portal's
+#                    data folder, so the portal can show the offline
+#                    banner. Driven every minute by a scheduler.
 #
 # Edit these before importing if your router differs:
 #   PROF      hotspot server profile name   (line below)
@@ -31,15 +33,42 @@
 # Guarded: /system script remove errors with "no such item" on a router
 # that has never run this, which would abort the whole import.
 :do { /system script remove [find name="juanfi-setup"] } on-error={};
+:do { /system script remove [find name="juanfi-netstatus"] } on-error={};
 
 :do {
   /system script add name="juanfi-setup" policy=read,write,test,policy,ftp source={
     :local PROF "hsprof1";
     :local NTP1 "216.239.35.8";
     :local NTP2 "216.239.35.4";
-    :local HSFilePath "hotspot";
-    :if ([/file find name="flash/hotspot"] != "") do={ :set HSFilePath "flash/hotspot"; }
+
+    # ---- where do the portal files actually live? ----
+    # RouterOS never lists directories, so [/file find name="flash/hotspot"]
+    # is ALWAYS empty - find only matches files. The old probe therefore
+    # always fell back to "hotspot" and every write (site id, net status,
+    # per-client session file) landed where the portal never looks, so the
+    # offline banner could never appear on flash storage.
+    #
+    # The hotspot server's own html-directory is the first answer, because
+    # that is literally where it serves from. Then probe a file we ship.
+    :local HSFilePath "";
+    :do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
+    :if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
+      :local cand "";
+      :foreach c in={"flash/hotspot"; "hotspot"} do={
+        :if ($cand = "") do={
+          :foreach f in={"portal.html"; "login.html"; "status.html"} do={
+            :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
+          };
+        };
+      };
+      :if ($cand != "") do={ :set HSFilePath $cand };
+    };
+    :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
     :local dataDir ($HSFilePath . "/data");
+    :put ("portal files  = " . $HSFilePath);
+    :if ([/file find name=($HSFilePath . "/portal.html")] = "") do={
+      :log warning ("setup: no portal.html under " . $HSFilePath . " - upload the hotspot files first");
+    };
 
     # Clock. A stale clock makes scheduler next-run garbage, which makes
     # voucher validity garbage. Raw IPs so DNS is not needed to sync.
@@ -63,11 +92,21 @@
         comment="hotspot before fasttrack" } on-error={ :log warning "setup: fasttrack rule not added" };
     };
 
+    # data/ folder. RouterOS scripts cannot create a directory, so the only
+    # trick is a fetch aimed inside it - the folder appears as a side
+    # effect, then the probe file is deleted. Probing a FILE (not the
+    # folder) is what tells us whether it is there.
+    :if ([/file find name=($dataDir . "/site-id.txt")] = "") do={
+      :do { /tool fetch dst-path=($dataDir . "/.mk") url="http://127.0.0.1/portal.html" } on-error={};
+      :do { /tool fetch dst-path=($dataDir . "/.mk") url="https://127.0.0.1/portal.html" } on-error={};
+      :do { /file remove ($dataDir . "/.mk") } on-error={};
+      :if ([/file find name=($dataDir . "/site-id.txt")] = "") do={
+        :log warning ("setup: could not create " . $dataDir);
+      };
+    };
+
     # Site ID. Publishes the board serial so saved vouchers scope per site.
     # Write-once: an existing value is never overwritten.
-    :if ([/file find name=$dataDir] = "") do={
-      :do { /tool fetch dst-path=($dataDir . "/.") url="https://127.0.0.1/" } on-error={};
-    }
     :local siteFile ($dataDir . "/site-id.txt");
     :local siteOld "";
     :do { :set siteOld [/file get [find name=$siteFile] contents] } on-error={ :set siteOld "" };
@@ -75,26 +114,62 @@
       :local sn "";
       :do { :set sn [/system routerboard get serial-number] } on-error={};
       :if ([:len $sn] < 4) do={ :set sn $PROF };
-      /file print file=$siteFile where name="dummyfile";
+      :do { /file print file=$siteFile where name="dummyfile" } on-error={};
       :local x 5; :while (($x>0) and ([/file find name=$siteFile]="")) do={ :set x ($x-1); :delay 1s };
       :do { /file set $siteFile contents=$sn } on-error={ :log warning "setup: site-id not written" };
     };
 
-    # Internet status. The wait loop is mandatory: /file print creates the
-    # file a moment after the script starts, so an immediate /file set
-    # silently no-ops and you end up with a file full of print comments.
-    :if ([:len [/tool netwatch find comment="vendo net status"]] = 0) do={
-      /tool netwatch add host=8.8.8.8 interval=1m timeout=1000 comment="vendo net status" \
-        up-script="/file print file=\"$dataDir/netstatus.txt\" where name=\"dummyfile\"; :local x 3; :while ((\$x>0) and ([/file find name=\"$dataDir/netstatus.txt\"]=\"\")) do={ :set x (\$x-1); :delay 1s }; /file set $dataDir/netstatus.txt contents=\"up\"" \
-        down-script="/file print file=\"$dataDir/netstatus.txt\" where name=\"dummyfile\"; :local x 3; :while ((\$x>0) and ([/file find name=\"$dataDir/netstatus.txt\"]=\"\")) do={ :set x (\$x-1); :delay 1s }; /file set $dataDir/netstatus.txt contents=\"down\"";
-    }
-    :if ([/file find name=($dataDir . "/netstatus.txt")] = "") do={
+    # Internet status file. One script, run every minute by the
+    # juanfi-netstatus-1m scheduler installed below. It pings 8.8.8.8
+    # itself, so there is no second mechanism (netwatch) duplicating the
+    # same decision, and it re-resolves the portal folder on every run
+    # instead of freezing the path at install time. Nothing is written
+    # unless the value actually changed, which keeps flash wear down.
+    :if ([:len [/system script find name="juanfi-netstatus"]] = 0) do={
       :do {
-        /file print file=($dataDir . "/netstatus.txt") where name="dummyfile";
-        :local x 3; :while (($x>0) and ([/file find name=($dataDir . "/netstatus.txt")]="")) do={ :set x ($x-1); :delay 1s };
-        /file set ($dataDir . "/netstatus.txt") contents="up";
-      } on-error={ :log warning "setup: netstatus.txt not created" };
-    }
+        /system script add name="juanfi-netstatus" policy=read,write,test source={
+          :local HSFilePath "";
+          :foreach c in={"flash/hotspot"; "hotspot"} do={
+            :if ($HSFilePath = "") do={
+              :foreach f in={"portal.html"; "login.html"; "status.html"} do={
+                :if (($HSFilePath = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set HSFilePath $c };
+              };
+            };
+          };
+          :if ($HSFilePath = "") do={
+            :do {
+              :local pf [:pick [/ip hotspot profile print as-value] 0];
+              :if (($pf != "") and (($pf->"html-directory") != "")) do={ :set HSFilePath ($pf->"html-directory") };
+            } on-error={};
+          };
+          :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
+          :local dataDir ($HSFilePath . "/data");
+          :local f ($dataDir . "/netstatus.txt");
+
+          :local state "down";
+          :if ([/ping 8.8.8.8 count=1 interval=1s] > 0) do={ :set state "up" };
+
+          :local old "";
+          :do { :set old [/file get [find name=$f] contents] } on-error={ :set old "" };
+
+          # Skip the whole write when nothing changed. No :return here -
+          # it is unreliable at script top level across RouterOS versions.
+          :if ($old != $state) do={
+            :if ([/file find name=$f] = "") do={
+              :do { /tool fetch dst-path=($dataDir . "/.mk") url="http://127.0.0.1/portal.html" } on-error={};
+              :do { /file remove ($dataDir . "/.mk") } on-error={};
+            };
+            # The wait loop is mandatory: /file print creates the file a
+            # moment after it runs, so an immediate /file set silently
+            # no-ops and you end up with a file full of print comments.
+            :do { /file print file=$f where name="dummyfile" } on-error={};
+            :local x 3; :while (($x>0) and ([/file find name=$f]="")) do={ :set x ($x-1); :delay 1s };
+            :do { /file set $f contents=$state } on-error={ :log warning ("netstatus: " . $f . " not written") };
+          };
+        };
+      } on-error={ :log warning "setup: juanfi-netstatus not created" };
+    };
+    :do { /system script run juanfi-netstatus } on-error={ :log warning "setup: netstatus.txt not written" };
   };
 
   # Orphan sweep. The coin box mints random codes with no duplicate
@@ -173,17 +248,34 @@
             }
           }
         }
-      }
+      };
       :log info ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
       :put ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
     }
   } on-error={ :log warning "setup: juanfi-sweep not created" };
   /system script run juanfi-setup;
   :do { /system script run juanfi-sweep } on-error={};
+  :do { /system script run juanfi-netstatus } on-error={};
   :put "=== done, verifying ===";
   :put [/system clock get date-time];
-  :do { :put ("site-id  = " . [/file get [find name=($dataDir . "/site-id.txt")] contents]) } on-error={ :put "site-id  = MISSING" };
-  :do { :put ("netstatus= " . [/file get [find name=($dataDir . "/netstatus.txt")] contents]) } on-error={ :put "netstatus= MISSING" };
+  :local PROF "hsprof1";
+  :local HSFilePath "";
+  :do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
+  :if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
+    :local cand "";
+    :foreach c in={"flash/hotspot"; "hotspot"} do={
+      :if ($cand = "") do={
+        :foreach f in={"portal.html"; "login.html"; "status.html"} do={
+          :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
+        };
+      };
+    };
+    :if ($cand != "") do={ :set HSFilePath $cand };
+  };
+  :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
+  :put ("portal files  = " . $HSFilePath);
+  :do { :put ("site-id  = " . [/file get [find name=($HSFilePath . "/data/site-id.txt")] contents]) } on-error={ :put "site-id  = MISSING" };
+  :do { :put ("netstatus= " . [/file get [find name=($HSFilePath . "/data/netstatus.txt")] contents]) } on-error={ :put "netstatus= MISSING" };
 } on-error={ :put "SETUP FAILED - check /log for the step" };
 
 # Re-runs the script daily, which is what restores site-id.txt and
@@ -199,5 +291,19 @@
   /system scheduler add name="juanfi-sweep-daily" start-time=04:20:00 interval=1d \
     policy=read,write,test on-event="/system script run juanfi-sweep";
 }
+
+# Drives the internet-status file. A scheduler rather than netwatch so
+# there is one mechanism instead of two deciding the same thing; the
+# script pings and writes only when the value changes.
+:if ([:len [/system scheduler find name="juanfi-netstatus-1m"]] = 0) do={
+  /system scheduler add name="juanfi-netstatus-1m" start-time=startup interval=1m \
+    policy=read,write,test on-event="/system script run juanfi-netstatus";
+}
+
+# Old netwatch-based install. The hooks are harmless on their own but
+# nothing calls them now, so drop them on re-import.
+:do { /tool netwatch remove [find comment="vendo net status"] } on-error={};
+:do { /system script remove [find name="juanfi-net-up"] } on-error={};
+:do { /system script remove [find name="juanfi-net-down"] } on-error={};
 
 :put "=== juanfi-setup done ==="
