@@ -16,315 +16,194 @@ vendo system. Portal files only — no firmware in this repo.
 
 ## Scripts (paste in order: A (router setup), B (On-Login), C (On-Logout), D (portal files))
 
-### A. Router setup (one paste)
+### A. Router setup
 
-Everything that is not the login/logout hook, in one idempotent script:
-clock, hotspot profile, free trial, cookie flush, FastTrack fix, the
-site-ID publisher, the internet-status writer and the daily voucher
-orphan sweep. Safe to run twice — every step checks before it acts, and
-each step logs instead of aborting the rest.
+Paste each block into Winbox → New Terminal (or SSH). Independent, and
+safe to re-run. Or do all six at once: copy
+[`juanfi-setup.rsc`](juanfi-setup.rsc) to the router and
+`/import file=juanfi-setup.rsc`.
 
-Where the portal files live is resolved per router: the hotspot profile's
-`html-directory` first, then a probe for a file we ship. RouterOS never
-lists directories, so the old `[/file find name="flash/hotspot"]` check
-always came back empty and every write landed in the wrong folder — on an
-hEX that is exactly why `data/netstatus.txt` went missing and the offline
-banner never showed. The resolved path is printed as `portal files = ...`
-at the end.
+Edit `hsprof1`, `NTP1`/`NTP2` and `Asia/Manila` to match your router.
 
-**[`juanfi-setup.rsc`](juanfi-setup.rsc) is the file.** Copy it to the
-router and import it:
+#### A1. Hotspot profile
 
 ```
-/import file=juanfi-setup.rsc
+/ip hotspot profile set [find name="hsprof1"] login-by=http-chap,http-pap,trial trial-uptime=5m/1d trial-user-profile=default
+/ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m
 ```
 
-Or drag it into Winbox → Files and double-click it.
+Never enable HTTPS login — the page then loads over TLS and browsers
+block its plain-HTTP coin-box calls, killing the coin flow silently.
+Drop `,trial` to turn the free trial off.
 
-Or skip the file entirely and paste the whole thing straight into the
-terminal (Winbox → New Terminal, or SSH). Verbatim copy of the `.rsc`:
+#### A2. Clock + NTP
 
-```bash
-:put "=== JuanFiV2 setup ==="
+A wrong year makes scheduler `next-run` garbage, which makes voucher
+validity garbage. RouterOS 6 and 7 name the property differently, so it
+is built as text and run through `:parse`.
 
-:do { /system script remove [find name="juanfi-setup"] } on-error={};
+```
+:local NTP1 "216.239.35.8";
+:local NTP2 "216.239.35.4";
+:local rosV "";
+:do { :set rosV [:pick [/system resource get version] 0 1] } on-error={};
+:if ($rosV = "7") do={ :set ntpCmd ("/system ntp client set enabled=yes servers=" . $NTP1 . "," . $NTP2) } else={ :set ntpCmd ("/system ntp client set enabled=yes primary-ntp=" . $NTP1 . " secondary-ntp=" . $NTP2) };
+:do { :local ntpFn [:parse $ntpCmd]; $ntpFn } on-error={ :log warning "ntp not configurable" };
+/system clock set time-zone-name=Asia/Manila
+```
+
+#### A3. FastTrack fix
+
+Accepts hotspot traffic before FastTrack. Without it, fasttracked
+sessions skip idle accounting and never log out.
+
+```
+:if ([:len [/ip firewall filter find comment="hotspot before fasttrack"]] = 0) do={ /ip firewall filter add chain=forward action=accept protocol=tcp dst-port=80,443 src-address=10.0.0.0/16 place-before="top" comment="hotspot before fasttrack" }
+```
+
+#### A4. Site ID
+
+One-time. Gives every router its own voucher-history bucket.
+
+```
+:local d "";
+:foreach c in={"flash/hotspot"; "hotspot"} do={ :if (($d = "") and ([/file find name=($c . "/portal.html")] != "")) do={ :set d $c } };
+:if ($d = "") do={ :set d "hotspot" };
+:if ([/file find name=($d . "/data/site-id.txt")] = "") do={
+  /file print file=($d . "/data/site-id.txt") where name="dummyfile";
+  :local y 5;
+  :while (($y>0) and ([/file find name=($d . "/data/site-id.txt")] = "")) do={ :set y ($y-1); :delay 1s };
+  :local sn "";
+  :do { :set sn [/system routerboard get serial-number] } on-error={};
+  :do { /file set ($d . "/data/site-id.txt") contents=$sn } on-error={ :log warning "site-id not written" }
+}
+```
+
+#### A5. Internet status
+
+Writes `up`/`down` into `data/netstatus.txt` every minute; the portal
+shows a banner while it reads `down`. Re-resolves the portal folder on
+each run and only writes on change, so flash wear stays flat.
+
+```
 :do { /system script remove [find name="juanfi-netstatus"] } on-error={};
-:do { /system script remove [find name="juanfi-sweep"] } on-error={};
-:do { /system scheduler remove [find name="juanfi-setup-daily"] } on-error={};
-:do { /system scheduler remove [find name="juanfi-sweep-daily"] } on-error={};
 :do { /system scheduler remove [find name="juanfi-netstatus-1m"] } on-error={};
-:do { /tool netwatch remove [find comment="vendo net status"] } on-error={};
-:do { /system script remove [find name="juanfi-net-up"] } on-error={};
-:do { /system script remove [find name="juanfi-net-down"] } on-error={};
-
-:do {
-  /system script add name="juanfi-setup" policy=read,write,test,policy,ftp source={
-    :local PROF "hsprof1";
-    :local NTP1 "216.239.35.8";
-    :local NTP2 "216.239.35.4";
-    :local HSFilePath "";
-    :do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
-    :if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
-      :local cand "";
-      :foreach c in={"flash/hotspot"; "hotspot"} do={
-        :if ($cand = "") do={
-          :foreach f in={"portal.html"; "login.html"; "status.html"} do={
-            :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
-          };
-        };
-      };
-      :if ($cand != "") do={ :set HSFilePath $cand };
-    };
-    :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
-    :local dataDir ($HSFilePath . "/data");
-    :put ("portal files = " . $HSFilePath);
-    :if ([/file find name=($HSFilePath . "/portal.html")] = "") do={ :log warning ("setup: no portal.html under " . $HSFilePath) };
-    :if ([/file find name=($dataDir . "/.keep")] = "") do={
-      :do { /file print file=($dataDir . "/.keep") where name="dummyfile" } on-error={};
-      :local x 3;
-      :while (($x>0) and ([/file find name=($dataDir . "/.keep")] = "")) do={ :set x ($x-1); :delay 1s };
-      :do { /file remove ($dataDir . "/.keep") } on-error={};
-    };
-    :local rosV "";
-    :do { :set rosV [:pick [/system resource get version] 0 1] } on-error={ :set rosV "" };
-    :local ntpCmd "";
-    :if ($rosV = "7") do={ :set ntpCmd ("/system ntp client set enabled=yes servers=" . $NTP1 . "," . $NTP2) } else={ :set ntpCmd ("/system ntp client set enabled=yes primary-ntp=" . $NTP1 . " secondary-ntp=" . $NTP2) };
-    :do { :local ntpFn [:parse $ntpCmd]; $ntpFn } on-error={ :log warning "setup: NTP not configurable" };
-    :do { /system clock set time-zone-name=Asia/Manila } on-error={};
-    :do { /ip hotspot profile set [find name=$PROF] login-by=http-chap,http-pap,trial trial-uptime=5m/1d trial-user-profile=default } on-error={ :log warning ("setup: no hotspot profile named " . $PROF) };
-    :do { /ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m } on-error={};
-    :do { /ip hotspot cookie remove [find] } on-error={};
-    :if ([:len [/ip firewall filter find comment="hotspot before fasttrack"]] = 0) do={
-      :do { /ip firewall filter add chain=forward action=accept protocol=tcp dst-port=80,443 src-address=10.0.0.0/16 place-before="top" comment="hotspot before fasttrack" } on-error={ :log warning "setup: fasttrack rule not added" };
-    };
-    :local siteFile ($dataDir . "/site-id.txt");
-    :local siteOld "";
-    :do { :set siteOld [/file get [find name=$siteFile] contents] } on-error={ :set siteOld "" };
-    :if ($siteOld = "") do={
-      :local sn "";
-      :do { :set sn [/system routerboard get serial-number] } on-error={};
-      :if ([:len $sn] < 4) do={ :set sn $PROF };
-      :do { /file print file=$siteFile where name="dummyfile" } on-error={};
-      :local y 5;
-      :while (($y>0) and ([/file find name=$siteFile] = "")) do={ :set y ($y-1); :delay 1s };
-      :do { /file set $siteFile contents=$sn } on-error={ :log warning "setup: site-id not written" };
-    };
-  };
-} on-error={ :log warning "setup: juanfi-setup not created" };
-
-:do { /system script run juanfi-setup } on-error={ :log warning "setup: juanfi-setup run failed" };
-
-:do {
-  /system script add name="juanfi-netstatus" policy=read,write,test source={
-    :local HSFilePath "";
-    :foreach c in={"flash/hotspot"; "hotspot"} do={
-      :if ($HSFilePath = "") do={
-        :foreach f in={"portal.html"; "login.html"; "status.html"} do={
-          :if (($HSFilePath = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set HSFilePath $c };
-        };
-      };
-    };
+:do { /system script add name="juanfi-netstatus" policy=read,write,test source={
+  :local HSFilePath "";
+  :foreach c in={"flash/hotspot"; "hotspot"} do={
     :if ($HSFilePath = "") do={
-      :do {
-        :local pf [:pick [/ip hotspot profile print as-value] 0];
-        :if (($pf != "") and (($pf->"html-directory") != "")) do={ :set HSFilePath ($pf->"html-directory") };
-      } on-error={};
-    };
-    :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
-    :local dataDir ($HSFilePath . "/data");
-    :local f ($dataDir . "/netstatus.txt");
-    :local state "down";
-    :if ([/ping 8.8.8.8 count=1 interval=1s] > 0) do={ :set state "up" };
-    :local old "";
-    :do { :set old [/file get [find name=$f] contents] } on-error={ :set old "" };
-    :if ($old != $state) do={
-      :if ([/file find name=$f] = "") do={
-        :do { /file print file=$f where name="dummyfile" } on-error={};
-        :local x 3;
-        :while (($x>0) and ([/file find name=$f] = "")) do={ :set x ($x-1); :delay 1s };
+      :foreach f in={"portal.html"; "login.html"; "status.html"} do={
+        :if (($HSFilePath = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set HSFilePath $c };
       };
-      :do { /file set $f contents=$state } on-error={ :log warning ("netstatus: " . $f . " not written") };
     };
   };
-} on-error={ :log warning "setup: juanfi-netstatus not created" };
-
-:do { /system script run juanfi-netstatus } on-error={ :log warning "setup: netstatus.txt not written" };
-
-:do {
-  /system script add name="juanfi-sweep" policy=read,write,test source={
-    :local GRACE 3;
-    :local MD {31;28;31;30;31;30;31;31;30;31;30;31};
-    :local today [:pick [/system clock get date-time] 0 10];
-    :local Y [:tonum [:pick $today 0 4]];
-    :local M [:tonum [:pick $today 5 2]];
-    :local leap 0;
-    :if ((($Y % 4) = 0) and ((($Y % 100) != 0) or (($Y % 400) = 0))) do={ :set leap 1 };
-    :local doy [:tonum [:pick $today 8 2]];
-    :local k 1;
-    :while ($k < $M) do={
-      :set doy ($doy + [:pick $MD ($k - 1)]);
-      :if (($leap = 1) and ($k = 2)) do={ :set doy ($doy + 1) };
-      :set k ($k + 1);
+  :if ($HSFilePath = "") do={
+    :do {
+      :local pf [:pick [/ip hotspot profile print as-value] 0];
+      :if (($pf != "") and (($pf->"html-directory") != "")) do={ :set HSFilePath ($pf->"html-directory") };
+    } on-error={};
+  };
+  :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
+  :local dataDir ($HSFilePath . "/data");
+  :local f ($dataDir . "/netstatus.txt");
+  :local state "down";
+  :if ([/ping 8.8.8.8 count=1 interval=1s] > 0) do={ :set state "up" };
+  :local old "";
+  :do { :set old [/file get [find name=$f] contents] } on-error={ :set old "" };
+  :if ($old != $state) do={
+    :if ([/file find name=$f] = "") do={
+      :do { /file print file=$f where name="dummyfile" } on-error={};
+      :local x 3;
+      :while (($x>0) and ([/file find name=$f] = "")) do={ :set x ($x-1); :delay 1s };
     };
-    :local todayNo ((($Y - 1970) * 365) + (($Y - 1) / 4 - ($Y - 1) / 100 + ($Y - 1) / 400) - 479 + $doy);
-    :local stamped 0;
-    :local removed 0;
-    :foreach u in=[/ip hotspot user find] do={
-      :local note [/ip hotspot user get $u comment];
-      :if ([:len $note] > 0) do={
-        :local name [/ip hotspot user get $u name];
-        :if ([:len [/system scheduler find name=$name]] = 0) do={
-          :if ([:len [/ip hotspot active find user=$name]] = 0) do={
-            :local f [:toarray $note];
-            :local seen "";
-            :if ([:len $f] > 4) do={ :set seen ($f->4) };
-            :if ($seen = "") do={
-              :do { /ip hotspot user set $u comment=($note . "," . $today) } on-error={};
-              :set stamped ($stamped + 1);
-            } else={
-              :local sY [:tonum [:pick $seen 0 4]];
-              :local sM [:tonum [:pick $seen 5 2]];
-              :local sLeap 0;
-              :if ((($sY % 4) = 0) and ((($sY % 100) != 0) or (($sY % 400) = 0))) do={ :set sLeap 1 };
-              :local sDoy [:tonum [:pick $seen 8 2]];
-              :local j 1;
-              :while ($j < $sM) do={
-                :set sDoy ($sDoy + [:pick $MD ($j - 1)]);
-                :if (($sLeap = 1) and ($j = 2)) do={ :set sDoy ($sDoy + 1) };
-                :set j ($j + 1);
-              };
-              :local seenNo ((($sY - 1970) * 365) + (($sY - 1) / 4 - ($sY - 1) / 100 + ($sY - 1) / 400) - 479 + $sDoy);
-              :if (($todayNo - $seenNo) > $GRACE) do={
-                :do { /ip hotspot active remove [find user=$name] } on-error={};
-                :do { /ip hotspot user remove $u } on-error={};
-                :set removed ($removed + 1);
-              };
+    :do { /file set $f contents=$state } on-error={ :log warning ("netstatus: " . $f . " not written") };
+  };
+} } on-error={ :log warning "juanfi-netstatus not created" };
+:do { /system scheduler add name="juanfi-netstatus-1m" start-time=startup interval=1m policy=read,write,test on-event="/system script run juanfi-netstatus" } on-error={ :log warning "juanfi-netstatus-1m scheduler not added" };
+:do { /system script run juanfi-netstatus } on-error={ :log warning "juanfi-netstatus run failed" };
+```
+
+#### A6. Orphan sweep (daily 04:20)
+
+The coin box picks one of 8,999 codes with no duplicate check, so codes
+that are sold but never claimed pile up until new coins land on a live
+account and top up the wrong customer. This removes any voucher that
+has a comment, no expiry scheduler and no session for `GRACE` days.
+First run only stamps, so installing it can never mass-delete.
+
+```
+:do { /system script remove [find name="juanfi-sweep"] } on-error={};
+:do { /system scheduler remove [find name="juanfi-sweep-daily"] } on-error={};
+:do { /system script add name="juanfi-sweep" policy=read,write,test source={
+  :local GRACE 3;
+  :local MD {31;28;31;30;31;30;31;31;30;31;30;31};
+  :local today [:pick [/system clock get date-time] 0 10];
+  :local Y [:tonum [:pick $today 0 4]];
+  :local M [:tonum [:pick $today 5 2]];
+  :local leap 0;
+  :if ((($Y % 4) = 0) and ((($Y % 100) != 0) or (($Y % 400) = 0))) do={ :set leap 1 };
+  :local doy [:tonum [:pick $today 8 2]];
+  :local k 1;
+  :while ($k < $M) do={
+    :set doy ($doy + [:pick $MD ($k - 1)]);
+    :if (($leap = 1) and ($k = 2)) do={ :set doy ($doy + 1) };
+    :set k ($k + 1);
+  };
+  :local todayNo ((($Y - 1970) * 365) + (($Y - 1) / 4 - ($Y - 1) / 100 + ($Y - 1) / 400) - 479 + $doy);
+  :local stamped 0;
+  :local removed 0;
+  :foreach u in=[/ip hotspot user find] do={
+    :local note [/ip hotspot user get $u comment];
+    :if ([:len $note] > 0) do={
+      :local name [/ip hotspot user get $u name];
+      :if ([:len [/system scheduler find name=$name]] = 0) do={
+        :if ([:len [/ip hotspot active find user=$name]] = 0) do={
+          :local f [:toarray $note];
+          :local seen "";
+          :if ([:len $f] > 4) do={ :set seen ($f->4) };
+          :if ($seen = "") do={
+            :do { /ip hotspot user set $u comment=($note . "," . $today) } on-error={};
+            :set stamped ($stamped + 1);
+          } else={
+            :local sY [:tonum [:pick $seen 0 4]];
+            :local sM [:tonum [:pick $seen 5 2]];
+            :local sLeap 0;
+            :if ((($sY % 4) = 0) and ((($sY % 100) != 0) or (($sY % 400) = 0))) do={ :set sLeap 1 };
+            :local sDoy [:tonum [:pick $seen 8 2]];
+            :local j 1;
+            :while ($j < $sM) do={
+              :set sDoy ($sDoy + [:pick $MD ($j - 1)]);
+              :if (($sLeap = 1) and ($j = 2)) do={ :set sDoy ($sDoy + 1) };
+              :set j ($j + 1);
+            };
+            :local seenNo ((($sY - 1970) * 365) + (($sY - 1) / 4 - ($sY - 1) / 100 + ($sY - 1) / 400) - 479 + $sDoy);
+            :if (($todayNo - $seenNo) > $GRACE) do={
+              :do { /ip hotspot active remove [find user=$name] } on-error={};
+              :do { /ip hotspot user remove $u } on-error={};
+              :set removed ($removed + 1);
             };
           };
         };
       };
     };
-    :log info ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
-    :put ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
   };
-} on-error={ :log warning "setup: juanfi-sweep not created" };
-
-:do { /system script run juanfi-sweep } on-error={ :log warning "setup: juanfi-sweep run failed" };
-
-:do { /system scheduler add name="juanfi-setup-daily" start-time=startup interval=1d policy=read,write,test,policy,ftp on-event="/system script run juanfi-setup" } on-error={ :log warning "setup: juanfi-setup-daily not added" };
-:do { /system scheduler add name="juanfi-sweep-daily" start-time=04:20:00 interval=1d policy=read,write,test on-event="/system script run juanfi-sweep" } on-error={ :log warning "setup: juanfi-sweep-daily not added" };
-:do { /system scheduler add name="juanfi-netstatus-1m" start-time=startup interval=1m policy=read,write,test on-event="/system script run juanfi-netstatus" } on-error={ :log warning "setup: juanfi-netstatus-1m not added" };
-
-:put "=== done, verifying ===";
-:put [/system clock get date-time];
-:local PROF "hsprof1";
-:local VPath "";
-:do { :set VPath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set VPath "" };
-:if (($VPath = "") or ([/file find name=($VPath . "/portal.html")] = "")) do={
-  :local cand "";
-  :foreach c in={"flash/hotspot"; "hotspot"} do={
-    :if ($cand = "") do={
-      :foreach f in={"portal.html"; "login.html"; "status.html"} do={
-        :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
-      };
-    };
-  };
-  :if ($cand != "") do={ :set VPath $cand };
-};
-:if ($VPath = "") do={ :set VPath "hotspot" };
-:put ("portal files = " . $VPath);
-:do { :put ("site-id  = " . [/file get [find name=($VPath . "/data/site-id.txt")] contents]) } on-error={ :put "site-id  = MISSING" };
-:do { :put ("netstatus= " . [/file get [find name=($VPath . "/data/netstatus.txt")] contents]) } on-error={ :put "netstatus= MISSING" };
-:put "=== juanfi-setup done ===";
+  :log info ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
+  :put ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
+} } on-error={ :log warning "juanfi-sweep not created" };
+:do { /system scheduler add name="juanfi-sweep-daily" start-time=04:20:00 interval=1d policy=read,write,test on-event="/system script run juanfi-sweep" } on-error={ :log warning "juanfi-sweep-daily scheduler not added" };
+:do { /system script run juanfi-sweep } on-error={ :log warning "juanfi-sweep run failed" };
 ```
-
-It carries no comments and no line continuations, and every step is
-wrapped in `:do … on-error={}` so one bad command logs a warning and the
-rest still land. It prints the clock, resolved portal path, site-id and
-netstatus values at the end so you see what landed. Re-paste it any time
-to re-apply; a daily scheduler (`juanfi-setup-daily`) runs it on its own,
-which is what restores `site-id.txt` and `netstatus.txt` if anyone
-deletes them.
-
-Three scripts land: `juanfi-setup` (this one), `juanfi-sweep` (orphan
-codes) and `juanfi-netstatus` (pings 8.8.8.8 and writes `up`/`down` into
-the portal's `data/` folder). `juanfi-netstatus-1m` is a scheduler that
-runs it every minute; it re-resolves the portal folder on each run rather
-than baking the path in at install time, and only writes when the value
-actually changed, so flash wear stays flat. A re-import also removes the
-older `vendo net status` netwatch and `juanfi-net-up` / `juanfi-net-down`
-scripts if a previous version left them behind.
-
-Verify by hand if you like:
-
-```
-/system clock print
-/ip hotspot profile print detail
-/file print detail where name="site-id.txt"
-/file print detail where name="netstatus.txt"
-/system script run juanfi-sweep
-```
-
-The clock year must be current (a 1970 clock makes scheduler `next-run`
-garbage, which makes voucher validity garbage). `site-id.txt` must hold
-your board serial. `netstatus.txt` must read `up` — a file full of
-`# sep/...` comment lines means the set lost the race, so re-paste the
-file.
-
-Edit `PROF`, `NTP1/NTP2` and the timezone inside the script if your
-router differs. The NTP property name is the one thing that differs
-between RouterOS 6 and 7 (`primary-ntp`/`secondary-ntp` vs `servers`),
-so the script reads `/system resource get version` and builds the right
-command as text before running it — an unknown property name is a
-compile error that `on-error` cannot catch, which is why it is never
-written literally. Trial logins are the `trial-uptime=5m/1d` line: drop
-`,trial` from `login-by` to turn the free trial off. The portal shows its
-trial button only when the router serves trial (`$(if trial == 'yes')`
-renders) *and* `showTrialLogin` is true in `settings.json`. Trials are
-MAC-tied (rotation eats the trial) and vanish on router reboot — vouchers
-stay the real product.
-
-#### The orphan sweep (`juanfi-sweep`)
-
-The coin box picks a code at random and never asks the router whether
-that code already exists — its telnet helper writes commands without
-reading replies. A code that gets minted and never claimed therefore has
-no expiry scheduler, because only On-Login creates one, and nothing ever
-removed it. Those dead rows pile up until they occupy so much of the
-8,999-code space that new coins keep landing on a live account, which
-tops up the wrong customer and hands the buyer a shared login.
-
-`juanfi-sweep` reclaims that space daily at 04:20. It matches a user with
-a comment, no expiry scheduler and no live session — a minted-never-
-claimed voucher — appends today's date as a 5th comment field, and
-removes anything it stamped more than `GRACE` days ago. Members and
-trials carry an empty comment and are never touched. The box only ever
-*writes* that comment, so this is safe; fields 1-4 stay where it put
-them, which is what On-Login reads.
-
-First run only stamps, so installing it never mass-deletes — the worst
-case is that the oldest dead code lives four more days. Raise `GRACE`
-if buyers pay and log in late, lower it to shrink the collision window.
-
-The script logs every run:
 
 ```
 /log print where message~"juanfi-sweep"
 ```
 
+
 ### B. On-Login
 
 Hotspot → Server Profiles → your profile → Login tab → On Login.
-`HSFilePath` resolves where the portal files actually are, using the
-hotspot profile's `html-directory` first and then probing a file we ship
-(same logic as A). RouterOS never lists directories, so a plain
-`[/file find name="flash/hotspot"]` always comes back empty — that probe
-is why the offline banner went missing on flash storage. Run A first so
-`data/site-id.txt` already exists when logins run.
-
-Winbox method: same path in Winbox — double-click the profile →
-Login tab → paste into the On Login box (maximize the window, the
-field is small), OK. No System → Scripts entry needed for this one.
+Maximize the window first, the field is small. Run A4 before A so
+`data/site-id.txt` exists.
 
 ```bash
 :local PROF "hsprof1";
@@ -398,29 +277,20 @@ field is small), OK. No System → Scripts entry needed for this one.
 }
 ```
 
-Policy is the minimum that runs the cleanup (`ftp` for `/file`,
-`read,write,test` for user/scheduler/file ops) — the old
-`reboot,policy,password,sniff,sensitive,romon` set is overbroad for a
-login-triggered context. The portal splits the session file on the last
-`#`, so member names containing `#` still work. Waits trimmed 10s → 5s
-so captive clients don't time out and double-submit. Trial sessions
-expire natively via `trial-uptime` (Scripts-A), which is why the
-`$isTrial` branch only logs and skips the timer — deleting a trial row
-here would reset the MAC wait. Ran the old
-tracker version? Delete the leftovers on the router: scripts
+Trials skip the timer here on purpose — they expire via `trial-uptime`
+(A1), and deleting a trial row would reset its MAC wait. The portal
+splits the session file on the last `#`, so member names containing `#`
+still work. Ran an older build? Delete the leftovers: scripts
 `day-report`, `month-report`, `todayincome`, `monthlyincome`,
-`tg-creds` (+ `Daily-*` / `Monthly-*`) and schedulers `Reset Daily
-Income`, `Reset Monthly Income`, `tg-creds-boot` — nothing reads
-them anymore.
+`tg-creds` and schedulers `Reset Daily Income`, `Reset Monthly Income`,
+`tg-creds-boot`. Nothing reads them.
 
 ### C. On-Logout (same profile)
 
 Winbox: same Login tab → On Logout box, paste, OK.
 
-Only `session timeout` shortens the timer — manual logout, admin
-removal, and keepalive expiry leave the scheduler at full interval,
-which is correct for the time-remaining model (remaining minutes are
-preserved, not forfeited):
+Only `session timeout` shortens the timer; other logout causes leave it
+at full interval, which preserves the customer's remaining minutes:
 
 ```bash
 :if ($cause="session timeout") do={
@@ -462,24 +332,19 @@ preserved, not forfeited):
   "macAsVoucherCode": false
 }
 ```
-   `false` on `showMemberSection` = voucher-only portal.
-   `core.js` carries the same defaults built in + a sync JSON
-   fetch — the portal survives a missing JSON. No `config.js` file.
+   `false` on `showMemberSection` = voucher-only portal. `core.js`
+   carries the same defaults built in plus a sync JSON fetch, so the
+   portal survives a missing file. Per-site values go on the router copy
+   only — never commit them.
 
-   No trial flag on purpose — the portal has no trial UI. No
-   subscription/theme keys either (not adopted).
-
-   `macAsVoucherCode: true` makes the portal send each client's own MAC
-   (colons stripped) as the voucher code. The coin box only mints a
-   random code when the `topUp` POST carries an empty voucher, so
-   filling it in makes the box register that MAC as the hotspot user —
-   a 48-bit namespace instead of 8,999 codes, which also retires the
-   silent-collision problem where a random mint lands on a live account
-   and tops up the wrong customer. The input stays editable and the
-   voucher box is not hidden, so a real `VC` code still works: `doLogin`
-   reads what is typed first. Turn it on per site if you want MAC
-   identity on sales; leave it off if you hand out typeable codes
-   (GCash, reselling) or need the admin-panel prefix to identify buyers.
+   `macAsVoucherCode: true` sends each client's own MAC (colons
+   stripped) as the voucher code. The box only mints a random code when
+   `topUp` carries an empty voucher, so this gives you a 48-bit
+   namespace instead of 8,999 codes and retires the silent collision
+   where a random mint tops up a stranger. The field stays editable, so
+   a real `VC` code still works. Leave it off if you hand out typeable
+   codes (GCash, reselling) or need the admin-panel prefix to identify
+   buyers.
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +
@@ -488,17 +353,10 @@ Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
 
 ## Optional
 
-- Branding (per site, on the router copy only — never commit):
-
-```js
-var brandHeaderHtml = "BROBRO <em>PISOWIFI</em>";
-var footerBrandText = "@NETBRO";
-var footerSubText = "INTERNET SERVICES";
-```
-
 - Vendo picker (multi-vendo only): `isMultiVendo = true` is the
   single switch. Manual mode shows the dropdown automatically; auto
   modes resolve silently. Single vendo stays hidden.
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)

@@ -6,9 +6,6 @@
 :do { /system scheduler remove [find name="juanfi-setup-daily"] } on-error={};
 :do { /system scheduler remove [find name="juanfi-sweep-daily"] } on-error={};
 :do { /system scheduler remove [find name="juanfi-netstatus-1m"] } on-error={};
-:do { /tool netwatch remove [find comment="vendo net status"] } on-error={};
-:do { /system script remove [find name="juanfi-net-up"] } on-error={};
-:do { /system script remove [find name="juanfi-net-down"] } on-error={};
 
 :do {
   /system script add name="juanfi-setup" policy=read,write,test,policy,ftp source={
@@ -46,7 +43,6 @@
     :do { /system clock set time-zone-name=Asia/Manila } on-error={};
     :do { /ip hotspot profile set [find name=$PROF] login-by=http-chap,http-pap,trial trial-uptime=5m/1d trial-user-profile=default } on-error={ :log warning ("setup: no hotspot profile named " . $PROF) };
     :do { /ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m } on-error={};
-    :do { /ip hotspot cookie remove [find] } on-error={};
     :if ([:len [/ip firewall filter find comment="hotspot before fasttrack"]] = 0) do={
       :do { /ip firewall filter add chain=forward action=accept protocol=tcp dst-port=80,443 src-address=10.0.0.0/16 place-before="top" comment="hotspot before fasttrack" } on-error={ :log warning "setup: fasttrack rule not added" };
     };
