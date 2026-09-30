@@ -38,9 +38,11 @@
       :while (($x>0) and ([/file find name=($dataDir . "/.keep")] = "")) do={ :set x ($x-1); :delay 1s };
       :do { /file remove ($dataDir . "/.keep") } on-error={};
     };
-    :do { /system ntp client set enabled=yes servers=($NTP1 . "," . $NTP2) } on-error={
-      :do { /system ntp client set enabled=yes primary-ntp=$NTP1 secondary-ntp=$NTP2 } on-error={ :log warning "setup: NTP not configured" };
-    };
+    :local rosV "";
+    :do { :set rosV [:pick [/system resource get version] 0 1] } on-error={ :set rosV "" };
+    :local ntpCmd "";
+    :if ($rosV = "7") do={ :set ntpCmd ("/system ntp client set enabled=yes servers=" . $NTP1 . "," . $NTP2) } else={ :set ntpCmd ("/system ntp client set enabled=yes primary-ntp=" . $NTP1 . " secondary-ntp=" . $NTP2) };
+    :do { :local ntpFn [:parse $ntpCmd]; $ntpFn } on-error={ :log warning "setup: NTP not configurable" };
     :do { /system clock set time-zone-name=Asia/Manila } on-error={};
     :do { /ip hotspot profile set [find name=$PROF] login-by=http-chap,http-pap,trial trial-uptime=5m/1d trial-user-profile=default } on-error={ :log warning ("setup: no hotspot profile named " . $PROF) };
     :do { /ip hotspot user profile set [find name="default"] idle-timeout=none keepalive-timeout=30s status-autorefresh=1m } on-error={};

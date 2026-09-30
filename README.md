@@ -74,7 +74,12 @@ your board serial. `netstatus.txt` must read `up` — a file full of
 file.
 
 Edit `PROF`, `NTP1/NTP2` and the timezone inside the script if your
-router differs. Trial logins are the `trial-uptime=5m/1d` line: drop
+router differs. The NTP property name is the one thing that differs
+between RouterOS 6 and 7 (`primary-ntp`/`secondary-ntp` vs `servers`),
+so the script reads `/system resource get version` and builds the right
+command as text before running it — an unknown property name is a
+compile error that `on-error` cannot catch, which is why it is never
+written literally. Trial logins are the `trial-uptime=5m/1d` line: drop
 `,trial` from `login-by` to turn the free trial off. The portal shows its
 trial button only when the router serves trial (`$(if trial == 'yes')`
 renders) *and* `showTrialLogin` is true in `settings.json`. Trials are
