@@ -104,23 +104,6 @@ function dbgAjaxErr(tag, xhr, status, err) {
 	} catch (e) { }
 	dbgLog(tag + " FAILED: " + detail, "dbg-err");
 }
-function clearDebugLog() {
-	__dbgLines = [];
-	if (dbgOn()) { try { console.clear(); } catch (e) { } }
-	dbgLog("debug cleared");
-}
-function copyDebugLog() {
-	var txt = __dbgLines.join("\n");
-	try {
-		if (navigator.clipboard && navigator.clipboard.writeText) {
-			navigator.clipboard.writeText(txt);
-			console.log("debug log copied (" + __dbgLines.length + " lines)");
-		} else {
-			console.log(txt);
-		}
-	} catch (e) { try { console.log(txt); } catch (e2) { } }
-	return txt;
-}
 
 var voucher = (function(){ try { var k = scopedKey('activeVoucher'); var v = getStorageValue(k); if (v != null) return v; // migrate bare key once
 	var bare = getStorageValue('activeVoucher'); if (bare != null && bare !== "") { setActiveVoucher(bare); removeStorageValue('activeVoucher'); return bare; } return ""; } catch(e){ return ""; } })();
@@ -148,7 +131,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=146";
+var SOUND_V = "?v=147";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -1148,7 +1131,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v146"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v147"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
