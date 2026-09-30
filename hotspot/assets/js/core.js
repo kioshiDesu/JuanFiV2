@@ -148,7 +148,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=143";
+var SOUND_V = "?v=144";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -322,20 +322,45 @@ function setActiveVoucher(v) {
 	return setStorageValue(scopedKey('activeVoucher'), v);
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
+// Adopt the venue-scoped voucher and prefill the box, safe to run twice.
+// boot() runs before loadSiteId() resolves, so its first pass reads the
+// "ERROR SITE ID" bucket and loadSiteId() has to correct it afterwards. Only
+// ever overwrites values WE wrote (__prefillVoucher / __adoptedPre) so a live
+// voucher from detectState() and anything the customer is typing survive.
+function adoptScopedVoucher(fill) {
+	try {
+		var sv = getActiveVoucher();
+		var mine = (voucher === "" || voucher === window.__adoptedPre);
+		if (mine) { voucher = sv; window.__adoptedPre = sv; }
+		if (fill && $("#voucherInput").length > 0) {
+			var cur = String($("#voucherInput").val() || "");
+			if (cur === "" || cur === window.__prefillVoucher) {
+				$("#voucherInput").val(sv);
+				window.__prefillVoucher = sv;
+			}
+		}
+		return sv;
+	} catch (e) { return ""; }
+}
 // Voucher history: venue-scoped, max 30, newest first — a new entry pushes
 // the oldest out. List only, codes only (member usernames never recorded).
 var VOUCH_HISTORY_MAX = 30;
 var __pendingHistPush = [];
 function siteScopeReady() { try { return typeof siteIdSuffix !== 'undefined' && !!siteIdSuffix; } catch (e) { return false; } }
+// Site ID missing => the scope would be the shared "ERROR SITE ID" bucket, so
+// codes leak between neighbouring vendos. Save nothing and show nothing until
+// the file is published; the queue drains if it arrives (Scripts-F).
+var __histBlocked = false;
+function histBlocked() { return !!__histBlocked || !siteScopeReady(); }
 function flushPendingHistory() {
 	var q = __pendingHistPush; __pendingHistPush = [];
 	for (var i = 0; i < q.length; i++) { try { pushVoucherHistory(q[i]); } catch (e) {} }
 }
-function getVoucherHistory() { try { var h = JSON.parse(getStorageValue(scopedKey('voucherHistory')) || "[]"); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
+function getVoucherHistory() { if (histBlocked()) { return []; } try { var h = JSON.parse(getStorageValue(scopedKey('voucherHistory')) || "[]"); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
 function pushVoucherHistory(vc) {
 	vc = String(vc || "").trim();
 	if (!vc) { return; }
-	if (!siteScopeReady()) { try { if (__pendingHistPush.indexOf(vc) === -1 && __pendingHistPush.length < 30) { __pendingHistPush.push(vc); } } catch (e) {} return; }
+	if (histBlocked()) { try { if (__pendingHistPush.indexOf(vc) === -1 && __pendingHistPush.length < 30) { __pendingHistPush.push(vc); } } catch (e) {} return; }
 	var h = getVoucherHistory().filter(function (e) { return String((e && e.v) || "") !== vc; });
 	var m = "";
 	try { m = String(window.mac || "").toUpperCase(); } catch (e2) {}
@@ -355,7 +380,7 @@ function useHistoryVoucher(vc) {
 function paintVoucherHistory() {
 	var box = document.getElementById('vhistFull');
 	if (!box) { return; }
-	if (!siteScopeReady()) { box.textContent = ""; return; }
+	if (histBlocked()) { box.textContent = "Voucher history is unavailable on this network."; return; }
 	var h = getVoucherHistory();
 	box.innerHTML = "";
 	if (!h.length) { box.textContent = "No vouchers yet."; return; }
@@ -544,15 +569,10 @@ function loadSiteId() {
 			var m = String(data == null ? "" : data).replace(/[^A-Za-z0-9]/g, "");
 			if (/^[A-Za-z0-9]{4,32}$/.test(m)) {
 				try { siteIdSuffix = m.toUpperCase(); } catch (e) {}
-			try {
-				var scopedV = getActiveVoucher();
-				if (scopedV && scopedV !== voucher) {
-					voucher = scopedV;
-					if ($("#voucherInput").length > 0 && !$("#voucherInput").val()) {
-						$('#voucherInput').val(voucher);
-					}
-				}
-			} catch (e) {}
+			// Scope is real now — correct whatever boot() adopted from the
+			// "ERROR SITE ID" bucket before this fetch resolved.
+			__histBlocked = false;
+			adoptScopedVoucher(true);
 			try {
 				var bareSel = getStorageValue('selectedVendo');
 				if (bareSel) {
@@ -572,7 +592,11 @@ function loadSiteId() {
 		})
 		.fail(function (xhr, status, err) {
 			dbgAjaxErr("siteScope", xhr, status, err);
-			try { dbgLog("site-id missing, fallback scope in use"); } catch (e) { }
+			try { dbgLog("site-id missing, history saving paused"); } catch (e) { }
+			// No site id => a shared "ERROR SITE ID" bucket, so voucher history
+			// is neither saved nor shown until the file is published.
+			__histBlocked = true;
+			try { paintVoucherHistory(); } catch (e) {}
 			try {
 				if (!getSessionValue("__siteIdWarned")) {
 					try { setSessionValue("__siteIdWarned", "1"); } catch (e) {}
@@ -686,18 +710,18 @@ function boot() {
 	applyFlags();
 	try { sfxPreload(); } catch (e) {}
 	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
-	try {
-		var scopedV = getActiveVoucher();
-		if (scopedV && scopedV !== voucher) { voucher = scopedV; }
-	} catch(e){}
+	// Records the value in __adoptedPre so loadSiteId can correct it later.
+	try { adoptScopedVoucher(false); } catch (e) {}
 	if (getReLoginFlag() == '1') {
 		removeReLoginFlag();
-		var sv = getActiveVoucher();
-		if (sv && !$("#voucherInput").val()) { $("#voucherInput").val(sv); }
+		// NO prefill here: the venue scope is still unknown, so a read now
+		// lands in the "ERROR SITE ID" bucket and loadSiteId's correction
+		// would skip a box that is no longer empty. goReLogin reads after.
 		try { markAutoLoginTried(); } catch (e) {}
 		try { setBootText("Renewing session…"); } catch (e) {}
 		var goReLogin = function () {
 			setTimeout(function () {
+				adoptScopedVoucher(true);
 				var code = $("#voucherInput").val() || voucher || getActiveVoucher();
 				if (!code) { hideBoot(); return; }
 				try { doLogin(); } catch (e) { newLogin(); }
@@ -708,12 +732,14 @@ function boot() {
 			var siteP = loadSiteId();
 			if (siteP && siteP.always) { siteP.always(goReLogin); } else { goReLogin(); }
 		} catch (e) { goReLogin(); }
+		// Not awaited: this path must submit fast or the extend looks stuck.
+		// Fire-and-forget so a FAILED renew still shows rates + net banner.
+		try { loadRates(); } catch (e) {}
+		try { checkNetStatus(); } catch (e) {}
 		return;
 	}
 	try { if (!window.__siteIdLoaded) { loadSiteId(); } } catch (e) {}
-	if (voucher != "" && $("#voucherInput").length > 0) {
-		$('#voucherInput').val(voucher);
-	}
+	try { adoptScopedVoucher(false); } catch (e) {}
 	// Failsafe: never trap the customer behind the loader (dead vendo,
 	var bootStateKnown = false;
 	setTimeout(function () {
@@ -749,13 +775,16 @@ function parseStatusFacts(html) {
 		// Shells carry the voucher as span text (never inline JS/attrs —
 		try {
 			var cvEl = doc.getElementById("curV");
-			if (cvEl && cvEl.textContent) { facts.voucher = cvEl.textContent; }
+			// .trim() on every source: an untrimmed voucher is persisted by
+			// detectState and re-submitted by doLogin, so one stray space
+			// round-trips forever and the router rejects it every time.
+			if (cvEl && cvEl.textContent) { facts.voucher = String(cvEl.textContent).trim(); }
 		} catch (e2) {}
 		var root = doc.getElementById("loginBody") || doc.body;
 		if (root) {
 			if (!facts.voucher) {
 				var cv = root.getAttribute("data-current-voucher");
-				if (cv) { facts.voucher = cv; }
+				if (cv) { facts.voucher = String(cv).trim(); }
 			}
 			var st = root.getAttribute("data-session-time");
 			if (st) { facts.sessiontime = st; }
@@ -764,7 +793,7 @@ function parseStatusFacts(html) {
 	} catch (e) {}
 	try {
 		var m = String(html).match(/<span id="curV"[^>]*>([^<]*)<\/span>/);
-		if (m) { facts.voucher = m[1]; }
+		if (m) { facts.voucher = String(m[1]).trim(); }
 		var t = String(html).match(/(?:var|window\.)sessiontime\s*=\s*"([^"]*)"/);
 		if (t) { facts.sessiontime = t[1]; }
 	} catch (e) {}
@@ -1067,7 +1096,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v143"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v144"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1456,7 +1485,11 @@ function showValidity() {
 	var d = $.Deferred();
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
 		.done(function (data) {
-			if (String(data).length > 50) {
+			// Body is "$user#$validity". The old 50-char cap threw away the
+			// real expiry for any member name of 30+ chars (52 total) and the
+			// two sibling parsers had no cap at all. 300 still catches a router
+			// error page while never touching a real session file.
+			if (String(data == null ? "" : data).length > 300) {
 				try { dbgLog("validity: long body, fallback"); } catch (e) { }
 				if (fallbackValidity()) { d.resolve(); } else { d.reject(); }
 				return;
@@ -1539,7 +1572,11 @@ function insertBtnAction() {
 			url: "/status",
 			timeout: ROUTER_TIMEOUT,
 			success: function (data) {
-				if (data.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
+				// String() + try: a non-string body made indexOf throw, which
+				// left insertingCoin stuck true and Done permanently disabled.
+				var probe = "";
+				try { probe = String(data == null ? "" : data); } catch (e) { probe = ""; }
+				if (probe.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					try { dbgLog("insert: already logged in, bouncing to status"); } catch (e) { }
 					location.reload();
 				} else {
@@ -1759,7 +1796,7 @@ function checkCoin() {
 			checkCoinFailStreak = 0;
 			if (data.status == "true") {
 			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
-			totalCoinReceived = parseInt(data.totalCoin, 10);
+			totalCoinReceived = (isFinite(parseInt(data.totalCoin, 10)) ? parseInt(data.totalCoin, 10) : 0);
 			$('#totalCoin').text(data.totalCoin);
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded, 10)));
 			$('#voucherInput').val(voucher);
@@ -1773,7 +1810,9 @@ function checkCoin() {
 				// Clamped 0-100: waitTime=0 used to yield Infinity% width.
 				var percent = (!isFinite(remainTime) || !isFinite(waitTime) || waitTime <= 0) ? 0 :
 					Math.max(0, Math.min(100, parseInt(((remainTime * 1000) / waitTime) * 100, 10)));
-			totalCoinReceived = parseInt(data.totalCoin, 10);
+			// NaN totalCoin used to make cancelCoin() skip the forfeit warning
+			// and silently throw away money the customer had already inserted.
+			totalCoinReceived = (isFinite(parseInt(data.totalCoin, 10)) ? parseInt(data.totalCoin, 10) : 0);
 			if (totalCoinReceived > 0) {
 				$("#saveVoucherButton").prop('disabled', false);
 				$('#voucherInput').val(voucher);
@@ -1794,12 +1833,15 @@ function checkCoin() {
 					$('#totalCoin').text(data.totalCoin);
 					$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded, 10)));
 					var bar = $("#progressDiv");
+					// Width was already clamped; the label was not, so a missing
+					// remainTime painted a literal "NaNs" and read it out.
+					var dispRemain = (isFinite(remainTime) ? remainTime : 0);
 					bar.css('width', percent + '%');
 					bar.attr('aria-valuenow', percent);
-					bar.attr('aria-valuetext', remainTime + ' seconds remaining');
+					bar.attr('aria-valuetext', dispRemain + ' seconds remaining');
 					bar.removeClass("time-ok time-half time-low");
 					bar.addClass(percent > 50 ? "time-ok" : (percent >= 25 ? "time-half" : "time-low"));
-					bar.html(remainTime + "s");
+					bar.html(dispRemain + "s");
 				}
 			} else if (data.errorCode == "coinslot.busy") {
 				closeCoinModal();
