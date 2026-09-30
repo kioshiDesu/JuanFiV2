@@ -148,7 +148,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=142";
+var SOUND_V = "?v=143";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -920,7 +920,12 @@ function paintRemainA11y(time) {
 
 function startCountdown() {
 	if ($("#remainTime").length == 0 || window.sessiontime == null) { return; }
-	var time = window.sessiontime;
+	// A re-render (coin cancel, slot close, failed pause) re-enters here.
+	// window.sessiontime is written once per page load, so restarting from it
+	// rewound the clock to the FULL session and re-armed both warnings. Once
+	// a countdown is live, window.__remainSecs is the truth.
+	var live = (typeof window.__remainSecs === "number" && isFinite(window.__remainSecs)) ? window.__remainSecs : null;
+	var time = (live != null) ? live : window.sessiontime;
 	if (time == "0" || time == "") {
 		$("#remainTime").html("Unlimited");
 		return;
@@ -928,8 +933,13 @@ function startCountdown() {
 	time = parseInt(time, 10);
 	if (!isFinite(time) || time < 0) { time = 0; }
 	window.__remainSecs = time;
-	var total = time;
-	var warned5 = false, warned1 = false;
+	// The original session length, kept across re-renders so the 5m/1m
+	// warnings still arm at the right thresholds after a mid-session restart.
+	var total = (typeof window.__sessionTotal === "number" && isFinite(window.__sessionTotal)) ? window.__sessionTotal : time;
+	window.__sessionTotal = total;
+	// Warnings are sticky for the page: once shown they must not re-fire
+	// because the view was re-rendered.
+	var warned5 = !!window.__warned5, warned1 = !!window.__warned1;
 	$("#remainTime").html(boxesDhms(time));
 	paintRemainA11y(time);
 	paintCountdownUrgency(time);
@@ -944,10 +954,12 @@ function startCountdown() {
 		fitCountdown("#remainTime");
 		if (!warned5 && total > 300 && time <= 300) {
 			warned5 = true;
+			window.__warned5 = true;
 			$.toast({ title: 'Running low', content: '5 minutes remaining — tap EXTEND TIME to add more', type: 'warning', delay: 5000 });
 		}
 		if (!warned1 && total > 60 && time <= 60) {
 			warned1 = true;
+			window.__warned1 = true;
 			$.toast({ title: 'Almost out', content: '1 minute remaining! Tap EXTEND TIME now or you will be logged out', type: 'warning', delay: 8000 });
 			try {
 				sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null);
@@ -1055,7 +1067,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v142"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v143"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1177,6 +1189,7 @@ function cancelCoin() {
 function cancelCoinForfeit() {
 	var forfeited = totalCoinReceived;
 	try { dbgLog("cancel: forfeited coins=" + forfeited); } catch (e) { }
+	checkCoinFailStreak = 0;
 	topUpGen++;
 	clearInterval(timer);
 	timer = null;
@@ -1374,15 +1387,28 @@ function parseValidity(raw) {
 	// Invalid dates come back null (never Invalid Date) — callers render
 	raw = String(raw == null ? "" : raw);
 	if (raw.length == 0) { return null; }
-	var d;
-	if (raw.length > 15) { d = new Date(Date.parse(raw)); }
-	else if (raw.length > 8) {
-		var dt = raw.split(" ");
-		d = new Date(Date.parse(dt[0] + "/" + new Date().getFullYear() + " " + dt[1]));
-	} else {
-		var cur = new Date();
-		d = new Date(Date.parse((cur.getMonth() + 1) + "/" + cur.getDate() + "/" + cur.getFullYear() + " " + raw));
+	if (raw.length > 15) { return parsedDate(Date.parse(raw)); }
+	var dt = raw.split(" ");
+	var now = new Date();
+	if (dt.length >= 2) {
+		// "MM/DD HH:MM(:SS)" carries no year. Picking the current year read
+		// every code as valid for ~a year across New Year, which let the
+		// staleness gate in resumeSession auto-login a dead code. Test the
+		// three plausible years and keep the one closest to now — the truth is
+		// always the nearest, since a code is never more than a year out.
+		var best = null, bestDist = Infinity;
+		for (var y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
+			var c = parsedDate(Date.parse(dt[0] + "/" + y + " " + dt[1]));
+			if (!c) { continue; }
+			var dist = Math.abs(c.getTime() - now.getTime());
+			if (dist < bestDist) { bestDist = dist; best = c; }
+		}
+		return best;
 	}
+	return parsedDate(Date.parse((now.getMonth() + 1) + "/" + now.getDate() + "/" + now.getFullYear() + " " + raw));
+}
+function parsedDate(ms) {
+	var d = new Date(ms);
 	return (d instanceof Date && isFinite(d.getTime())) ? d : null;
 }
 
@@ -1486,6 +1512,10 @@ function insertBtnAction() {
 	// No double-submit: one coin session at a time (second tap = busy error).
 	if (insertingCoin) { return false; }
 	topUpGen++;
+	// Fresh session, fresh fail budget. Without this the streak left over from
+	// a previous give-up trips the >=8 stop on the FIRST poll of the new
+	// insert, and the ===5 warning can never re-arm.
+	checkCoinFailStreak = 0;
 	insertingCoin = true;
 	coinToastKey = null;
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
@@ -1617,6 +1647,9 @@ function saveVoucherBtnAction() {
 	// Entry guard: Done double-tap and the wait-expiry auto-finalize used
 	if (window.__useVoucherBusy) { return; }
 	window.__useVoucherBusy = true;
+	// Snapshot the slot total BEFORE anything can clear it: the poll and the
+	// POST race, and "did the customer pay" must not be read afterwards.
+	var paidCoins = totalCoinReceived;
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', true);
 	$("#loaderDiv").attr("class", "spinner");try{$("#paidNote").text("Confirming purchase…");}catch(e){}
@@ -1628,6 +1661,10 @@ function saveVoucherBtnAction() {
 	clearInterval(timer);
 	timer = null;
 	sfxStopLoop();
+	// Kill the poll too. A queued /checkCoin can land after this POST and its
+	// coinslot.busy branch closes the panel + re-enables an auto-login that
+	// races the login the success path is about to schedule.
+	if (currentCheckCoinXhr) { try { currentCheckCoinXhr.abort(); } catch (e) {} currentCheckCoinXhr = null; }
 	if (currentUseVoucherXhr) { try { currentUseVoucherXhr.abort(); } catch(e){} }
 	currentUseVoucherXhr = $.ajax({
 		type: "POST",
@@ -1647,7 +1684,7 @@ function saveVoucherBtnAction() {
 			try { sfxPlayFile("success", snd("assets/sounds/success.mp3"), false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
-		} else if (data.errorCode == "coinslot.busy" && totalCoinReceived > 0) {
+		} else if (data.errorCode == "coinslot.busy" && paidCoins > 0) {
 			// Lost the race with the ESP wait-expiry: the vendo already
 			// registered the voucher and added the time itself (then cleared
 			if (data.validity) { setVouchValue(voucher, "tempValidity", data.validity); }
@@ -1673,7 +1710,7 @@ function saveVoucherBtnAction() {
 			dbgAjaxErr("useVoucher", jqXHR, status, err);
 			if (status === "timeout") {
 				$.toast({ title: 'Error', content: 'ESP unreachable — check that the vendo is powered on and WiFi connected', type: 'error', delay: 5000 });
-			} else if (totalCoinReceived > 0) {
+			} else if (paidCoins > 0) {
 				$.toast({ title: 'Warning', content: 'Connect/Login failed, however coin has been process, please manually connect using this voucher: ' + voucher, type: 'info', delay: 8000 });
 			}
 		}
@@ -1839,6 +1876,19 @@ function pause() {
 	// Store seconds, not markup: the old code saved $("#remainTime").html()
 	setVouchValue(vc, "remain", String(window.__remainSecs == null ? -1 : window.__remainSecs));
 	try { dbgLog("pause: remain saved"); } catch (e) { }
+	// A coin session must not outlive the pause. Left running, the poll keeps
+	// ticking against a hidden panel and the wait-expiry branch auto-finalizes
+	// into a login the customer never asked for — silent re-charge.
+	try { clearInterval(timer); timer = null; } catch (e) {}
+	try { if (currentCheckCoinXhr) { currentCheckCoinXhr.abort(); currentCheckCoinXhr = null; } } catch (e) {}
+	try { if (currentTopUpXhr) { currentTopUpXhr.abort(); currentTopUpXhr = null; } } catch (e) {}
+	try { if (currentUseVoucherXhr) { currentUseVoucherXhr.abort(); currentUseVoucherXhr = null; } } catch (e) {}
+	try { sfxStopLoop(); } catch (e) {}
+	try { window.__useVoucherBusy = false; } catch (e) {}
+	if (totalCoinReceived > 0) {
+		totalCoinReceived = 0;
+		try { $.toast({ title: 'Coins not processed', content: 'Your inserted coins were not used. Tap INSERT COIN to try again.', type: 'warning', delay: 5000 }); } catch (e) {}
+	}
 	insertingCoin = true;
 	render("paused");
 	// End the router session in the background without navigating, so no
