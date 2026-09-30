@@ -148,7 +148,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=144";
+var SOUND_V = "?v=145";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -753,6 +753,20 @@ function boot() {
 		try { dbgLog("boot state=" + state); } catch (e) { }
 		bootStateKnown = true;
 		render(state);
+		// Paused: show the view first, then verify it is still resumable.
+		// Waiting on every job here meant a dead ESP held the customer behind
+		// the loader for 5s for a page they were only trying to look at.
+		// Router calls (expiry, net) still run; only loadRates is deferred
+		// until after the reveal because that is the one that waits on the ESP.
+		if (state == "paused") {
+			setTimeout(hideBoot, 120);
+			timedStep("Loading session", showValidity(), true);
+			timedStep("Checking internet", checkNetStatus(), true);
+			timedStep("Checking session", checkStalePause(), true).always(function () {
+				try { loadRates(); } catch (e) {}
+			});
+			return;
+		}
 		var jobs = [timedStep("Loading Wi-Fi rates", loadRates(), true), timedStep("Checking internet", checkNetStatus(), true)];
 		if (state == "login") {
 			jobs.push(timedStep("Checking session", resumeSession(), true));
@@ -810,17 +824,22 @@ function detectState() {
 			return d.promise();
 		}
 	} catch (e) { }
-	// A reload while paused means the user is coming back: drop the pause
-	if (getPausedFlag() == "1") {
-		removePausedFlag();
-		try { dbgLog("paused flag dropped on reload"); } catch (e) { }
-	}
 	// Single retry: a slow router (>3s) used to misclassify logged-in
 	probeStatus(0);
 	function probeStatus(attempt) {
 	$.ajax({ type: "GET", url: "/status", timeout: ROUTER_TIMEOUT }).done(function (data) {
 		var html = String(data);
 		if (html.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") >= 0) {
+			// Router says logged out. A pause flag means the customer left on
+			// purpose — keep them paused instead of auto-logging them back in.
+			// (Dropping the flag here is what made every refresh resurrect the
+			// session.) Validity of the pause itself is checked async by
+			// checkStalePause() once the paused view is up.
+			if (getPausedFlag() == "1") {
+				try { window.__resolvedState = "paused"; dbgLog("detect: paused"); } catch (e) { }
+				d.resolve("paused");
+				return;
+			}
 			try { dbgLog("detect: login"); } catch (e) { }
 			d.resolve("login");
 		} else {
@@ -884,6 +903,11 @@ function render(state) {
 		previewUrgencyHook();
 	}
 	if (state == "paused") {
+		// detectState resolves "paused" off the local flag, so `voucher` may
+		// still be empty (or the pre-scope read) when this runs. Re-adopt
+		// before painting or the paused view shows a blank code and "—".
+		try { adoptScopedVoucher(false); } catch (e) {}
+		if (!voucher) { try { voucher = getActiveVoucher(); } catch (e) {} }
 		$("#pausedVoucher").text(voucher);
 		renderStoredRemain("#pauseRemainTime", voucher);
 		try {
@@ -1096,7 +1120,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v144"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v145"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1338,13 +1362,62 @@ function rateDisplay(raw) {
 
 // ---------- session resume (login page) ----------
 
+// The pause itself can outlive the code it was holding. The per-MAC session
+// file is the only client-side signal that the code still exists: On-Login
+// writes it, the expiry scheduler deletes it. Missing / empty / past validity
+// = the code is gone and there is nothing left to resume into.
+function clearStalePause(msg) {
+	try {
+		var vc = getActiveVoucher() || voucher;
+		if (vc) { removeVouchValue(vc, "remain"); removeVouchValue(vc, "tempValidity"); removeVouchValue(vc, "validity"); }
+		removeActiveVoucher();
+		removePausedFlag();
+		insertingCoin = false;
+		voucher = "";
+		try { $("#voucherInput").val(""); } catch (e) {}
+		if (msg && !getSessionValue("__stalePauseWarned")) {
+			try { setSessionValue("__stalePauseWarned", "1"); } catch (e) {}
+			$.toast({ title: 'Session ended', content: msg, type: 'warning', delay: 6000 });
+		}
+	} catch (e) {}
+}
+function checkStalePause() {
+	var d = $.Deferred();
+	if (getPausedFlag() != "1") { d.resolve(false); return d.promise(); }
+	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
+	.done(function (data) {
+		var str = String(data == null ? "" : data);
+		var hash = str.lastIndexOf("#");
+		var fv = (hash < 0 ? str : str.slice(0, hash)).trim();
+		var vu = hash < 0 ? null : parseValidity(str.slice(hash + 1));
+		var stale = (!fv || vu == null || vu.getTime() < new Date().getTime());
+		if (stale) {
+			try { dbgLog("stale pause: session file gone, clearing"); } catch (e) {}
+			// clearStalePause clears the flag and storage, then render() shows
+			// the login view. Order matters: render last, or the paused view
+			// is re-painted with a voucher that no longer exists.
+			clearStalePause("This session is no longer valid.");
+			try { render("login"); } catch (e) {}
+		}
+		d.resolve(stale);
+	})
+	.fail(function () { d.resolve(false); });
+	return d.promise();
+}
+
 function resumeSession() {
 	var d = $.Deferred();
 	if (typeof STATE !== 'undefined' && STATE != "login") { d.resolve(); return d.promise(); }
 	// Router rejection lands back here with loginError set — show it
 	// BEFORE the one-shot guard below, or a failed submit (which marks
 	if (loginError != "") {
-		removePausedFlag();
+		// A failed RESUME arrives here with the flag still set. Keep it, or a
+		// customer who is merely online on another device comes back to an
+		// auto-login on the next refresh instead of their paused view.
+		var resumePending = false;
+		try { resumePending = (getSessionValue("__resumePending") == "1"); } catch (e) {}
+		if (!resumePending) { removePausedFlag(); }
+		try { removeSessionValue("__resumePending"); } catch (e) {}
 		try { markAutoLoginTried(); } catch (e) {}
 		var loginErrLower = String(loginError).toLowerCase();
 		if (loginErrLower.indexOf("no more sessions") !== -1 || loginErrLower.indexOf("session limit") !== -1 || loginErrLower.indexOf("simultaneous") !== -1) {
@@ -1378,9 +1451,12 @@ function resumeSession() {
 			return d.promise();
 		}
 	} catch (e) {}
-	var isPaused = getPausedFlag();
-	if (isPaused == "1") {
-		renderStoredRemain("#pauseRemainTime", voucher);
+	// Paused: never auto-connect. The customer chose to stop, and auto-login
+	// here is exactly what made every refresh resurrect the session.
+	if (getPausedFlag() == "1") {
+		try { dbgLog("resume: paused, skipping auto-login"); } catch (e) {}
+		d.resolve();
+		return d.promise();
 	}
 	if ($("#voucherInput").length > 0) {
 		$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
@@ -1462,6 +1538,9 @@ function formatExpiryLeft(t) {
 // voucher the router reports. Mismatch = stale neighbour code — drop its
 function validateStatusVoucher() {
 	var d = $.Deferred();
+	// Paused: the file voucher's remain/validity are what RESUME needs. This
+	// check would wipe them whenever the file names a different code.
+	if (getPausedFlag() == "1") { d.resolve(); return d.promise(); }
 	$.ajax({ type: "GET", url: "/data/" + macNoColon() + ".txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT })
 	.done(function (data) {
 		try {
@@ -1941,6 +2020,9 @@ function pause() {
 		fetch(document.logout.action, { method: "GET", cache: "no-store", signal: pauseCtl ? pauseCtl.signal : undefined })
 			.then(function (r) { if (!r || !r.ok) { throw new Error("logout-http"); } })
 			.catch(function () {
+				// The router session is still live, so the pause never took.
+				// Forget the flag here or the next refresh would strand the
+				// customer on a paused view for a session that is still up.
 				try {
 					removePausedFlag();
 					insertingCoin = false;
@@ -1954,13 +2036,15 @@ function pause() {
 function resume() {
 	var vc = getActiveVoucher() || voucher;
 	try { dbgLog("resume: " + (vc ? "relogin len=" + vc.length : "no voucher, reload")); } catch (e) { }
-	removePausedFlag();
 	insertingCoin = false;
-	// Keep the voucher + remain until the router verdict: the old code
-	if (!vc) { location.reload(); return; }
+	// Keep the flag until the router rules on the code: dropping it first
+	// made a failed RESUME land on the login view with the pause forgotten,
+	// and the next refresh would auto-login anyway.
+	if (!vc) { removePausedFlag(); location.reload(); return; }
 	voucher = vc;
 	setActiveVoucher( vc);
 	$('#voucherInput').val(vc);
+	try { setSessionValue("__resumePending", "1"); } catch (e) {}
 	doLogin();
 }
 
