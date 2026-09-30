@@ -123,7 +123,7 @@ function copyDebugLog() {
 }
 
 var voucher = (function(){ try { var k = scopedKey('activeVoucher'); var v = getStorageValue(k); if (v != null) return v; // migrate bare key once
-	var bare = getStorageValue('activeVoucher'); if (bare != null && bare !== "") { setStorageValue(k, bare); removeStorageValue('activeVoucher'); return bare; } return ""; } catch(e){ return ""; } })();
+	var bare = getStorageValue('activeVoucher'); if (bare != null && bare !== "") { setActiveVoucher(bare); removeStorageValue('activeVoucher'); return bare; } return ""; } catch(e){ return ""; } })();
 if (voucher == null) { voucher = ""; }
 var STATE = (typeof PAGE !== 'undefined') ? PAGE : 'login';
 var insertingCoin = false;
@@ -148,7 +148,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=145";
+var SOUND_V = "?v=146";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -166,8 +166,11 @@ function sfxPlayFile(name, src, loop, fallback) {
 				p.catch(function () { try { fallback && fallback(); } catch (e) {} });
 			}
 		} else {
-			var c = a.cloneNode(true);
+			// Reuse the cached element instead of cloning a fresh Audio per
+			// blip (one per coin, countdown warning and error toast).
+			var c = a;
 			c.loop = false;
+			try { c.pause(); c.currentTime = 0; } catch (e) {}
 			var p = c.play();
 			if (p && typeof p.catch === "function") {
 				p.catch(function () { try { fallback && fallback(); } catch (e) {} });
@@ -178,7 +181,9 @@ function sfxPlayFile(name, src, loop, fallback) {
 	}
 }
 function sfxStartLoop() {
-	try { if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; } } catch (e) {}
+	// No reduced-motion gate here. That preference is about movement, not
+	// sound: it was silencing the coin slot for the wrong users while
+	// everyone else got an audio loop they never asked for.
 	sfxStopLoop();
 	sfxPlayFile("insert", snd("assets/sounds/insertcoinbg.mp3"), true, null);
 }
@@ -291,11 +296,13 @@ function getCookie(name) {
 }
 
 function eraseCookie(name) {
-	document.cookie = name + '=; Max-Age=-99999999;';
+	// Same path setCookie writes, otherwise the delete targets a cookie
+	// scoped to the current document and silently leaves the key behind.
+	document.cookie = name + '=; Max-Age=-99999999; path=/';
 }
 
-// Venue-scoped voucher storage — same browser visiting two neighbouring
-// vendos at 10.0.0.1 would otherwise share one localStorage key and a
+// Venue-scoped voucher storage. A browser on two neighbouring vendos,
+// or a router with no site id file, would otherwise share one bucket.
 function venueScopeSuffix() {
 	var v = "";
 	try {
@@ -313,7 +320,15 @@ function getActiveVoucher() {
 	try {
 		var ts = getStorageValue(scopedKey('activeVoucher_ts'));
 		var age = Date.now() - parseInt(ts, 10);
-		if (v && ts && (!isFinite(age) || age > 7*24*60*60*1000)) { removeActiveVoucher(); removeStorageValue(scopedKey('activeVoucher_ts')); return ""; }
+		if (v && !ts) {
+			// A code saved before the timestamp existed (or written while
+			// the ts write was failing) would otherwise never age out.
+			// Stamp it now so the 7-day cap starts from here.
+			setStorageValue(scopedKey('activeVoucher_ts'), String(Date.now()));
+		} else if (v && (!isFinite(age) || age > 7*24*60*60*1000)) {
+			removeActiveVoucher();
+			return "";
+		}
 	} catch(e){}
 	return v;
 }
@@ -520,41 +535,45 @@ function wipePortalStorage() {
 		"redirectLogin", "ignoreSaveCode", "insertCoinRefreshed",
 		"totalCoinReceived", "reLogin", "selectedVendo"];
 	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin", "selectedVendo"];
-	var vouchers = [];
-	try {
-		var bare = getStorageValue('activeVoucher');
-		if (bare) { vouchers.push(bare); }
-		try {
-			var sc = getStorageValue(scopedKey('activeVoucher'));
-			if (sc && vouchers.indexOf(sc) < 0) { vouchers.push(sc); }
-		} catch (e) {}
-	} catch (e) {}
-	try {
-		if (typeof localStorage === 'undefined' || localStorage == null) { return; }
-		var kill = [];
-		for (var i = 0; i < localStorage.length; i++) {
-			var k = localStorage.key(i);
-			if (k == null) { continue; }
-			if (fixed.indexOf(k) >= 0) { kill.push(k); continue; }
-			var scopedHit = false;
-			for (var b = 0; b < scopedBases.length; b++) {
-				if (k === scopedBases[b] || k.indexOf(scopedBases[b] + "_") === 0) { kill.push(k); scopedHit = true; break; }
-			}
-			if (scopedHit) { continue; }
-			if (/(remain|tempValidity|validity)$/.test(k)) { kill.push(k); continue; }
-			for (var v = 0; v < vouchers.length; v++) {
-				var hit = false;
-				if (vouchers[v]) {
-					var tails = ["remain", "tempValidity", "validity"];
-					for (var t = 0; t < tails.length; t++) {
-						var base = vouchers[v] + tails[t];
-						if (k === base || k.indexOf(base + "_") === 0) { hit = true; break; }
-					}
-				}
-				if (hit) { kill.push(k); break; }
-			}
+	// Per-voucher keys are <voucher>remain / tempValidity / validity with an
+	// optional _<scope> tail. The old regex was tail-anchored with no scope
+	// allowed, so it only ever matched unscoped ones and every code the
+	// customer ever used leaked three permanent entries.
+	var perVoucher = /(remain|tempValidity|validity)(_.+)?$/;
+	function isOurs(k) {
+		if (fixed.indexOf(k) >= 0) { return true; }
+		for (var b = 0; b < scopedBases.length; b++) {
+			if (k === scopedBases[b] || k.indexOf(scopedBases[b] + "_") === 0) { return true; }
 		}
-		for (var j = 0; j < kill.length; j++) { try { localStorage.removeItem(kill[j]); } catch (e) {} }
+		return perVoucher.test(k);
+	}
+	// localStorage path: scan the real key list.
+	try {
+		if (typeof localStorage !== 'undefined' && localStorage != null) {
+			var kill = [];
+			for (var i = 0; i < localStorage.length; i++) {
+				var k = localStorage.key(i);
+				if (k != null && isOurs(k)) { kill.push(k); }
+			}
+			for (var j = 0; j < kill.length; j++) { try { localStorage.removeItem(kill[j]); } catch (e) {} }
+		}
+	} catch (e) {}
+	// Cookie path (no localStorage): the only way to see the keys is the
+	// cookie string itself. Skipping this left every deletion a no-op,
+	// which is exactly the case the fallback exists for.
+	try {
+		if (typeof document !== 'undefined' && document.cookie) {
+			var names = [];
+			var parts = document.cookie.split(';');
+			for (var p = 0; p < parts.length; p++) {
+				var c = parts[p];
+				while (c.charAt(0) == ' ') { c = c.substring(1); }
+				var eq = c.indexOf('=');
+				var nm = (eq >= 0) ? c.substring(0, eq) : c;
+				if (nm && isOurs(nm)) { names.push(nm); }
+			}
+			for (var n = 0; n < names.length; n++) { try { removeStorageValue(names[n]); } catch (e) {} }
+		}
 	} catch (e) {}
 }
 
@@ -574,12 +593,16 @@ function loadSiteId() {
 			__histBlocked = false;
 			adoptScopedVoucher(true);
 			try {
-				var bareSel = getStorageValue('selectedVendo');
-				if (bareSel) {
-					setStorageValue(scopedKey('selectedVendo'), bareSel);
+				// Venue-scoped with the bare key as the pre-scope fallback,
+				// then the bare key is dropped so there is one source.
+				var sel = getStorageValue(scopedKey('selectedVendo'));
+				if (!sel) { sel = getStorageValue('selectedVendo'); }
+				if (sel) {
+					setStorageValue(scopedKey('selectedVendo'), sel);
+					removeStorageValue('selectedVendo');
 					if (typeof multiVendoOption !== 'undefined' && multiVendoOption === 0) {
-						vendorIpAddress = bareSel;
-						$("#vendoSelected").val(bareSel);
+						vendorIpAddress = sel;
+						$("#vendoSelected").val(sel);
 					}
 				}
 			} catch (e) {}
@@ -1067,14 +1090,19 @@ function applyFlags() {
 					text: multiVendoAddresses[k].vendoName
 				}));
 			}
-			var selectedVendo = getStorageValue('selectedVendo');
-			if (selectedVendo != null) {
+			// Venue-scoped, like every other saved value, with the old bare
+			// key as the pre-scope fallback. A truthy test, not "!= null":
+			// a cookie written with an empty value reads back as "" and
+			// would blank vendorIpAddress into http:///topUp.
+			var selectedVendo = getStorageValue(scopedKey('selectedVendo'));
+			if (!selectedVendo) { selectedVendo = getStorageValue('selectedVendo'); }
+			if (selectedVendo) {
 				vendorIpAddress = selectedVendo;
 			}
 			$("#vendoSelected").val(vendorIpAddress);
 			$("#vendoSelected").change(function () {
 				vendorIpAddress = $("#vendoSelected").val();
-				setStorageValue('selectedVendo', vendorIpAddress);
+				setStorageValue(scopedKey('selectedVendo'), vendorIpAddress);
 			});
 			$("#vendoSelected").trigger("change");
 			// Manual multi-vendo: isMultiVendo is the single switch,
@@ -1120,7 +1148,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v145"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v146"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1273,6 +1301,17 @@ function cancelCoinForfeit() {
 		error: function () { $("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){} }
 	});
 	totalCoinReceived = 0;
+	// Put the stashed code back. topUp blanked it for a fresh purchase and
+	// only restored it on success or retry-exhausted, so cancelling left
+	// the box empty and the status view showing a blank voucher until the
+	// next reload.
+	try {
+		if (window.__stashedVoucher) {
+			voucher = window.__stashedVoucher;
+			window.__stashedVoucher = null;
+			$("#voucherInput").val(voucher);
+		}
+	} catch (e) {}
 	render(STATE);
 }
 
@@ -1729,7 +1768,12 @@ function callTopupAPI(retryCount, gen) {
 					timer = setInterval(checkCoin, 1000);
 				}
 				if (isMultiVendo) {
-					$("#coinPanelTitle").text("Please insert coins on " + $("#vendoSelected option:selected").text());
+					// The picker is only populated in manual mode; in the
+					// auto modes its selected option text is empty and the
+					// old unconditional read left a dangling "on ".
+					var vname = "";
+					try { vname = String($("#vendoSelected option:selected").text() || "").trim(); } catch (e) {}
+					$("#coinPanelTitle").text(vname ? ("Please insert coins on " + vname) : "Please insert coins");
 				}
 				sfxStartLoop();
 			} else {
@@ -2054,7 +2098,13 @@ function notifyCoinSlotError(errorCode) {
 		sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null);
 	} catch (e) { }
 	var coinMsg = errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again');
-	try { $("#coinErr").text(coinMsg).show(); $("#coinErr").focus(); } catch (e) {}
+	try {
+		$("#coinErr").text(coinMsg).show();
+		// Only move focus when the coin panel is actually on screen, or the
+		// focus lands on a hidden div and the customer gets nothing.
+		var cp = $("#coinPanel");
+		if (cp && cp.is(":visible")) { $("#coinErr").focus(); }
+	} catch (e) {}
 	$.toast({ title: 'Error', content: coinMsg, type: 'error', delay: 5000 });
 }
 
