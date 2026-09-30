@@ -39,11 +39,14 @@ router and import it:
 /import file=juanfi-setup.rsc
 ```
 
-or drag it into Winbox → Files and double-click it. It prints the clock,
-resolved portal path, site-id and netstatus values at the end so you see
-what landed. Re-paste it any time to re-apply; a daily scheduler
-(`juanfi-setup-daily`) runs it on its own, which is what restores
-`site-id.txt` and `netstatus.txt` if anyone deletes them.
+or drag it into Winbox → Files and double-click it. It carries no
+comments and no line continuations, and every step is wrapped in
+`:do … on-error={}` so one bad command logs a warning and the rest
+still land. It prints the clock, resolved portal path, site-id and
+netstatus values at the end so you see what landed. Re-paste it any time
+to re-apply; a daily scheduler (`juanfi-setup-daily`) runs it on its own,
+which is what restores `site-id.txt` and `netstatus.txt` if anyone
+deletes them.
 
 Three scripts land: `juanfi-setup` (this one), `juanfi-sweep` (orphan
 codes) and `juanfi-netstatus` (pings 8.8.8.8 and writes `up`/`down` into
@@ -138,8 +141,6 @@ field is small), OK. No System → Scripts entry needed for this one.
 :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
 :local rawNote [/ip hotspot user get [find name="$user"] comment];
 :local isTrial ([:pick $user 0 2] = "T-");
-# Trial sessions expire natively via trial-uptime (Scripts-A) — never
-# delete trial rows here, that resets the MAC wait.
 :if (($rawNote = "") or ($isTrial)) do={
   :log warning ("On-Login(" . $user . "): trial/empty comment, voucher timer skipped");
 } else={
@@ -199,7 +200,10 @@ Policy is the minimum that runs the cleanup (`ftp` for `/file`,
 `reboot,policy,password,sniff,sensitive,romon` set is overbroad for a
 login-triggered context. The portal splits the session file on the last
 `#`, so member names containing `#` still work. Waits trimmed 10s → 5s
-so captive clients don't time out and double-submit. Ran the old
+so captive clients don't time out and double-submit. Trial sessions
+expire natively via `trial-uptime` (Scripts-A), which is why the
+`$isTrial` branch only logs and skips the timer — deleting a trial row
+here would reset the MAC wait. Ran the old
 tracker version? Delete the leftovers on the router: scripts
 `day-report`, `month-report`, `todayincome`, `monthlyincome`,
 `tg-creds` (+ `Daily-*` / `Monthly-*`) and schedulers `Reset Daily
