@@ -131,7 +131,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=147";
+var SOUND_V = "?v=148";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -1118,6 +1118,7 @@ function applyFlags() {
 		}
 		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
+		try { if (typeof currencySym !== 'undefined' && currencySym) $("#coinCur").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
@@ -1131,7 +1132,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v147"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v148"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1210,10 +1211,6 @@ function showCoinPanel() {
 
 // One label for both flows: the button finishes the insert, it does not
 // "claim" anything. The coin panel already shows time + code amounts.
-function paintSaveBtn() {
-	$("#saveVoucherButton").text("DONE");
-}
-
 function restoreCoinChrome() {
 	document.body.classList.remove("coin-focus");
 	window.__coinOpen = false;
@@ -1310,7 +1307,6 @@ function setPortalState(s) {
 	$("#view-paused").attr("style", s == "paused" ? "display: block" : "display: none");
 	$("#ratesSection").attr("style", "display: block");
 	$("#saveVoucherButton").attr('data-save-type', s == "status" ? "extend" : "purchase");
-	try { paintSaveBtn(); } catch (e) {}
 	if (bootDone && (s == "status" || s == "paused") && $("#expirationTime").html() == "") {
 		showValidity();
 	}
@@ -1653,7 +1649,6 @@ function insertBtnAction() {
 	insertingCoin = true;
 	coinToastKey = null;
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
-	try { paintSaveBtn(); } catch (e) {}
 	try { dbgLog("insert: type=" + $("#saveVoucherButton").attr('data-save-type') + " page=" + PAGE); } catch (e) { }
 	$("#progressDiv").css('width', '100%');
 	$("#progressDiv").attr("aria-valuenow", 100).attr("aria-valuetext", "Waiting for coins");

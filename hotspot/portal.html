@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=147">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=147">
+	<link rel="stylesheet" href="assets/css/core.css?v=148">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=148">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -157,7 +157,7 @@
 			<button type="button" id="resumeBtn" onClick="resume(); return false" class="btn btn-info btn-block" style="display: block; width: 100%;">RESUME SESSION</button>
 		</div>
 
-		<div class="pausenote">Time is <b>paused</b> — feel free to turn off your Wi-Fi and close this browser. Connecting to the Wi-Fi again will log you in automatically — or tap <b>RESUME</b>.</div>
+		<div class="pausenote">Time is <b>paused</b> — feel free to turn off your Wi-Fi and close this browser. Reconnecting keeps your time paused; nothing happens until you tap <b>RESUME SESSION</b>.</div>
 	</div>
 
 	<div id="view-history" style="display: none">
@@ -178,7 +178,7 @@
 	<div id="coinPanel" style="display: none">
 		<div class="hero">
 			<h2 class="sub" id="coinPanelTitle" tabindex="-1">Please insert coins</h2>
-			<div class="big"><span id="totalCoin">0</span><span class="cur"> Php</span></div>
+			<div class="big"><span id="totalCoin">0</span><span class="cur" id="coinCur">Php</span></div>
 			<div class="vouchline">Time: <span id="totalTime"></span></div>
 			<div class="vouchline">Voucher Code: <span id="codeGenerated" translate="no" style="color: #4cd137">*****</span></div>
 		</div>
@@ -189,7 +189,7 @@
 		<div id="coinErr" role="alert" tabindex="-1" style="display: none; text-align: center; color: #f0aaaa; font-weight: bold; margin-top: 8px;"></div>
 		<div style="text-align: center">
 			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-primary">DONE</button>
-			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger">Cancel</button>
+			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger">CANCEL</button>
 		</div>
 		<div id="forfeitBar" style="display: none; text-align: center; margin-top: 10px;">
 			<div id="forfeitText" role="alert" style="margin-bottom: 8px; font-weight: bold;"></div>
@@ -203,7 +203,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v147</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v148</span>
 		</div>
 	</div>
 
@@ -215,7 +215,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=147"></script>
+		<script src="assets/js/core.js?v=148"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
