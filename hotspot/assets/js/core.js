@@ -140,7 +140,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=153";
+var SOUND_V = "?v=154";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -858,6 +858,10 @@ function detectState() {
 			try { dbgLog("detect: login"); } catch (e) { }
 			d.resolve("login");
 		} else {
+			// Logged in, so a pause cannot be in effect (pausing ends the
+			// router session). Clear the flag here or the next timeout lands
+			// on the paused view instead of auto-logging back in.
+			try { if (getPausedFlag() == "1") { removePausedFlag(); dbgLog("detect: pause cleared, logged in"); } } catch (e) {}
 			try {
 				var facts = parseStatusFacts(html);
 				if (facts.voucher) {
@@ -1142,7 +1146,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v153"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v154"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
