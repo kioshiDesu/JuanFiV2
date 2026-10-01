@@ -874,3 +874,11 @@ body.coin-focus #coinPanel .hero .sub { margin-top: 12px; }
     .convertrow { flex-wrap: wrap; }
     .btn-convert { flex: 1 1 100%; }
 }
+
+/* ---- icon inside a button ---- */
+.btn .bico {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.14em;
+    margin-right: 6px;
+}
