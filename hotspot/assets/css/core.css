@@ -837,3 +837,40 @@ body.coin-focus #coinPanel .hero .sub { margin-top: 12px; }
     margin: 10px 12px 0;
 }
 .netbanner-ico { display: inline-flex; align-items: center; }
+
+/* ---- add time with another code ---- */
+.convertbar {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(164, 176, 190, .18);
+    text-align: center;
+}
+.convertlab {
+    display: block;
+    font-size: 12px;
+    color: #c9cfd7;
+    margin-bottom: 8px;
+}
+.convertrow { display: flex; gap: 8px; align-items: stretch; }
+.convertinput {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 16px;
+    color: #fff;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(164, 176, 190, .25);
+    border-radius: 10px;
+    text-align: center;
+}
+.convertinput::placeholder { color: #8a94a0; }
+.convertinput:focus {
+    outline: none;
+    border-color: rgba(255, 193, 7, .55);
+}
+.btn-convert { flex: none; min-height: 44px; min-width: 96px; }
+@media (max-width: 360px) {
+    .convertrow { flex-wrap: wrap; }
+    .btn-convert { flex: 1 1 100%; }
+}

@@ -329,7 +329,8 @@ at full interval, which preserves the customer's remaining minutes:
   "trialNoExtend": true,
   "showInternetStatus": true,
   "offlineText": "No internet connection as of the moment, please try again later",
-  "macAsVoucherCode": false
+  "macAsVoucherCode": false,
+  "showConvertVoucher": true
 }
 ```
    `false` on `showMemberSection` = voucher-only portal. `core.js`
@@ -345,6 +346,13 @@ at full interval, which preserves the customer's remaining minutes:
    a real `VC` code still works. Leave it off if you hand out typeable
    codes (GCash, reselling) or need the admin-panel prefix to identify
    buyers.
+
+   `showConvertVoucher: true` adds an "Add time with another code" row
+   to the coin panel — the customer types a second voucher and the coin
+   box folds its minutes into the open session, no coins needed. Only
+   works on box builds that answer `POST /convertVoucher`; on a build
+   without it the button reports that the box cannot do it, never that
+   the customer's code is bad. Turn it off to hide the row.
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +

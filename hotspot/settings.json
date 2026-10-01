@@ -20,5 +20,6 @@
   "trialNoExtend": true,
   "showInternetStatus": true,
   "offlineText": "No internet connection as of the moment, please try again later",
-  "macAsVoucherCode": false
+  "macAsVoucherCode": false,
+  "showConvertVoucher": true
 }

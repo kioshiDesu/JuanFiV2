@@ -12,7 +12,11 @@ var errorCodeMap = {
 	'coin.slot.notavailable': 'Coin slot is not available as of the moment, Please try again later',
 	'no.internet.detected': 'No internet connection as of the moment, Please try again later',
 	'invalid.voucher': 'Invalid voucher code',
-	'invalid.request': 'Invalid request, please try again'
+	'invalid.request': 'Invalid request, please try again',
+	'convertVoucher.empty': 'Enter the voucher code you want to add',
+	'convertVoucher.nosession': 'Tap INSERT COIN first, then add the other code',
+	'convertVoucher.refused': 'This code cannot be added to your session',
+	'convertVoucher.unsupported': 'This coin box cannot add time from another code'
 };
 
 // ---------- settings (config.js folded in) ----------
@@ -40,6 +44,10 @@ var trialNoExtend = true;
 // namespace becomes 48 bits instead of 8,999 codes. Typeable codes are
 // not lost - the input stays editable and doLogin reads it first.
 var macAsVoucherCode = false;
+// Add time from a second voucher without inserting coins. The coin box
+// does the merge itself and only answers on builds that expose
+// /convertVoucher, so this is opt-out per site.
+var showConvertVoucher = true;
 	try {
 		var __setReq = new XMLHttpRequest();
 		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
@@ -68,6 +76,7 @@ var macAsVoucherCode = false;
 		if (typeof __setJson.offlineText === "string" && __setJson.offlineText) { offlineText = __setJson.offlineText; }
 		if (typeof __setJson.trialNoExtend === "boolean") { trialNoExtend = __setJson.trialNoExtend; }
 		if (typeof __setJson.macAsVoucherCode === "boolean") { macAsVoucherCode = __setJson.macAsVoucherCode; }
+		if (typeof __setJson.showConvertVoucher === "boolean") { showConvertVoucher = __setJson.showConvertVoucher; }
 	}
 } catch (e) {}
 
@@ -131,7 +140,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=150";
+var SOUND_V = "?v=151";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -1122,6 +1131,7 @@ function applyFlags() {
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
+		try { if (typeof showConvertVoucher !== "undefined" && !showConvertVoucher) { $("#convertWrap").hide(); } } catch (e) {}
 		// Pre-fill the MAC as the voucher. Skipped when the box already
 		// holds something, so a returning customer keeps the code that
 		// actually has time on it.
@@ -1132,7 +1142,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v150"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v151"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -2091,6 +2101,52 @@ function notifyCoinSuccess(coin) {
 	if (coinToastOnce("coin-" + totalCoinReceived, { title: 'Coin inserted', content: coin + ' peso(s) was inserted', type: 'success', delay: 2000 })) {
 		coinBlip();
 	}
+}
+
+function notifyConvertFail(errorCode) {
+	var msg = errorCodeMap[errorCode] || "That code could not be added";
+	try { $("#coinErr").text(msg).show(); } catch (e) {}
+	try { $.toast({ title: "Code not added", content: msg, type: "error", delay: 5000 }); } catch (e) {}
+}
+
+// Fold a second voucher's remaining minutes into the session the coin box
+// already has open. The box does the arithmetic, so this only works on
+// builds that expose /convertVoucher.
+function convertVoucherAction() {
+	var vc = "";
+	try { vc = String($("#convertVoucherCode").val() || "").trim(); } catch (e) {}
+	if (!vc) { notifyConvertFail("convertVoucher.empty"); return; }
+	if (!voucher) { notifyConvertFail("convertVoucher.nosession"); return; }
+	var btn = null;
+	try { btn = $("#convertBtn"); btn.prop("disabled", true); } catch (e) {}
+	$.ajax({
+		type: "POST",
+		url: "http://" + vendorIpAddress + "/convertVoucher",
+		data: "voucher=" + encodeURIComponent(voucher) + "&convertVoucher=" + encodeURIComponent(vc),
+		dataType: "text",
+		timeout: VENDO_TIMEOUT
+	}).done(function (txt) {
+		try { if (btn) btn.prop("disabled", false); } catch (e) {}
+		try { $("#convertVoucherCode").val(""); } catch (e) {}
+		var ok = false;
+		try { var d = JSON.parse(String(txt || "")); ok = (d && d.status === "true"); } catch (e) {}
+		if (ok) {
+			try { $.toast({ title: "Code added", content: "That code's time is now on your session", type: "success", delay: 3500 }); } catch (e) {}
+		} else {
+			notifyConvertFail("convertVoucher.refused");
+		}
+	}).fail(function (xhr) {
+		try { if (btn) btn.prop("disabled", false); } catch (e) {}
+		try { $("#convertVoucherCode").val(""); } catch (e) {}
+		try { dbgLog("convertVoucher failed status=" + (xhr && xhr.status), "dbg-err"); } catch (e) {}
+		// A 404 or a blank body means the box has no /convertVoucher route
+		// at all. Never report that as a bad code - the customer's code may
+		// be perfectly good and the box simply cannot merge.
+		var body = "";
+		try { body = String((xhr && xhr.responseText) || ""); } catch (e) {}
+		var missing = !xhr || xhr.status === 404 || xhr.status === 0 || !body.trim();
+		notifyConvertFail(missing ? "convertVoucher.unsupported" : "convertVoucher.refused");
+	});
 }
 
 function secondsToDhms(seconds) {
