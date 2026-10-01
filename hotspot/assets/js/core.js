@@ -6,7 +6,7 @@ var errorCodeMap = {
 	'coin.not.inserted': 'Coin not inserted',
 	'coin.is.reading': 'Verifying coin, please wait…',
 	'coinslot.cancelled': 'Coinslot was cancelled',
-	'coinslot.busy': 'Coin slot is busy',
+	'coinslot.busy': 'Another purchase is still finishing. Please wait a moment and tap INSERT COIN again',
 	'session.expired': 'Coin session expired, tap INSERT COIN to start over',
 	'coin.slot.banned': 'You have been banned from using coin slot, due to multiple request for insert coin, please try again later!',
 	'coin.slot.notavailable': 'Coin slot is not available as of the moment, Please try again later',
@@ -140,7 +140,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=162";
+var SOUND_V = "?v=163";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -449,6 +449,40 @@ document.getElementById('view-history').addEventListener('keydown', function (ev
 window.addEventListener("beforeunload", function (e) {
 	try { if (typeof insertingCoin !== "undefined" && insertingCoin && totalCoinReceived > 0) { e.preventDefault(); e.returnValue = ""; } } catch (err) {}
 });
+// Abandoned insert = orphaned coin slot. The box keeps the code it minted
+// and rejects the NEXT customer with coinslot.busy until its own wait
+// window expires, so release the slot when the page goes away.
+function releaseCoinSlotOnExit() {
+	try {
+		if (typeof insertingCoin === "undefined" || !insertingCoin) { return; }
+		var vc = window.__cancelVoucher || "";
+		if (!vc) { return; }
+		if (typeof navigator === "undefined" || !navigator.sendBeacon) { return; }
+		var body = "voucher=" + encodeURIComponent(vc) + "&mac=" + encodeURIComponent(String(typeof mac === "undefined" ? "" : mac));
+		var blob = new Blob([body], { type: "application/x-www-form-urlencoded" });
+		navigator.sendBeacon("http://" + vendorIpAddress + "/cancelTopUp", blob);
+		try { dbgLog("exit: coin slot released for " + vc); } catch (e) { }
+	} catch (e) { }
+}
+// pagehide only, NOT visibilitychange: switching apps to read the code
+// hides the tab too, and releasing then would throw away their coins.
+window.addEventListener("pagehide", releaseCoinSlotOnExit);
+// Same POST but readable, so the caller can carry on. With no pinned code
+// we still ask: an empty code just makes the box answer busy and nothing
+// else, which costs nothing and occasionally is all a stale slot needs.
+function releaseCoinSlot(done) {
+	var finish = function () { try { done(); } catch (e) { } };
+	try {
+		var vc = window.__cancelVoucher || voucher || "";
+		$.ajax({
+			url: "http://" + vendorIpAddress + "/cancelTopUp",
+			type: "POST",
+			data: "voucher=" + encodeURIComponent(vc) + "&mac=" + encodeURIComponent(String(typeof mac === "undefined" ? "" : mac)),
+			dataType: "text",
+			timeout: VENDO_TIMEOUT
+		}).always(function () { finish(); });
+	} catch (e) { finish(); }
+}
 // Per-voucher keys (remain/tempValidity/validity) are venue-scoped like
 // activeVoucher itself, or the same VCxxxxxx code collides across
 function vKey(vc, suffix) { return (vc ? scopedKey(vc + suffix) : null); }
@@ -916,7 +950,7 @@ function render(state) {
 	try { paintVoucherHistory(); } catch (e) {}
 	try { dbgLog("render: " + state); } catch (e) { }
 	// Login succeeded (status/paused views): arm the next auto-login.
-	try { if (state != "login") { clearAutoLoginTried(); } } catch (e) {}
+	try { if (state != "login") { clearAutoLoginTried(); removeSessionValue("__loginRetry"); } } catch (e) {}
 	if (state == "login") {
 		return;
 	}
@@ -1161,7 +1195,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v162"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v163"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1478,8 +1512,26 @@ function resumeSession() {
 			try { dbgLog("resume: uptime exhausted, voucher cleared", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Expired', content: "This code has used up all its time", type: 'error', delay: 5000 });
 		} else if (loginErrLower.indexOf("invalid username or password") !== -1 || loginErrLower.indexOf("wrong password") !== -1) {
-			// Member typo (errors.txt invalid-username) — not a voucher
-			try { dbgLog("resume: member bad credentials", "dbg-err"); } catch (e) { }
+			// The box writes the new user to the router over telnet and
+			// never reads the reply, so a code it just minted can be
+			// rejected for a second or two. Retry once before believing it.
+			try {
+				var retried = getSessionValue("__loginRetry");
+				if (voucher && retried !== "1") {
+					setSessionValue("__loginRetry", "1");
+					try { dbgLog("resume: bad credentials, retrying once in 1.5s"); } catch (e) { }
+					try { val(voucher); } catch (e) { }
+					$.toast({ title: 'Checking your code', content: "One moment while the Wi-Fi confirms your code", type: 'info', delay: 4000 });
+					setTimeout(function () {
+						try { clearAutoLoginTried(); } catch (e) { }
+						try { doLogin(); } catch (e) { }
+					}, 1500);
+					d.resolve();
+					return d.promise();
+				}
+				removeSessionValue("__loginRetry");
+			} catch (e) { }
+			try { dbgLog("resume: bad credentials, giving up", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'Login failed', content: "Wrong username or password — check and try again", type: 'error', delay: 5000 });
 		} else {
 			removeActiveVoucher();
@@ -1784,6 +1836,19 @@ function callTopupAPI(retryCount, gen) {
 				}
 				sfxStartLoop();
 			} else {
+				// A stale slot (someone walked away mid-purchase) makes the
+				// box reject every later topUp. Releasing the pinned code
+				// lets its own wait timer close, so try again once.
+				if (data.errorCode == "coinslot.busy" && retryCount === 0) {
+					try { dbgLog("topUp: slot busy, releasing and retrying"); } catch (e) { }
+					releaseCoinSlot(function () {
+						setTimeout(function () {
+							if (gen !== topUpGen) { return; }
+							callTopupAPI(1, gen);
+						}, 1200);
+					});
+					return;
+				}
 				try { dbgLog("topUp rejected errorCode=" + data.errorCode, "dbg-err"); } catch (e) { }
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
