@@ -18,8 +18,12 @@ vendo system. Portal files only — no firmware in this repo.
 
 ### A. Router setup
 
-Paste each block into Winbox → New Terminal (or SSH). Independent, and
-safe to re-run. Or do all six at once: copy
+Every line below is one complete command. Paste them one at a time into
+Winbox → New Terminal (or SSH), in order. No `:do`, no line
+continuations, nothing that needs rearranging. A line that fails just prints
+an error and you carry on — run it again any time, it is safe to re-run.
+
+Still want it in one shot? Copy
 [`juanfi-setup.rsc`](juanfi-setup.rsc) to the router and
 `/import file=juanfi-setup.rsc`.
 
@@ -39,23 +43,24 @@ Drop `,trial` to turn the free trial off.
 #### A2. Clock + NTP
 
 A wrong year makes scheduler `next-run` garbage, which makes voucher
-validity garbage. RouterOS 6 and 7 name the property differently, so it
-is built as text and run through `:parse`.
+validity garbage. RouterOS 6 and 7 name the property differently, so it is
+built as text and run through `:parse`.
 
 ```
-:local NTP1 "216.239.35.8";
-:local NTP2 "216.239.35.4";
-:local rosV "";
-:do { :set rosV [:pick [/system resource get version] 0 1] } on-error={};
-:if ($rosV = "7") do={ :set ntpCmd ("/system ntp client set enabled=yes servers=" . $NTP1 . "," . $NTP2) } else={ :set ntpCmd ("/system ntp client set enabled=yes primary-ntp=" . $NTP1 . " secondary-ntp=" . $NTP2) };
-:do { :local ntpFn [:parse $ntpCmd]; $ntpFn } on-error={ :log warning "ntp not configurable" };
+:local NTP1 "216.239.35.8"
+:local NTP2 "216.239.35.4"
+:local rosV [:pick [/system resource get version] 0 1]
+:local ntpCmd ("/system ntp client set enabled=yes primary-ntp=" . $NTP1 . " secondary-ntp=" . $NTP2)
+:if ($rosV = "7") do={ :set ntpCmd ("/system ntp client set enabled=yes servers=" . $NTP1 . "," . $NTP2) }
+:local ntpFn [:parse $ntpCmd]
+$ntpFn
 /system clock set time-zone-name=Asia/Manila
 ```
 
 #### A3. FastTrack fix
 
-Accepts hotspot traffic before FastTrack. Without it, fasttracked
-sessions skip idle accounting and never log out.
+Accepts hotspot traffic before FastTrack. Without it, fasttracked sessions
+skip idle accounting and never log out.
 
 ```
 :if ([:len [/ip firewall filter find comment="hotspot before fasttrack"]] = 0) do={ /ip firewall filter add chain=forward action=accept protocol=tcp dst-port=80,443 src-address=10.0.0.0/16 place-before="top" comment="hotspot before fasttrack" }
@@ -66,137 +71,63 @@ sessions skip idle accounting and never log out.
 One-time. Gives every router its own voucher-history bucket.
 
 ```
-:local d "";
-:foreach c in={"flash/hotspot"; "hotspot"} do={ :if (($d = "") and ([/file find name=($c . "/portal.html")] != "")) do={ :set d $c } };
-:if ($d = "") do={ :set d "hotspot" };
-:if ([/file find name=($d . "/data/site-id.txt")] = "") do={
-  /file print file=($d . "/data/site-id.txt") where name="dummyfile";
-  :local y 5;
-  :while (($y>0) and ([/file find name=($d . "/data/site-id.txt")] = "")) do={ :set y ($y-1); :delay 1s };
-  :local sn "";
-  :do { :set sn [/system routerboard get serial-number] } on-error={};
-  :do { /file set ($d . "/data/site-id.txt") contents=$sn } on-error={ :log warning "site-id not written" }
-}
+:local d ""
+:foreach c in={"flash/hotspot"; "hotspot"} do={ :if (($d = "") and ([/file find name=($c . "/portal.html")] != "")) do={ :set d $c } }
+:if ($d = "") do={ :set d "hotspot" }
+:if ([/file find name=($d . "/data/site-id.txt")] = "") do={ /file print file=($d . "/data/site-id.txt") where name="dummyfile" }
+:local y 5
+:while (($y>0) and ([/file find name=($d . "/data/site-id.txt")] = "")) do={ :set y ($y-1); :delay 1s }
+:local sn [:pick [/system routerboard get serial-number] 0]
+:if ([:len [/file find name=($d . "/data/site-id.txt")]] != "") do={ /file set ($d . "/data/site-id.txt") contents=$sn }
+/file print detail where name="site-id.txt"
 ```
 
 #### A5. Internet status
 
-Writes `up`/`down` into `data/netstatus.txt` every minute; the portal
-shows a banner while it reads `down`. Re-resolves the portal folder on
-each run and only writes on change, so flash wear stays flat.
+Writes `up`/`down` into `data/netstatus.txt` every minute; the portal shows
+a banner while it reads `down`. Re-resolves the portal folder on each run
+and only writes on change, so flash wear stays flat.
+
+Line 1 and 2 remove any earlier copy, so re-running is safe. Line 3 stores
+the script — that one line is long on purpose, it is a single command.
+Line 4 schedules it every minute, line 5 runs it once so you see the result.
 
 ```
-:do { /system script remove [find name="juanfi-netstatus"] } on-error={};
-:do { /system scheduler remove [find name="juanfi-netstatus-1m"] } on-error={};
-:do { /system script add name="juanfi-netstatus" policy=read,write,test source={
-  :local HSFilePath "";
-  :foreach c in={"flash/hotspot"; "hotspot"} do={
-    :if ($HSFilePath = "") do={
-      :foreach f in={"portal.html"; "login.html"; "status.html"} do={
-        :if (($HSFilePath = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set HSFilePath $c };
-      };
-    };
-  };
-  :if ($HSFilePath = "") do={
-    :do {
-      :local pf [:pick [/ip hotspot profile print as-value] 0];
-      :if (($pf != "") and (($pf->"html-directory") != "")) do={ :set HSFilePath ($pf->"html-directory") };
-    } on-error={};
-  };
-  :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
-  :local dataDir ($HSFilePath . "/data");
-  :local f ($dataDir . "/netstatus.txt");
-  :local state "down";
-  :if ([/ping 8.8.8.8 count=1 interval=1s] > 0) do={ :set state "up" };
-  :local old "";
-  :do { :set old [/file get [find name=$f] contents] } on-error={ :set old "" };
-  :if ($old != $state) do={
-    :if ([/file find name=$f] = "") do={
-      :do { /file print file=$f where name="dummyfile" } on-error={};
-      :local x 3;
-      :while (($x>0) and ([/file find name=$f] = "")) do={ :set x ($x-1); :delay 1s };
-    };
-    :do { /file set $f contents=$state } on-error={ :log warning ("netstatus: " . $f . " not written") };
-  };
-} } on-error={ :log warning "juanfi-netstatus not created" };
-:do { /system scheduler add name="juanfi-netstatus-1m" start-time=startup interval=1m policy=read,write,test on-event="/system script run juanfi-netstatus" } on-error={ :log warning "juanfi-netstatus-1m scheduler not added" };
-:do { /system script run juanfi-netstatus } on-error={ :log warning "juanfi-netstatus run failed" };
+/system script remove [find name="juanfi-netstatus"]
+/system scheduler remove [find name="juanfi-netstatus-1m"]
+/system script add name="juanfi-netstatus" policy=read,write,test source={ :local HSFilePath ""; :foreach c in={"flash/hotspot"; "hotspot"} do={ :if ($HSFilePath = "") do={ :foreach f in={"portal.html"; "login.html"; "status.html"} do={ :if (($HSFilePath = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set HSFilePath $c }; }; }; }; :if ($HSFilePath = "") do={ :do { :local pf [:pick [/ip hotspot profile print as-value] 0]; :if (($pf != "") and (($pf->"html-directory") != "")) do={ :set HSFilePath ($pf->"html-directory") }; } on-error={}; }; :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" }; :local dataDir ($HSFilePath . "/data"); :local f ($dataDir . "/netstatus.txt"); :local state "down"; :if ([/ping 8.8.8.8 count=1 interval=1s] > 0) do={ :set state "up" }; :local old ""; :do { :set old [/file get [find name=$f] contents] } on-error={ :set old "" }; :if ($old != $state) do={ :if ([/file find name=$f] = "") do={ :do { /file print file=$f where name="dummyfile" } on-error={}; :local x 3; :while (($x>0) and ([/file find name=$f] = "")) do={ :set x ($x-1); :delay 1s }; }; :do { /file set $f contents=$state } on-error={ :log warning ("netstatus: " . $f . " not written") }; }; }
+/system scheduler add name="juanfi-netstatus-1m" start-time=startup interval=1m policy=read,write,test on-event="/system script run juanfi-netstatus"
+/system script run juanfi-netstatus
 ```
 
 #### A6. Orphan sweep (daily 04:20)
 
-The coin box picks one of 8,999 codes with no duplicate check, so codes
-that are sold but never claimed pile up until new coins land on a live
-account and top up the wrong customer. This removes any voucher that
-has a comment, no expiry scheduler and no session for `GRACE` days.
-First run only stamps, so installing it can never mass-delete.
+The coin box picks one of 8,999 codes with no duplicate check, so codes that
+are sold but never claimed pile up until new coins land on a live account
+and top up the wrong customer. This removes any voucher that has a comment,
+no expiry scheduler and no session for `GRACE` days. First run only stamps,
+so installing it can never mass-delete.
 
 ```
-:do { /system script remove [find name="juanfi-sweep"] } on-error={};
-:do { /system scheduler remove [find name="juanfi-sweep-daily"] } on-error={};
-:do { /system script add name="juanfi-sweep" policy=read,write,test source={
-  :local GRACE 3;
-  :local MD {31;28;31;30;31;30;31;31;30;31;30;31};
-  :local today [:pick [/system clock get date-time] 0 10];
-  :local Y [:tonum [:pick $today 0 4]];
-  :local M [:tonum [:pick $today 5 2]];
-  :local leap 0;
-  :if ((($Y % 4) = 0) and ((($Y % 100) != 0) or (($Y % 400) = 0))) do={ :set leap 1 };
-  :local doy [:tonum [:pick $today 8 2]];
-  :local k 1;
-  :while ($k < $M) do={
-    :set doy ($doy + [:pick $MD ($k - 1)]);
-    :if (($leap = 1) and ($k = 2)) do={ :set doy ($doy + 1) };
-    :set k ($k + 1);
-  };
-  :local todayNo ((($Y - 1970) * 365) + (($Y - 1) / 4 - ($Y - 1) / 100 + ($Y - 1) / 400) - 479 + $doy);
-  :local stamped 0;
-  :local removed 0;
-  :foreach u in=[/ip hotspot user find] do={
-    :local note [/ip hotspot user get $u comment];
-    :if ([:len $note] > 0) do={
-      :local name [/ip hotspot user get $u name];
-      :if ([:len [/system scheduler find name=$name]] = 0) do={
-        :if ([:len [/ip hotspot active find user=$name]] = 0) do={
-          :local f [:toarray $note];
-          :local seen "";
-          :if ([:len $f] > 4) do={ :set seen ($f->4) };
-          :if ($seen = "") do={
-            :do { /ip hotspot user set $u comment=($note . "," . $today) } on-error={};
-            :set stamped ($stamped + 1);
-          } else={
-            :local sY [:tonum [:pick $seen 0 4]];
-            :local sM [:tonum [:pick $seen 5 2]];
-            :local sLeap 0;
-            :if ((($sY % 4) = 0) and ((($sY % 100) != 0) or (($sY % 400) = 0))) do={ :set sLeap 1 };
-            :local sDoy [:tonum [:pick $seen 8 2]];
-            :local j 1;
-            :while ($j < $sM) do={
-              :set sDoy ($sDoy + [:pick $MD ($j - 1)]);
-              :if (($sLeap = 1) and ($j = 2)) do={ :set sDoy ($sDoy + 1) };
-              :set j ($j + 1);
-            };
-            :local seenNo ((($sY - 1970) * 365) + (($sY - 1) / 4 - ($sY - 1) / 100 + ($sY - 1) / 400) - 479 + $sDoy);
-            :if (($todayNo - $seenNo) > $GRACE) do={
-              :do { /ip hotspot active remove [find user=$name] } on-error={};
-              :do { /ip hotspot user remove $u } on-error={};
-              :set removed ($removed + 1);
-            };
-          };
-        };
-      };
-    };
-  };
-  :log info ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
-  :put ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed);
-} } on-error={ :log warning "juanfi-sweep not created" };
-:do { /system scheduler add name="juanfi-sweep-daily" start-time=04:20:00 interval=1d policy=read,write,test on-event="/system script run juanfi-sweep" } on-error={ :log warning "juanfi-sweep-daily scheduler not added" };
-:do { /system script run juanfi-sweep } on-error={ :log warning "juanfi-sweep run failed" };
+/system script remove [find name="juanfi-sweep"]
+/system scheduler remove [find name="juanfi-sweep-daily"]
+/system script add name="juanfi-sweep" policy=read,write,test source={ :local GRACE 3; :local MD {31;28;31;30;31;30;31;31;30;31;30;31}; :local today [:pick [/system clock get date-time] 0 10]; :local Y [:tonum [:pick $today 0 4]]; :local M [:tonum [:pick $today 5 2]]; :local leap 0; :if ((($Y % 4) = 0) and ((($Y % 100) != 0) or (($Y % 400) = 0))) do={ :set leap 1 }; :local doy [:tonum [:pick $today 8 2]]; :local k 1; :while ($k < $M) do={ :set doy ($doy + [:pick $MD ($k - 1)]); :if (($leap = 1) and ($k = 2)) do={ :set doy ($doy + 1) }; :set k ($k + 1); }; :local todayNo ((($Y - 1970) * 365) + (($Y - 1) / 4 - ($Y - 1) / 100 + ($Y - 1) / 400) - 479 + $doy); :local stamped 0; :local removed 0; :foreach u in=[/ip hotspot user find] do={ :local note [/ip hotspot user get $u comment]; :if ([:len $note] > 0) do={ :local name [/ip hotspot user get $u name]; :if ([:len [/system scheduler find name=$name]] = 0) do={ :if ([:len [/ip hotspot active find user=$name]] = 0) do={ :local f [:toarray $note]; :local seen ""; :if ([:len $f] > 4) do={ :set seen ($f->4) }; :if ($seen = "") do={ :do { /ip hotspot user set $u comment=($note . "," . $today) } on-error={}; :set stamped ($stamped + 1); } else={ :local sY [:tonum [:pick $seen 0 4]]; :local sM [:tonum [:pick $seen 5 2]]; :local sLeap 0; :if ((($sY % 4) = 0) and ((($sY % 100) != 0) or (($sY % 400) = 0))) do={ :set sLeap 1 }; :local sDoy [:tonum [:pick $seen 8 2]]; :local j 1; :while ($j < $sM) do={ :set sDoy ($sDoy + [:pick $MD ($j - 1)]); :if (($sLeap = 1) and ($j = 2)) do={ :set sDoy ($sDoy + 1) }; :set j ($j + 1); }; :local seenNo ((($sY - 1970) * 365) + (($sY - 1) / 4 - ($sY - 1) / 100 + ($sY - 1) / 400) - 479 + $sDoy); :if (($todayNo - $seenNo) > $GRACE) do={ :do { /ip hotspot active remove [find user=$name] } on-error={}; :do { /ip hotspot user remove $u } on-error={}; :set removed ($removed + 1); }; }; }; }; }; }; :log info ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed); :put ("juanfi-sweep: grace=" . $GRACE . "d stamped=" . $stamped . " removed=" . $removed); }
+/system scheduler add name="juanfi-sweep-daily" start-time=04:20:00 interval=1d policy=read,write,test on-event="/system script run juanfi-sweep"
+/system script run juanfi-sweep
 ```
+
+Check what it did:
 
 ```
 /log print where message~"juanfi-sweep"
+/file print detail where name="netstatus.txt"
 ```
+
+Line 3 of A5 and A6 is one very long line. If your terminal refuses it,
+make the script in Winbox instead: System → Scripts → **+**, name it
+`juanfi-sweep`, tick Policy `read` `write` `test`, paste the same text into
+**Source** without the `/system script add … source={` front and the trailing
+`}`. Then run lines 4 and 5.
 
 
 ### B. On-Login
