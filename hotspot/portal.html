@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=154">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=154">
+	<link rel="stylesheet" href="assets/css/core.css?v=155">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=155">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -184,6 +184,7 @@
 		</div>
 		<div class="progress" style="margin: 10px 0">
 			<div id="progressDiv" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Waiting for coins" style="width: 0%"></div>
+			<span id="progressLabel" aria-hidden="true"></span>
 		</div>
 
 		<div id="coinErr" role="alert" tabindex="-1" style="display: none; text-align: center; color: #f0aaaa; font-weight: bold; margin-top: 8px;"></div>
@@ -211,7 +212,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v154</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v155</span>
 		</div>
 	</div>
 
@@ -223,7 +224,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=154"></script>
+		<script src="assets/js/core.js?v=155"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

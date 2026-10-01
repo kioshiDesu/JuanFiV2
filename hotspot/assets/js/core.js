@@ -140,7 +140,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=154";
+var SOUND_V = "?v=155";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -1146,7 +1146,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v154"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v155"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1667,7 +1667,7 @@ function insertBtnAction() {
 	$("#progressDiv").css('width', '100%');
 	$("#progressDiv").attr("aria-valuenow", 100).attr("aria-valuetext", "Waiting for coins");
 	$("#progressDiv").removeClass("time-half time-low").addClass("time-ok");
-	$("#progressDiv").html("");
+	$("#progressLabel").text("");
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', false);
 	$("#loaderDiv").attr("class", "spinner");try{$("#paidNote").text("Confirming purchase…");}catch(e){}
@@ -1956,7 +1956,7 @@ function checkCoin() {
 					bar.attr('aria-valuetext', dispRemain + ' seconds remaining');
 					bar.removeClass("time-ok time-half time-low");
 					bar.addClass(percent > 50 ? "time-ok" : (percent >= 25 ? "time-half" : "time-low"));
-					bar.html(dispRemain + "s");
+					$("#progressLabel").text(dispRemain + "s");
 				}
 			} else if (data.errorCode == "coinslot.busy") {
 				closeCoinModal();
