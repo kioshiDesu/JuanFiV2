@@ -7,8 +7,8 @@
 
 <head>
 	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=152">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=152">
+	<link rel="stylesheet" href="assets/css/core.css?v=153">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=153">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -187,9 +187,9 @@
 		</div>
 
 		<div id="coinErr" role="alert" tabindex="-1" style="display: none; text-align: center; color: #f0aaaa; font-weight: bold; margin-top: 8px;"></div>
-		<div style="text-align: center">
-			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-success"><svg class="bico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>DONE</button>
-			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger"><svg class="bico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>CANCEL</button>
+		<div class="coinbtns">
+			<button type="button" id="saveVoucherButton" onclick="saveVoucherBtnAction(); return false" class="btn btn-success"><svg class="bico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17 4 12"/></svg>DONE</button>
+			<button type="button" id="cncl" onclick="cancelCoin(); return false" class="btn btn-danger"><svg class="bico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6 18 18 M18 6 6 18"/></svg>CANCEL</button>
 		</div>
 		<div id="forfeitBar" style="display: none; text-align: center; margin-top: 10px;">
 			<div id="forfeitText" role="alert" style="margin-bottom: 8px; font-weight: bold;"></div>
@@ -211,7 +211,7 @@
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v152</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v153</span>
 		</div>
 	</div>
 
@@ -223,7 +223,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=152"></script>
+		<script src="assets/js/core.js?v=153"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }

@@ -456,10 +456,16 @@ body { -webkit-tap-highlight-color: transparent; }
     margin-bottom: 2px;
 }
 /* M1: coin-panel action targets, fat-finger safe. */
-#saveVoucherButton, #cncl {
+.coinbtns {
+    display: flex;
+    gap: 8px;
+}
+.coinbtns .btn {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 48px;
-    min-width: 48px;
     font-size: 16px;
+    font-weight: 700;
 }
 /* M9: toast dismiss. */
 .jtoast {
