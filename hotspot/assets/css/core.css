@@ -865,6 +865,17 @@ body.haze-in .hero::before { animation: hazeIn 2.2s cubic-bezier(.22, .61, .36, 
 body.coin-focus #view-login .hero::before,
 body.coin-focus #view-status .hero::before,
 body.coin-focus #view-paused .hero::before { content: none; }
+/* With the page line stood down, the panel's own line becomes THE line, so
+   it takes the gold buy-signal instead of the view's red. The fade rides the
+   same 2.2s hazeIn so the line and the wash arrive together. */
+body.coin-focus #coinPanel .hero::before {
+    --haze: rgba(255,193,7,.20);
+    --haze-line: rgba(255,193,7,.46);
+    animation: hazeIn 2.2s cubic-bezier(.22, .61, .36, 1) both;
+}
+/* Panel line sits flush on the card edge: the login hero's 14px top padding
+   would otherwise push it 14px below the panel it belongs to. */
+body.coin-focus #coinSlot-login { margin-top: -14px; }
 /* The coin panel supplies its own bottom spacing. */
 body.coin-focus #coinPanel .hero { margin: 0; padding: 18px 0 4px 0; }
 /* The air above the title is that padding. A margin here would collapse
