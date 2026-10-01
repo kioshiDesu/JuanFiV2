@@ -862,9 +862,9 @@ body.haze-in .hero::before { animation: hazeIn 2.2s cubic-bezier(.22, .61, .36, 
    (status), so its hairline would either float ~250px above the panel with
    nothing between them, or sit on top of the panel's own line. The panel
    always wins: it is the live card, so the outer rule stands down. */
-body.coin-focus #view-login .hero::before,
-body.coin-focus #view-status .hero::before,
-body.coin-focus #view-paused .hero::before { content: none; }
+body.coin-focus #view-login > .hero::before,
+body.coin-focus #view-status > .hero::before,
+body.coin-focus #view-paused > .hero::before { content: none; }
 /* With the page line stood down, the panel's own line becomes THE line, so
    it takes the gold buy-signal instead of the view's red. The fade rides the
    same 2.2s hazeIn so the line and the wash arrive together. */
