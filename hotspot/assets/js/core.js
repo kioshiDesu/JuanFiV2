@@ -140,7 +140,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=156";
+var SOUND_V = "?v=157";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -1161,7 +1161,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v156"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v157"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
