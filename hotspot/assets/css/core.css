@@ -641,6 +641,9 @@ body.coin-focus #coinPanel {
     border-radius: 0 0 12px 12px;
     animation: coinHalo 2.4s ease-in-out infinite;
 }
+/* The panel has no top padding, so the title needs its own air. Margin, not
+   padding: extra padding would grow the box and shift the halo geometry. */
+#coinPanelTitle { margin: 8px 0 0 0; }
 @-webkit-keyframes coinHalo {
     0%, 100% { box-shadow: 0 6px 16px rgba(255,193,7,.10); }
     50% { box-shadow: 0 8px 28px rgba(255,193,7,.22); }
@@ -842,7 +845,7 @@ hr.foot-hr {
 }
 /* State tell: gold while the session is live, red on login + paused. */
 body.haze-gold .hero::before { --haze: rgba(255,193,7,.20); --haze-line: rgba(255,193,7,.46); }
-body.haze-red .hero::before { --haze: rgba(231,76,60,.26); --haze-line: rgba(231,76,60,.56); }
+body.haze-red .hero::before { --haze: rgba(231,76,60,.32); --haze-line: rgba(231,76,60,.68); }
 /* One-shot fade once the boot loader is gone. No loop — a breathing loop
    next to the always-spinning coin reads as "still loading". */
 body.haze-in .hero::before { animation: hazeIn 2.2s cubic-bezier(.22, .61, .36, 1) both; }
