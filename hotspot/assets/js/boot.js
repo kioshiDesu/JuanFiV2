@@ -62,7 +62,11 @@
   } else {
     try {
       var x = new XMLHttpRequest();
-      x.open("GET", "portal.html", true);
+      // Bust the cache on this path too. fetch gets no-store above, but the
+      // XHR fallback has no such guarantee, and a cached portal.html keeps
+      // serving stale markup forever (which is how an old button glyph
+      // survived a fixed shell).
+      x.open("GET", "portal.html?t=" + new Date().getTime(), true);
       try { x.timeout = 8000; } catch (e) {}
       x.onreadystatechange = function () {
         if (x.readyState === 4) {
