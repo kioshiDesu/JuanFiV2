@@ -591,10 +591,10 @@ body { -webkit-tap-highlight-color: transparent; }
     50% { opacity: .88; }
 }
 
-/* 4) Hairline gold rule: login card too, so all three views share it. */
+/* 4) Hairline rule: drawn by .hero::below so it tints with the halo
+   (gold live, red on login + paused) instead of being fixed gold. */
 #view-login .hero, #view-status .hero, #view-paused .hero {
-    border-top: 2px solid rgba(255,193,7,.32);
-    padding-top: 12px;
+    padding-top: 14px;
     border-radius: 0 0 12px 12px;
 }
 
@@ -832,13 +832,17 @@ hr.foot-hr {
 .hero::before {
     content: "";
     position: absolute;
-    left: -34px; right: -34px; top: 4px; height: 290px;
-    background: radial-gradient(ellipse at 50% 0%, var(--haze, rgba(255,193,7,.12)), transparent 82%);
+    left: -34px; right: -34px; top: 0; height: 290px;
+    /* The hairline rides the same box as the wash so the two can never
+       disagree on colour, and they fade in as one thing. */
+    background:
+        linear-gradient(90deg, transparent, var(--haze-line, rgba(255,193,7,.32)) 20%, var(--haze-line, rgba(255,193,7,.32)) 80%, transparent) top center / 100% 2px no-repeat,
+        radial-gradient(ellipse at 50% 0%, var(--haze, rgba(255,193,7,.12)), transparent 82%);
     pointer-events: none;
 }
 /* State tell: gold while the session is live, red on login + paused. */
-body.haze-gold .hero::before { --haze: rgba(255,193,7,.12); }
-body.haze-red .hero::before { --haze: rgba(231,76,60,.17); }
+body.haze-gold .hero::before { --haze: rgba(255,193,7,.20); --haze-line: rgba(255,193,7,.46); }
+body.haze-red .hero::before { --haze: rgba(231,76,60,.26); --haze-line: rgba(231,76,60,.56); }
 /* One-shot fade once the boot loader is gone. No loop — a breathing loop
    next to the always-spinning coin reads as "still loading". */
 body.haze-in .hero::before { animation: hazeIn 2.2s cubic-bezier(.22, .61, .36, 1) both; }
