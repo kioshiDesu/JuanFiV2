@@ -856,11 +856,15 @@ body.haze-in .hero::before { animation: hazeIn 2.2s cubic-bezier(.22, .61, .36, 
 @keyframes hazeIn { from { opacity: 0; } to { opacity: 1; } }
 @-webkit-keyframes hazeIn { from { opacity: 0; } to { opacity: 1; } }
 .hero > * { position: relative; }
-/* On the login view the coin panel is moved into #coinSlot-login, which sits
-   INSIDE the login .hero. Its own .hero::before would then draw a second
-   hairline + wash a few hundred pixels below the first. One card, one line:
-   the nested hero inherits the outer hero's rule and draws nothing. */
-.hero .hero::before { content: none; }
+/* One hairline per card, and it always sits at the top of the card the
+   customer is actually looking at. While the coin panel is open the page
+   hero it was moved out of is an empty box (login) or hidden outright
+   (status), so its hairline would either float ~250px above the panel with
+   nothing between them, or sit on top of the panel's own line. The panel
+   always wins: it is the live card, so the outer rule stands down. */
+body.coin-focus #view-login .hero::before,
+body.coin-focus #view-status .hero::before,
+body.coin-focus #view-paused .hero::before { content: none; }
 /* The coin panel supplies its own bottom spacing. */
 body.coin-focus #coinPanel .hero { margin: 0; padding: 18px 0 4px 0; }
 /* The air above the title is that padding. A margin here would collapse
