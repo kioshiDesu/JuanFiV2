@@ -140,7 +140,7 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=155";
+var SOUND_V = "?v=156";
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -632,6 +632,10 @@ function hideBoot() {
 	bootDone = true;
 	$("#app").attr("style", "display: block");
 	try { $("#bootLoader").addClass("boot-fade"); } catch (e) {}
+	// Arm the one-shot halo fade-in now that the view is actually on screen.
+	// Running it from render() would burn the animation while #app was
+	// still display:none.
+	try { document.body.classList.add("haze-in"); } catch (e) {}
 	try { $("#readyNote").text("Portal ready"); } catch (e) {}
 	try { drainAutoLogin(); } catch (e) {}
 	setTimeout(function () {
@@ -895,8 +899,19 @@ function renderStoredRemain(sel, vc) {
 	fitCountdown(sel);
 }
 
+// The hero haze doubles as a state tell: gold on the live status view,
+// red on the two "not being served right now" views (login + paused).
+// The fade-in itself is armed once by hideBoot().
+function paintStateHaze(state) {
+	var b = document.body;
+	if (!b) { return; }
+	b.classList.remove("haze-gold", "haze-red");
+	b.classList.add(state == "status" ? "haze-gold" : "haze-red");
+}
+
 function render(state) {
 	setPortalState(state);
+	try { paintStateHaze(state); } catch (e) {}
 	try { if (state != "login" && voucher) { pushVoucherHistory(voucher); } } catch (e) {}
 	try { paintVoucherHistory(); } catch (e) {}
 	try { dbgLog("render: " + state); } catch (e) { }
@@ -1146,7 +1161,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v155"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text("v156"); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }

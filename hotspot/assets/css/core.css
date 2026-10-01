@@ -823,7 +823,7 @@ hr.foot-hr {
 /* Motion + keyboard: kill infinite coin animations for vestibular safety,
    keep a visible focus ring on the coin button for keyboard users. */
 @media (prefers-reduced-motion: reduce) {
-	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low, .vshake, body.coin-focus #coinPanel { animation: none !important; }
+	#insertBtn, #insertBtn::before, .spinner-ring, .progress-bar-animated, #remainTime.time-low, .vshake, body.coin-focus #coinPanel, body.haze-in .hero::before { animation: none !important; }
 	#bootLoader.boot-fade { transition: none !important; }
 }
 
@@ -833,9 +833,17 @@ hr.foot-hr {
     content: "";
     position: absolute;
     left: -12px; right: -12px; top: 4px; height: 210px;
-    background: radial-gradient(ellipse at 50% 0%, rgba(255,193,7,.12), transparent 72%);
+    background: radial-gradient(ellipse at 50% 0%, var(--haze, rgba(255,193,7,.12)), transparent 72%);
     pointer-events: none;
 }
+/* State tell: gold while the session is live, red on login + paused. */
+body.haze-gold .hero::before { --haze: rgba(255,193,7,.12); }
+body.haze-red .hero::before { --haze: rgba(231,76,60,.17); }
+/* One-shot fade once the boot loader is gone. No loop — a breathing loop
+   next to the always-spinning coin reads as "still loading". */
+body.haze-in .hero::before { animation: hazeIn .7s ease-out both; }
+@keyframes hazeIn { from { opacity: 0; } to { opacity: 1; } }
+@-webkit-keyframes hazeIn { from { opacity: 0; } to { opacity: 1; } }
 .hero > * { position: relative; }
 /* The coin panel supplies its own bottom spacing. */
 body.coin-focus #coinPanel .hero { margin: 0; padding: 0 0 4px 0; }
