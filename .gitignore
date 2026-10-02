@@ -4,3 +4,7 @@
 # Agent skills (local-only, not part of the project)
 .agents/
 skills-lock.json
+
+# Local reference copy of the portal for the ORIGINAL JuanFi box.
+# The canonical portal is hotspot/; this copy is not part of the repo.
+juanfi/

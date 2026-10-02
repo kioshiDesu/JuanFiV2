@@ -18,7 +18,7 @@
  *   - Promo Rates configuration ( Rates, expiration)
  *   - Dashboard, Sales report
  * 
- * Supported ESP32 Lanbase and ESP8266 
+ * Supported ESP8266 only (NodeMCU / D1 mini). Ethernet LAN base removed.
  * 
  * Created by Ivan Julius Alayan
  * 
@@ -27,22 +27,14 @@
 //increase always when publishing a new version for tracking
 #define CURRENT_VERSION "2.4"
 
-#ifdef ESP32
-  #include <TelnetClient.h>
-  #include "lan_definition.h"
-  #include <SPIFFS.h>
-  #include <Update.h>
-  #include <WiFi.h>
-#else
-  #include <ESP8266TelnetClient.h>
-  #include <ESP8266WiFi.h>
-  #include <ESP8266WebServer.h>
-  #include <ESP8266HTTPClient.h>
-  #include <ESP8266mDNS.h>
-  #include <DNSServer.h>
-  #include <Arduino.h>
-  #include <flash_hal.h>
-#endif
+#include "JuanFiTelnetClient.h"
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+#include <ESP8266mDNS.h>
+#include <DNSServer.h>
+#include <Arduino.h>
+#include <flash_hal.h>
 
 
 #include <EEPROM.h>
@@ -58,22 +50,25 @@ volatile int coin = 0;
 volatile int processCoin = 0;
 volatile int totalCoin = 0;
 boolean isNewVoucher = false;
-int coinsChange = 0;
+// ponytail: coinInserted() is an ISR, so every variable it writes must be
+// volatile or the loop can read a stale value and never see the coin.
+volatile int coinsChange = 0;
 String currentActiveVoucher = "";
 String currentMacAttempt = "";
 int timeToAdd = 0;
-bool coinSlotActive = false;
+volatile bool coinSlotActive = false;
 bool acceptCoin = false;
 unsigned long targetMilis = 0;
 bool coinExpired = false;
 bool mikrotekConnectionSuccess = false;
+unsigned long lastTelnetProbe = 0;
+bool telnetProbeFailed = false;
+// cleared by populateSystemConfiguration() when the saved pin map cannot work.
+// The admin UI stays up; activateCoinSlot() refuses to arm.
+bool hardwareConfigUsable = true;
 String currentMacAddress = "";
 String currentIpAddress = "";
-#ifdef ESP32
-  String HARDWARE_TYPE = "ESP32";
-#else
-  String HARDWARE_TYPE = "ESP8266";
-#endif
+String HARDWARE_TYPE = "ESP8266";
 
 typedef struct {
   String rateName;
@@ -86,7 +81,7 @@ typedef struct {
 
 typedef struct {
   String mac;
-  long unlockTime;
+  unsigned long unlockTime;
   int attemptCount;
 } AttemptMacAddress;
 
@@ -106,6 +101,78 @@ const int COIN_COUNT_ADDRESS = 5;
 const int CUSTOMER_COUNT_ADDRESS = 10;
 const int RANDOM_MAC_ADDRESS = 15;
 const int BACKUP_CONFIG_LENGTH_INDEX = 20;
+const int EEPROM_CONFIG_SIZE = 512;
+// Longest RouterOS command line the telnet client will accept, including the
+// CRLF it appends. Mirrors MAX_OUT_BUFFER_LENGTH in JuanFiTelnetClient.h; the
+// sendCommand() wrapper checks against it so an over-long script is reported
+// rather than silently dropped by the client's strlcat length test.
+const int TELNET_MAX_COMMAND = 254;
+// Longest voucher name /convertVoucher accepts. The longest RouterOS line it
+// builds repeats the name twice, so this has to stay well under
+// TELNET_MAX_COMMAND.
+const int MAX_MERGE_VOUCHER_LENGTH = 32;
+// how often the telnet link is proved alive with a no-op command. TCP will
+// report a dead peer as connected() == true until the retransmit budget runs
+// out, which is tens of seconds to minutes. Without a probe the coin slot keeps
+// arming against a router that is no longer listening, and every credit fails
+// after the customer has already paid.
+const unsigned long TELNET_PROBE_INTERVAL = 30000;
+const unsigned long HTTP_CHECK_TIMEOUT_MS = 4000;
+
+// RouterOS CLI is assembled by string concatenation and pushed down the telnet
+// session, so anything that can terminate a token has to be stripped before it
+// reaches sendCommand(). Without this an unauthenticated client on the AP can
+// smuggle ";" or a quote into the voucher parameter and run router commands.
+String sanitizeRouterOsToken(String value){
+  String out = "";
+  for (unsigned int i = 0; i < value.length(); i++){
+    char c = value.charAt(i);
+    if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.'){
+      out += c;
+    }
+  }
+  return out;
+}
+
+// Same idea for values that land inside a quoted RouterOS string (the hotspot
+// user comment). Spaces are kept so vendor names stay readable, but the quote,
+// backslash, bracket, separator and control characters that would either escape
+// the quotes or start a new command are dropped.
+String sanitizeRouterOsComment(String value){
+  String out = "";
+  for (unsigned int i = 0; i < value.length(); i++){
+    char c = value.charAt(i);
+    if(c < 32 || c > 126){
+      continue;
+    }
+    if(c == '"' || c == '\\' || c == '$' || c == ';' || c == '[' || c == ']' || c == '`' || c == '=' || c == ','){
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
+// millis() wraps every 49.7 days. Plain ">" on the coin wait window then answers
+// backwards for a full cycle, so compare the signed difference instead.
+bool timeHasPassed(unsigned long deadline, unsigned long now){
+  return (long)(now - deadline) >= 0;
+}
+
+// Content comparison that does not short-circuit on the first wrong byte, so a
+// caller cannot learn the expected token one character at a time. It still
+// returns early on a length mismatch, which is unavoidable with String and not
+// useful to an attacker beyond the length.
+bool secureEquals(String a, String b){
+  if(a.length() != b.length()){
+    return false;
+  }
+  unsigned char diff = 0;
+  for (unsigned int i = 0; i < a.length(); i++){
+    diff |= (unsigned char)(a[i] ^ b[i]);
+  }
+  return diff == 0;
+}
 
 void ICACHE_RAM_ATTR coinInserted()    
 {
@@ -134,6 +201,33 @@ int COINSLOT_BAN_COUNT = 0;
 int COINSLOT_BAN_MINUTES = 0;
 int SETUP_FINISH = 0;
 
+// GPIO0, GPIO2 and GPIO15 are latched at reset to choose the boot mode and flash
+// size, so they are not free to use: an output driven on GPIO2 can hold the chip
+// in download mode, and an input on GPIO15 with no external pull reads back the
+// strapping value rather than whatever the coin acceptor is doing. Returns false
+// and explains itself if any of the five configured pins is unusable.
+bool pinsAreUsable(){
+  int pins[5] = {COIN_SELECTOR_PIN, COIN_SET_PIN, SYSTEM_READY_LED, INSERT_COIN_LED, INSERT_COIN_BTN_PIN};
+  const char * pinNames[5] = {"COIN_SELECTOR_PIN", "COIN_SET_PIN", "SYSTEM_READY_LED", "INSERT_COIN_LED", "INSERT_COIN_BTN_PIN"};
+  bool usable = true;
+  for(int i = 0; i < 5; i++){
+    if(pins[i] < 0 || pins[i] > 16){
+      Serial.print(pinNames[i]);
+      Serial.print(" = ");
+      Serial.print(pins[i]);
+      Serial.println(" is not a GPIO this board has");
+      usable = false;
+    }else if(pins[i] == 0 || pins[i] == 2 || pins[i] == 15){
+      Serial.print(pinNames[i]);
+      Serial.print(" = ");
+      Serial.print(pins[i]);
+      Serial.println(" is a boot strapping pin, GPIO0/2/15 are reserved");
+      usable = false;
+    }
+  }
+  return usable;
+}
+
 
 //put here your raspi ip address, and login details
 IPAddress mikrotikRouterIp (10, 0, 0, 1);
@@ -154,32 +248,25 @@ IPAddress primaryDNS(192, 168, 10, 1); // this is optional
 
 IPAddress apIP(172, 217, 28, 1);
 
-#ifdef ESP32
-  EthernetWebServer server(80);
-  EthernetClient client;
-  EthernetClient client2;
-  telnetClient tc(client);
-#else
-  WiFiClient client2;
-  WiFiClient client;
-  ESP8266telnetClient tc(client);
-  ESP8266WebServer server(80);
-  const byte DNS_PORT = 53;
-  DNSServer dnsServer;
-#endif
+WiFiClient client2;
+WiFiClient client;
+JuanFiTelnetClient tc(client);
+ESP8266WebServer server(80);
+const byte DNS_PORT = 53;
+DNSServer dnsServer;
 
 const int WIFI_CONNECT_TIMEOUT = 180000;
 const int WIFI_CONNECT_DELAY = 500;
 
 bool networkConnected = false;
-bool cableNotConnected = false;
 bool welcomePrinted = false;
 bool manualVoucher = false;
 
-int lastSaleTime = 0;
-int thankyou_cooldown = 5000;
+// unsigned: these hold millis() values, which run past the int32 ceiling after
+// 24.8 days and would wrap the comparison in the welcome-message path
+unsigned long lastSaleTime = 0;
+unsigned long thankyou_cooldown = 5000;
 long lastPrinted = 0;
-
 String MARQUEE_MESSAGE = "This is marquee";
 
 void setup () { 
@@ -189,7 +276,7 @@ void setup () {
   // every boot replays the same LCG and generateVoucher() repeats its codes.
   // Chip ID varies per unit, so this needs no calibration.
   randomSeed(ESP.getChipId() ^ millis());
-  EEPROM.begin(512);
+  EEPROM.begin(EEPROM_CONFIG_SIZE);
   if(!SPIFFS.begin()){
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
@@ -202,45 +289,41 @@ void setup () {
   pinMode(COIN_SET_PIN, OUTPUT);
   pinMode(INSERT_COIN_BTN_PIN, INPUT_PULLUP);
 
-  #ifdef ESP32
-    initializeLANSetup();
-  #else
-    // We start by connecting to a WiFi network
-    WiFi.mode(WIFI_STA);
-    //for static ip configuration
-    if(IP_ADDRESS_MODE == 1){
-      Serial.print("using static ip address");
-      Serial.println(local_IP);
-      WiFi.config(local_IP, primaryDNS, gateway, subnet);  
-    }
-    
-    WiFi.begin(ssid.c_str(), password.c_str());
-    Serial.println();
-    Serial.println();
-    Serial.print("Wait for WiFi, connecting to ");
-    Serial.print(ssid);
-  
-    int second = 0;
-    if(SETUP_FINISH == 1){
-      while (second <= WIFI_CONNECT_TIMEOUT) {
-        networkConnected = (WiFi.status() == WL_CONNECTED);
-        Serial.print(".");
-        if(networkConnected){
-          break;
-        }
-        digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_OFF));
-        delay(WIFI_CONNECT_DELAY);
-        digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_ON));
-        second += WIFI_CONNECT_DELAY;
+  // We start by connecting to a WiFi network
+  WiFi.mode(WIFI_STA);
+  //for static ip configuration
+  if(IP_ADDRESS_MODE == 1){
+    Serial.print("using static ip address");
+    Serial.println(local_IP);
+    WiFi.config(local_IP, primaryDNS, gateway, subnet);
+  }
+
+  WiFi.begin(ssid.c_str(), password.c_str());
+  Serial.println();
+  Serial.println();
+  Serial.print("Wait for WiFi, connecting to ");
+  Serial.print(ssid);
+
+  int second = 0;
+  if(SETUP_FINISH == 1){
+    while (second <= WIFI_CONNECT_TIMEOUT) {
+      networkConnected = (WiFi.status() == WL_CONNECTED);
+      Serial.print(".");
+      if(networkConnected){
+        break;
       }
-      currentIpAddress = WiFi.localIP().toString().c_str();
-      currentMacAddress = WiFi.macAddress();
       digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_OFF));
-    }else{
-      Serial.println("Initial setup detected, no need to connect to AP");
-      networkConnected= false;
+      delay(WIFI_CONNECT_DELAY);
+      digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_ON));
+      second += WIFI_CONNECT_DELAY;
     }
-  #endif
+    currentIpAddress = WiFi.localIP().toString().c_str();
+    currentMacAddress = WiFi.macAddress();
+    digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_OFF));
+  }else{
+    Serial.println("Initial setup detected, no need to connect to AP");
+    networkConnected= false;
+  }
   
   
   if(networkConnected){
@@ -258,17 +341,14 @@ void setup () {
     attachInterrupt(COIN_SELECTOR_PIN, coinInserted, RISING);
     loginMirotik();
    
-    #ifdef ESP32
-      //nothing
-    #else
-      if (MDNS.begin("esp8266")) {
-        Serial.println("MDNS responder started");
-      }
-    #endif
+    if (MDNS.begin("esp8266")) {
+      Serial.println("MDNS responder started");
+    }
 
     server.on("/topUp", topUp);
     server.on("/checkCoin", checkCoin);
     server.on("/useVoucher", useVoucher);
+    server.on("/convertVoucher", handleConvertVoucher);
     server.on("/health", handleHealth);
     server.on("/getRates", handleUserGetRates);
     server.on("/cancelTopUp", handleCancelTopUp);
@@ -277,17 +357,13 @@ void setup () {
     welcomePrinted = true;
     
   }else{
-    #ifdef ESP32
-      //nothing
-    #else
-      //Soft AP setup
-      WiFi.mode(WIFI_AP);
-      WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-      WiFi.softAP("JuanFi Setup");
-      //if DNSServer is started with "*" for domain name, it will reply with
-      //provided IP to all DNS request
-      dnsServer.start(DNS_PORT, "*", apIP);
-    #endif
+    //Soft AP setup
+    WiFi.mode(WIFI_AP);
+    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+    WiFi.softAP("JuanFi Setup");
+    //if DNSServer is started with "*" for domain name, it will reply with
+    //provided IP to all DNS request
+    dnsServer.start(DNS_PORT, "*", apIP);
 
     server.onNotFound([]() {
       server.sendHeader("Location", String("/admin"), true);
@@ -320,25 +396,13 @@ void setup () {
 
 
 boolean hasUploadError = false;
-boolean isFileSystem = true;
 
 void handleFileUploadRequest(){
     if (Update.hasError()) {
-      //when esp32 has sometimes error of not enough space, but actually its uploaded some part succesfully so we will just return success
-      if(isFileSystem && HARDWARE_TYPE == "ESP32"){
-        server.send(200, F("text/html"), "Upload done, with warnings");
-        server.client().stop();
-        ESP.restart();
-      }else{
-        server.send(200, F("text/html"), "Upload has error");
-      }
+      server.send(200, F("text/html"), "Upload has error");
     }
     else {
-        #ifdef ESP32
-          //nothing not avaiable at esp32
-        #else
          server.client().setNoDelay(true);
-        #endif
         server.send_P(200, PSTR("text/html"), "Upload done");
         delay(100);
         server.client().stop();
@@ -355,21 +419,13 @@ void handleFileUploadStream(){
            return;
         }
         if (upload.name == "filesystem") {
-            isFileSystem = true;
             backupSystemConfig();
-            #ifdef ESP32
-              if (!Update.begin(SPIFFS.totalBytes(), U_SPIFFS)) {
-                  Serial.println("Upload filesystem start failed");
-                  hasUploadError = true;
-              }
-            #else
-               size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
-               close_all_fs();
-               if (!Update.begin(fsSize, U_FS)){//start with max available size
-                 Serial.println("Upload filesystem start failed");
-                 hasUploadError = true;
-               }
-            #endif
+            size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
+            close_all_fs();
+            if (!Update.begin(fsSize, U_FS)){//start with max available size
+              Serial.println("Upload filesystem start failed");
+              hasUploadError = true;
+            }
         }
         else {
             uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
@@ -391,7 +447,11 @@ void handleFileUploadStream(){
             Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
         }
         else {
-            Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+            // The success branch used to be duplicated here, so a failed flash
+            // reported "Update Success" and rebooted onto the old image as if it
+            // had landed. surface the error instead.
+            hasUploadError = true;
+            Serial.printf("Update Failed: %u bytes\n", upload.totalSize);
         }
     }
     else if (upload.status == UPLOAD_FILE_ABORTED) {
@@ -406,74 +466,22 @@ void backupSystemConfig(){
   Serial.println("Starting to backup system.data");
   String data = readFile("/admin/config/system.data");
   int len = data.length();
+  // The backup shares the same 512 byte EEPROM layout as the counters, so an
+  // oversized system.data used to run off the end of the array.
+  int maxLen = EEPROM_CONFIG_SIZE - (BACKUP_CONFIG_LENGTH_INDEX + 5) - 1;
+  if(len <= 0 || len > maxLen){
+    Serial.print("Backup skipped, system.data size ");
+    Serial.print(len);
+    Serial.print(" exceeds the ");
+    Serial.print(maxLen);
+    Serial.println(" byte EEPROM budget");
+    eeWriteInt(BACKUP_CONFIG_LENGTH_INDEX, 0);
+    return;
+  }
   eeWriteInt(BACKUP_CONFIG_LENGTH_INDEX, len);
   eeWriteString(BACKUP_CONFIG_LENGTH_INDEX+5, data);
 }
 
-#ifdef ESP32
-void initializeLANSetup(){
-  delay(3000);
-  Serial.print("\nStarting ESP32_FS_EthernetWebServer on " + String(BOARD_TYPE));
-  Serial.println(" with " + String(SHIELD_TYPE));
-  Serial.println(ETHERNET_WEBSERVER_VERSION);
-
-  ET_LOGWARN(F("=========== USE_ETHERNET ==========="));
-
-  ET_LOGWARN(F("Default SPI pinout:"));
-  ET_LOGWARN1(F("MOSI:"), MOSI);
-  ET_LOGWARN1(F("MISO:"), MISO);
-  ET_LOGWARN1(F("SCK:"),  SCK);
-  ET_LOGWARN1(F("SS:"),   SS);
-  ET_LOGWARN(F("========================="));
-
-  #ifndef USE_THIS_SS_PIN
-    #define USE_THIS_SS_PIN   5   //22    // For ESP32
-  #endif
-
-  ET_LOGWARN1(F("ESP32 setCsPin:"), USE_THIS_SS_PIN);
-  Ethernet.init (USE_THIS_SS_PIN);
-  // start the ethernet connection and the server:
-  Serial.println("Ethernet initialized...");
-
-  //Use the ESP32 wifi mac address for our LAN
-  byte mac[6];
-  WiFi.macAddress(mac);
-
-  if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Cable not detected!!!");
-    networkConnected = false;
-    cableNotConnected = true;
-  }else if(IP_ADDRESS_MODE == 1){ //for static LAN IP
-    Ethernet.begin(mac, local_IP, primaryDNS, gateway, subnet);
-    networkConnected = true;
-  }else if(Ethernet.begin(mac) != 0){ //for dhcp LAN IP
-    networkConnected = true;
-  }else{
-    networkConnected = false;
-    Serial.println("Cannot connect to dhcp server");
-    Ethernet.begin(mac, apIP, apIP, apIP, IPAddress(255, 255, 255, 0));
-  }
-  // Just info to know how to connect correctly
-  Serial.println(F("========================="));
-  Serial.println(F("Currently Used SPI pinout:"));
-  Serial.print(F("MOSI:"));
-  Serial.println(MOSI);
-  Serial.print(F("MISO:"));
-  Serial.println(MISO);
-  Serial.print(F("SCK:"));
-  Serial.println(SCK);
-  Serial.print(F("SS:"));
-  Serial.println(SS);
-  Serial.println("=========================");
-  
-  Serial.print(F("Connected! IP address: "));
-  Serial.println(Ethernet.localIP());
-
-  currentIpAddress = Ethernet.localIP().toString().c_str();
-  //Use the ESP32 wifi mac address for our LAN
-  currentMacAddress = WiFi.macAddress();
-}
-#endif
 
 void handleNotFound()
 {
@@ -516,8 +524,7 @@ void loginMirotik(){
     Serial.print(mikrotikRouterIp);
     Serial.print(" using ");
     Serial.print(user);
-    Serial.print(" / ");
-    Serial.println(pwd);
+    Serial.println(" / ********");
     delay(3000);
   
     //PUT HERE YOUR USERNAME/PASSWORD
@@ -525,9 +532,12 @@ void loginMirotik(){
     if(mikrotekConnectionSuccess){
       Serial.println("Login to mikrotek router success");
     }else{
-      //Temporary fix for those cannot connect to mikrotik
-      mikrotekConnectionSuccess = true;
-      Serial.println("Warning, Failed to login in mikrotek router, please check mikrotik log");
+      // ponytail: this used to force the flag back to true as a workaround, which
+      // meant a dead or unreachable router still answered every API call as if the
+      // coin slot were live: coins were counted and credited, then the telnet
+      // commands never landed. Report the real state instead and let
+      // handleSystemAbnormal() retry the login.
+      Serial.println("Failed to login in mikrotik router, please check mikrotik log");
     }
 }
 
@@ -546,7 +556,7 @@ void testInsertCoin(){
 
 void handleCancelTopUp(){
   
-  if(!checkIfSystemIsAvailable()){
+  if(!checkIfSystemIsAvailable(true)){
       return;
   }
   String voucher = server.arg("voucher");
@@ -739,14 +749,13 @@ void handleAdminGeneratedVoucherPage(){
 
 bool isAuthorized(){
   String auth = server.header("Authorization");
-  String expectedAuth = "Basic "+adminAuth;
-  if(auth != expectedAuth){
-    Serial.print("Admin incorrect: ");
-    Serial.print(auth);
-    Serial.print(" vs ");
-    Serial.println(expectedAuth);
+  // An unconfigured board has an empty adminAuth, which would make "Basic "
+  // the correct answer and let anyone in. Deny until an admin exists.
+  if(adminAuth.length() == 0){
+    Serial.println("Admin auth not configured, denying request");
+    return false;
   }
-  return auth == expectedAuth;
+  return secureEquals(auth, "Basic " + adminAuth);
 }
 
 void handleNotAuthorize(){
@@ -808,12 +817,14 @@ String getContentType(String filename){
   return "text/plain";
 }
 
-bool checkIfSystemIsAvailable(){
+bool checkIfSystemIsAvailable(bool respond){
   if(!mikrotekConnectionSuccess){
-    char * keys[] = {"status", "errorCode"};
-    char * values[] = {"false", "coin.slot.notavailable"};
-    setupCORSPolicy();
-    server.send(200, "application/json", toJson(keys, values, 2));
+    if(respond){
+      char * keys[] = {"status", "errorCode"};
+      char * values[] = {"false", "coin.slot.notavailable"};
+      setupCORSPolicy();
+      server.send(200, "application/json", toJson(keys, values, 2));
+    }
     return false;
   }else{
     return true;
@@ -822,46 +833,68 @@ bool checkIfSystemIsAvailable(){
 
 
 
-#ifdef ESP32
-  char internetServerAddress[] = "ifconfig.me";  // server address
-  int internetCheckPort = 80;
-  EthernetHttpClient  httpClient(client2, internetServerAddress, internetCheckPort);
-#else
-  String INTERNET_CHECK_URL = "http://ifconfig.me";
-#endif
+String INTERNET_CHECK_URL = "http://ifconfig.me";
+
+// ifconfig.me answers with nothing but the caller's public address, so an echo
+// service is the cheapest captive-portal test available: a hotel or operator
+// login page returns 200 with HTML, which must not be read as "online".
+bool bodyIsBareIpv4(String value){
+  value.trim();
+  if(value.length() < 7 || value.length() > 15){
+    return false;
+  }
+  int dots = 0;
+  int digits = 0;
+  for (unsigned int i = 0; i < value.length(); i++){
+    char c = value.charAt(i);
+    if(c == '.'){
+      if(digits == 0){
+        return false;
+      }
+      dots++;
+      digits = 0;
+    }else if(c >= '0' && c <= '9'){
+      digits++;
+    }else{
+      return false;
+    }
+  }
+  return (dots == 3 && digits > 0);
+}
 
 bool hasInternetConnect(){
 
-    #ifdef ESP32
-      httpClient.get("/");
-      int statusCode = httpClient.responseStatusCode();
-      String response = httpClient.responseBody();
-      Serial.print("Status code: ");
-      Serial.println(statusCode);
-      Serial.print("Response: ");
-      Serial.println(response);
-      return true;
-    #else
-      HTTPClient http;  
-  
-      http.begin(client2, INTERNET_CHECK_URL); //HTTP
-      http.addHeader("User-Agent", "curl/7.55.1");
-      int httpCode = http.GET();
-      if (httpCode > 0) {
-        const String& payload = http.getString();
-        Serial.println("received payload:\n<<");
-        Serial.println(payload);
-        Serial.println(">>");
-        Serial.println("Internet connection detected!");
-        http.end();
-        return true;
-      }else{
-        Serial.println("Internet connection not detected!");
-        Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        http.end();
-        return false;
-      }
-    #endif
+  HTTPClient http;
+
+  // ponytail: this ran with the HTTPClient default of 5s inside a request
+  // handler, so one unreachable echo service stalled the captive portal for
+  // five seconds per top-up attempt. Cap it well under that.
+  http.setTimeout(HTTP_CHECK_TIMEOUT_MS);
+  if(!http.begin(client2, INTERNET_CHECK_URL)){ //HTTP
+    Serial.println("Internet check could not be started");
+    return false;
+  }
+  http.addHeader("User-Agent", "curl/7.55.1");
+  int httpCode = http.GET();
+  bool online = false;
+  // ponytail: any code above zero used to count as online, including a 302 to
+  // a captive login page and a 500 from an intercepting proxy. Both let a
+  // customer start a top-up on a network that could never reach the MikroTik
+  // API, so their coins were counted and then credited to nothing.
+  if (httpCode == 200) {
+    String payload = http.getString();
+    online = bodyIsBareIpv4(payload);
+    if(online){
+      Serial.println("Internet connection detected!");
+    }else{
+      Serial.println("Internet check answered with a non-address body, assuming a captive portal");
+    }
+  }else{
+    Serial.println("Internet connection not detected!");
+    Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+  return online;
 }
 
 void addAttemptToCoinslot(){
@@ -883,8 +916,7 @@ void addAttemptToCoinslot(){
       attempted[currentMacIndex].attemptCount++;
      
       if(attempted[currentMacIndex].attemptCount >= COINSLOT_BAN_COUNT){
-          long curMil = millis();
-          attempted[currentMacIndex].unlockTime = curMil + (COINSLOT_BAN_MINUTES * 60000);
+          attempted[currentMacIndex].unlockTime = millis() + (COINSLOT_BAN_MINUTES * 60000UL);
           Serial.print("Unlock time: ");
           Serial.println(attempted[currentMacIndex].unlockTime);
       }
@@ -912,7 +944,7 @@ void clearAttemptToCoinSlot(){
 
 void checkCoin(){
 
-  if(!checkIfSystemIsAvailable()){
+  if(!checkIfSystemIsAvailable(true)){
       return;
   }
   
@@ -944,13 +976,17 @@ void checkCoin(){
     char currentDataLimitStr[16];
     itoa(currentDataLimit, currentDataLimitStr, 10);
     char * values[] = {"true", coinStr, timeToAddStr, totalCoinStr, validityStr, currentDataLimitStr};
-    activateCoinSlot();
+    activateCoinSlot(false);
     setupCORSPolicy();
     server.send(200, "application/json", toJson(keys, values, 6));
   }else{
     char * keys[] = {"status", "errorCode", "remainTime", "timeAdded", "totalCoin", "waitTime", "validity", "data"};
     char remainTimeStr[20];
-    long remain = targetMilis - millis();
+    // signed difference so the countdown stays correct across the millis wrap
+    long remain = (long)(targetMilis - millis());
+    if(remain < 0){
+      remain = 0;
+    }
     itoa(remain, remainTimeStr, 10);
     char timeToAddStr[16];
     itoa(timeToAdd, timeToAddStr, 10);
@@ -970,7 +1006,7 @@ void checkCoin(){
 
 void useVoucher(){
 
-  if(!checkIfSystemIsAvailable()){
+  if(!checkIfSystemIsAvailable(true)){
       return;
   }
 
@@ -981,11 +1017,25 @@ void useVoucher(){
   disableCoinSlot();
   if(timeToAdd > 0 ){
     clearAttemptToCoinSlot();
-    //if(isNewVoucher){
-      registerNewVoucher(voucher);
-    //}
+    // ponytail: both of these report failure now that sendCommand() surfaces a
+    // script the telnet client would not carry and a router that stopped
+    // answering. Answering status:true regardless told the customer their time
+    // had been added when no RouterOS command ever ran: the coins were in the
+    // slot and the voucher stayed empty. Say what actually happened, and put
+    // the link in the state handleSystemAbnormal() knows how to recover.
+    if(!registerNewVoucher(voucher) || !addTimeToVoucher(voucher, timeToAdd)){
+      Serial.println("Voucher credit failed, the router did not accept the command");
+      mikrotekConnectionSuccess = false;
+      telnetProbeFailed = true;
+      char * keys[] = {"status", "errorCode"};
+      char * values[] = {"false", "coin.slot.notavailable"};
+      setupCORSPolicy();
+      server.send(200, "application/json", toJson(keys, values, 2));
+      return;
+    }
+    // only bank the sale once the router has confirmed it, so the counters do
+    // not claim revenue that was never credited
     updateStatistic();
-    addTimeToVoucher(voucher, timeToAdd);
   }else{
     addAttemptToCoinslot();
   }
@@ -1001,6 +1051,187 @@ void useVoucher(){
   setupCORSPolicy();
   acceptCoin = false;
   server.send(200, "application/json", toJson(keys, values, 4));
+}
+
+// ---------- /convertVoucher ----------
+// Fold a second voucher's remaining minutes into the session the box already
+// has open, without coins. The portal calls this from
+// assets/js/core.js convertVoucherAction(), which posts voucher=<session> and
+// convertVoucher=<code> and only understands status:"true" or one of its own
+// convertVoucher.* codes. Neither the original JuanFi firmware nor the current
+// upstream box had this route, which is why settings.json ships
+// showConvertVoucher as opt-out and why the row used to always answer
+// convertVoucher.unsupported.
+// toJson() takes char*, not const char*, so the literal cannot be passed
+// straight through. The codes here are all fixed strings.
+void answerConvertVoucher(bool ok, const char* errorCode){
+  setupCORSPolicy();
+  if(ok){
+    char * keys[] = {"status"};
+    char * values[] = {"true"};
+    server.send(200, "application/json", toJson(keys, values, 1));
+    return;
+  }
+  char * keys[] = {"status", "errorCode"};
+  char * values[] = {"false", (char*)errorCode};
+  server.send(200, "application/json", toJson(keys, values, 2));
+}
+
+// 0 merged, 1 the code cannot be used (router answered, link is fine),
+// -1 the router never answered.
+int mergeVoucherIntoSession(String sessionVoucher, String mergeVoucher){
+
+  // Read the two remaining times plus whether the code is in use, each behind
+  // an on-error guard. A code that does not exist leaves the global at its -1
+  // default instead of aborting the line, which is the only way to tell "no
+  // such code" apart from "the command never ran" -- and a bare
+  // sendCommand() cannot see RouterOS error text inside an on-error block, so
+  // these two deliberately do not go through sendCommandChecked().
+  //
+  // :tonum is not optional here. "get limit-uptime" answers a time value
+  // ("00:15:00"), and the guards below compare against numbers.
+  String read = ":global jfa; :set jfa -1; :do { :set jfa [:tonum [/ip hotspot user get [find name=";
+  read += sessionVoucher;
+  read += "] limit-uptime]] } on-error={}";
+  if(!sendCommand(read)){
+    return -1;
+  }
+
+  read = ":global jfb; :global jac; :set jfb -1; :set jac 0; ";
+  read += ":do { :set jfb [:tonum [/ip hotspot user get [find name=";
+  read += mergeVoucher;
+  read += "] limit-uptime]] } on-error={}; ";
+  read += ":do { :set jac [:len [/ip hotspot active find user=";
+  read += mergeVoucher;
+  read += "]] } on-error={}";
+  if(!sendCommand(read)){
+    return -1;
+  }
+
+  // :put is the only way to get a value back out of the router. One reply,
+  // three fields, parsed on this side.
+  if(!sendCommand(":put (\"JF=\" . $jfa . \"/\" . $jfb . \"/\" . $jac)")){
+    return -1;
+  }
+  String payload = tc.replyLineAfter("JF=");
+  if(payload.length() == 0){
+    Serial.println("RouterOS did not report the merge values back");
+    return -1;
+  }
+  String field[3];
+  split(field, 3, payload, '/');
+  int sessionRemaining = field[0].toInt();
+  int mergeRemaining = field[1].toInt();
+  int mergeInUse = field[2].toInt();
+  if(sessionRemaining < 0 || mergeRemaining <= 0){
+    // The router answered, so the link is healthy: the code does not exist,
+    // or it has no time left. Nothing was written.
+    return 1;
+  }
+  if(mergeInUse > 0){
+    // Somebody is logged in on that code right now. Taking it would boot a
+    // live customer off their own session.
+    Serial.println("Refusing to merge a code that has an active session");
+    return 1;
+  }
+
+  // The addition has to be time + time, the same shape addTimeToVoucher()
+  // already uses. A bare number here is not read as seconds and would either be
+  // rejected or land as a wildly wrong value.
+  String script = ":if (($jfb>0) and ($jfa>=0)) do={ /ip hotspot user set ";
+  script += sessionVoucher;
+  script += " limit-uptime=[([:totime $jfa]+[:totime $jfb])] }";
+  if(!sendCommandChecked(script)){
+    return -1;
+  }
+
+  // The expiry scheduler was armed with the original minutes, so it would
+  // delete the row when the session ends and take the merged minutes with it.
+  // Push its interval out by the same amount. A missing or unreadable
+  // scheduler is not fatal here -- the live session still has the time -- so
+  // this step uses sendCommand() and lets on-error swallow it.
+  script = ":do { :local ji [/system scheduler get [find name=";
+  script += sessionVoucher;
+  script += "] interval]; /system scheduler set [find name=";
+  script += sessionVoucher;
+  script += "] interval=($ji+[:totime $jfb]) } on-error={}";
+  if(!sendCommand(script)){
+    return -1;
+  }
+
+  // Retire the merged code last, so every earlier step that could fail has
+  // already failed with the customer's code still intact.
+  script = "/ip hotspot active remove [find user=";
+  script += mergeVoucher;
+  script += "]; /system scheduler remove [find name=";
+  script += mergeVoucher;
+  script += "]; /ip hotspot user remove ";
+  script += mergeVoucher;
+  if(!sendCommandChecked(script)){
+    return -1;
+  }
+
+  // The code's session file under the router's hotspot data dir is named after
+  // the MAC that logged in, not after the voucher, and this firmware has no
+  // handle on that path, so it is left behind. juanfi-setup.rsc's daily sweep
+  // reclaims the user and the scheduler; the stale .txt is harmless and the
+  // next login for that MAC overwrites it.
+  Serial.print("Merged voucher ");
+  Serial.print(mergeVoucher);
+  Serial.print(" into ");
+  Serial.print(sessionVoucher);
+  Serial.print(", +");
+  Serial.print(mergeRemaining);
+  Serial.println("s");
+  return 0;
+}
+
+void handleConvertVoucher(){
+
+  if(!checkIfSystemIsAvailable(true)){
+    return;
+  }
+
+  String sessionVoucher = sanitizeRouterOsToken(server.arg("voucher"));
+  String mergeVoucher = sanitizeRouterOsToken(server.arg("convertVoucher"));
+
+  if(sessionVoucher.length() == 0){
+    answerConvertVoucher(false, "convertVoucher.nosession");
+    return;
+  }
+  // The merge builds six RouterOS command lines and the longest repeats the
+  // voucher name twice. Past this length sendCommand() would refuse the script
+  // and the refusal would read as a dead router, so an over-long name is
+  // turned away here instead. Real codes are far shorter: a minted code is a
+  // prefix plus four digits, a MAC voucher is twelve characters.
+  if(sessionVoucher.length() > MAX_MERGE_VOUCHER_LENGTH || mergeVoucher.length() > MAX_MERGE_VOUCHER_LENGTH){
+    answerConvertVoucher(false, "convertVoucher.refused");
+    return;
+  }
+  if(mergeVoucher.length() == 0 || mergeVoucher == sessionVoucher){
+    answerConvertVoucher(false, "convertVoucher.refused");
+    return;
+  }
+  // The box only ever merges into the session it is actually holding open, so
+  // a mismatch is a stale browser tab rather than anything the customer did.
+  if(sessionVoucher != currentActiveVoucher){
+    answerConvertVoucher(false, "coinslot.busy");
+    return;
+  }
+
+  int merged = mergeVoucherIntoSession(sessionVoucher, mergeVoucher);
+  if(merged == 0){
+    // No coins changed hands, so updateStatistic() stays out of it.
+    answerConvertVoucher(true, "");
+    return;
+  }
+  if(merged == 1){
+    answerConvertVoucher(false, "convertVoucher.refused");
+    return;
+  }
+  mikrotekConnectionSuccess = false;
+  telnetProbeFailed = true;
+  answerConvertVoucher(false, "coin.slot.notavailable");
 }
 
 void updateStatistic(){
@@ -1042,7 +1273,7 @@ void topUp() {
     return;
   }
 
-  if(!checkIfSystemIsAvailable()){
+  if(!checkIfSystemIsAvailable(true)){
       return;
   }
 
@@ -1055,7 +1286,7 @@ void topUp() {
     return;
   }
   currentMacAttempt = macAdd;
-  String voucher = server.arg("voucher");
+  String voucher = sanitizeRouterOsToken(server.arg("voucher"));
    if(currentActiveVoucher != "" && !validateVoucher(voucher)){
       return;
   }
@@ -1081,7 +1312,7 @@ void topUp() {
   if(voucher != currentActiveVoucher){
     resetGlobalVariables();
     isNewVoucher = voucherWasEmpty;
-    activateCoinSlot();
+    activateCoinSlot(true);
     currentActiveVoucher = voucher;
   }
   setupCORSPolicy();
@@ -1095,8 +1326,7 @@ boolean checkMacAddress(String mac){
     Serial.println(mac);
     for(int i=0;i<attemptedMaxCount;i++){
       if (attempted[i].mac != ""){
-          long curMil = millis();
-          if( attempted[i].unlockTime > 0 && attempted[i].unlockTime <= curMil){
+          if( attempted[i].unlockTime > 0 && timeHasPassed(attempted[i].unlockTime, millis())){
             Serial.print(attempted[i].mac);
             Serial.println(" unlocking mac address...");
             attempted[i].mac = "";
@@ -1126,7 +1356,18 @@ void setupCORSPolicy(){
   server.sendHeader("Access-Control-Allow-Credentials", "false");
 }
 
-void activateCoinSlot(){
+void activateCoinSlot(bool resetWaitWindow){
+  // ponytail: this is the single point where the acceptor is told to trust the
+  // next coin, so it is also the only place a broken pin map can be caught
+  // before money is taken. GPIO0/2/15 are sampled at reset to pick the boot
+  // mode, and a short system.data leaves every absent pin field at its
+  // initialiser of 0, which is GPIO0. Rather than refuse to boot -- that would
+  // strand a deployed unit with no way back except a serial cable -- keep the
+  // admin UI reachable and simply never arm the slot.
+  if(!hardwareConfigUsable){
+    Serial.println("Coin slot left disarmed: the saved pin map is not usable");
+    return;
+  }
   digitalWrite(COIN_SET_PIN, HIGH);
   delay(200);
   processCoin = 0;
@@ -1137,13 +1378,19 @@ void activateCoinSlot(){
   // customer's first checkCoin could answer coins.wait.expired before a coin
   // had even landed. A freshly armed slot is by definition not expired.
   coinExpired = false;
-  targetMilis = millis() + MAX_WAIT_COIN_SEC;
+  // ponytail: re-arming the deadline on every checkCoin kept the window open
+  // forever while a client polled, so coins.wait.expired could never fire and
+  // the coin slot abuse ban never accrued. Only a genuinely new session moves
+  // the deadline; re-activating after a coin landed keeps the original one.
+  if(resetWaitWindow || targetMilis == 0){
+    targetMilis = millis() + MAX_WAIT_COIN_SEC;
+  }
   digitalWrite(INSERT_COIN_LED, evaluateTriggerOutput(TURN_ON));
 }
 
 String toJson(char * keys[],char * values[],int nField){
   String json = "{";
-
+  
   for (int i = 0; i < nField; i++) {
    if(i > 0){
     json += ",";
@@ -1151,7 +1398,16 @@ String toJson(char * keys[],char * values[],int nField){
    json += " \"";
    json += String(keys[i]);  
    json += "\": \"";
-   json += String(values[i]);
+   // a raw quote or backslash in a value would terminate the string and let a
+   // caller inject keys or break the parser
+   String value = String(values[i]);
+   for (unsigned int c = 0; c < value.length(); c++){
+     char ch = value.charAt(c);
+     if(ch == '"' || ch == '\\'){
+       json += '\\';
+     }
+     json += ch;
+   }
    json += "\" ";
   
   }
@@ -1159,33 +1415,88 @@ String toJson(char * keys[],char * values[],int nField){
   return json;
 }
 
+// Is this name already taken on the router? The random code space is only 9000
+// wide, so two customers can be handed the same code by chance, and the second
+// one to pay extends the first one's session instead of getting time of their
+// own -- coins land on a stranger's account. The bulk generator deduplicates
+// within its own batch, but nothing deduplicated against codes already sold.
+// Ask the router before the code is ever shown to anybody. A router that does
+// not answer counts as "free": refusing to mint on a router hiccup would block
+// every customer, and this check only exists to reject a name the router has
+// positively reported as existing.
+bool voucherNameIsTaken(String voucher){
+  tc.clearReply();
+  String script = ":put (\"JFT=\" . [:len [/ip hotspot user find name=";
+  script += voucher;
+  script += "]])";
+  if(!sendCommand(script)){
+    return false;
+  }
+  String payload = tc.replyLineAfter("JFT=");
+  if(payload.length() == 0){
+    return false;
+  }
+  return payload.toInt() > 0;
+}
+
 String generateVoucher(){
-  int randomNumber = random(1000, 9999);
-  String voucher = VOUCHER_PREFIX+String(randomNumber);
+  String prefix = sanitizeRouterOsToken(VOUCHER_PREFIX);
+  String voucher = prefix+String(random(1000, 9999));
+  // Four tries is a bound, not a guarantee: it stops a nearly full code space
+  // from stalling every top up. A collision the sweep has not reclaimed yet is
+  // still caught at credit time, where the router refuses to create a second
+  // user with the same name.
+  for(int attempt=0; attempt<4; attempt++){
+    if(!voucherNameIsTaken(voucher)){
+      return voucher;
+    }
+    Serial.print("Voucher code is already in use, minting another: ");
+    Serial.println(voucher);
+    voucher = prefix+String(random(1000, 9999));
+  }
   return voucher;
 }
 
-void registerNewVoucher(String voucher){
+bool registerNewVoucher(String voucher){
+  // sanitize at the boundary: voucher arrives straight off a LAN POST
+  String cleanVoucher = sanitizeRouterOsToken(voucher);
+  if(cleanVoucher.length() == 0){
+    Serial.println("Refusing to register an empty or unsafe voucher name");
+    return false;
+  }
+  String cleanProfile = sanitizeRouterOsToken(VOUCHER_PROFILE);
   String addCoinScript = "/ip hotspot user add name=";
-  addCoinScript += voucher;
+  addCoinScript += cleanVoucher;
   addCoinScript += " limit-uptime=0 comment=0";
   if(VOUCHER_LOGIN_OPTION == 1){
     addCoinScript += " password=";
-    addCoinScript += voucher;
+    addCoinScript += cleanVoucher;
   }
-  if(VOUCHER_PROFILE != "" && VOUCHER_PROFILE != "default"){
+  if(cleanProfile != "" && cleanProfile != "default"){
     addCoinScript += " profile=";
-    addCoinScript += VOUCHER_PROFILE;   
+    addCoinScript += cleanProfile;
   }
-  sendCommand(addCoinScript);
+  return sendCommand(addCoinScript);
 }
 
-void addTimeToVoucher(String voucher, int secondsToAdd){
+bool addTimeToVoucher(String voucher, int secondsToAdd){
+
+    String cleanVoucher = sanitizeRouterOsToken(voucher);
+    if(cleanVoucher.length() == 0){
+      Serial.println("Refusing to credit an empty or unsafe voucher name");
+      return false;
+    }
+    String cleanVendor = sanitizeRouterOsComment(vendorName);
+    String cleanProfile = sanitizeRouterOsToken(currentRateProfile);
 
     String script = ":global lpt; :global nlu; :set lpt [/ip hotspot user get ";
-    script += voucher;
+    script += cleanVoucher;
     script += " limit-uptime]; ";
-    sendCommand(script);
+    // the read has to land before the write that depends on it, so a failure
+    // here is fatal to the whole credit rather than something to shrug off
+    if(!sendCommand(script)){
+      return false;
+    }
     script = ":set nlu [($lpt+";
     script += (secondsToAdd/60);
     script += "m)]; ";
@@ -1198,36 +1509,132 @@ void addTimeToVoucher(String voucher, int secondsToAdd){
     }else{
       script += ",1,";
     }
-    script += vendorName;
+    script += cleanVendor;
     script += "\" ";
-    
-    if(currentRateProfile != ""){
+
+    if(cleanProfile != ""){
       script += "profile=" ;
-      script += currentRateProfile;
+      script += cleanProfile;
       script += " ";
     }
-    script += voucher;
-    script += "; " ;
-    sendCommand(script);
-    
+    script += cleanVoucher;
+    script += "; ";
+    if(!sendCommand(script)){
+      return false;
+    }
+
     if(currentDataLimit != 0){
       String script = ":global tdtl; :global dtl [/ip hotspot user get VOUCHER_HERE  limit-bytes-total];";
-      script.replace("VOUCHER_HERE", voucher);
-      sendCommand(script);
+      script.replace("VOUCHER_HERE", cleanVoucher);
+      if(!sendCommand(script)){
+        return false;
+      }
       script = ":if ($dtl>0) do={ :set tdtl [(dtl+DATA_LIMIT_HERE*1048576)] } else { :set tdtl [(DATA_LIMIT_HERE*1048576)] }; /ip hotspot user set limit-bytes-total=$tdtl VOUCHER_HERE";
-      script.replace("VOUCHER_HERE", voucher);
+      script.replace("VOUCHER_HERE", cleanVoucher);
       script.replace("DATA_LIMIT_HERE", String(currentDataLimit));
-      sendCommand(script);
+      if(!sendCommand(script)){
+        return false;
+      }
     }
-    
+
+    // Read the credited time back instead of trusting the write. Every check
+    // above can only prove the telnet exchange completed: when RouterOS refused
+    // the very first command -- it declined to create the user, or the profile
+    // named in the script does not exist -- the writes afterwards silently did
+    // nothing, the customer had coins in the slot against an empty voucher, and
+    // useVoucher() still answered status:true. A positive number can only have
+    // come from the router's own output, so this check has no false-positive
+    // direction. The substring error scan used elsewhere does: a vendor name
+    // containing a word like "cannot" would trip it on every single top up.
+    return voucherCredited(cleanVoucher);
+
 }
 
-void sendCommand(String script){
+// Ask the router how much time a voucher actually holds. :put is the only way
+// to get a value back out of a telnet session; see replyLineAfter() for why the
+// last match is the one to read. False means "not credited", and the caller
+// treats it that way.
+bool voucherCredited(String voucher){
+  tc.clearReply();
+  String script = ":put (\"JFC=\" . [:tonum [/ip hotspot user get [find name=";
+  script += voucher;
+  script += "] limit-uptime]])";
+  if(!sendCommand(script)){
+    return false;
+  }
+  String payload = tc.replyLineAfter("JFC=");
+  if(payload.length() == 0){
+    Serial.println("RouterOS did not report the credited time back");
+    return false;
+  }
+  int credited = payload.toInt();
+  if(credited <= 0){
+    Serial.println("The voucher still has no time after the credit");
+    return false;
+  }
+  return true;
+}
+
+bool sendCommand(String script){
    Serial.println(script);
-   int scriptLength = script.length() + 1;
-   char command [scriptLength];
-   script.toCharArray(command, scriptLength);
-   tc.sendCommand(command);
+   // ponytail: JuanFiTelnetClient refuses anything that does not fit its send
+   // buffer, and a stalled router now returns false instead of hanging. Both
+   // used to be invisible here because the return value was thrown away, so an
+   // over-long credit script or a dead router looked exactly like success: the
+   // customer paid, the coins were counted, and no RouterOS command ever ran.
+   // Screen the length here too, so the log says which of the two went wrong.
+   if(script.length() + 2 >= TELNET_MAX_COMMAND){
+     Serial.print("RouterOS command too long, not sent (");
+     Serial.print(script.length());
+     Serial.print(" of ");
+     Serial.print(TELNET_MAX_COMMAND);
+     Serial.println(" bytes)");
+     return false;
+   }
+int scriptLength = script.length() + 1;
+    char command [scriptLength];
+    script.toCharArray(command, scriptLength);
+    if(!tc.sendCommand(command)){
+      Serial.println("RouterOS command was not acknowledged");
+      return false;
+    }
+    return true;
+ }
+
+// RouterOS error text, matched against the reply the telnet client now keeps.
+// This is a substring list rather than a parser: a match is possible when a
+// harmless word collides, but the only caller in this firmware treats a match
+// as "did not happen" and leaves the customer's voucher alone, so guessing
+// wrong costs a refused merge and never a destroyed code.
+bool routerReportedError(){
+  static const char* markers[] = {
+    "no such item", "invalid value", "unknown parameter", "syntax error",
+    "failure", "cannot", "out of range", "not enough memory", "trap",
+  };
+  const int markerCount = (int)(sizeof(markers) / sizeof(markers[0]));
+  for(int i = 0; i < markerCount; i++){
+    if(tc.replyContains(markers[i])){
+      return true;
+    }
+  }
+  return false;
+}
+
+// sendCommand() only proves the telnet exchange completed. It cannot tell a
+// clean RouterOS write from a router that answered "no such item", because the
+// reply used to be discarded. Use this where a wrong answer would leave the
+// customer out of pocket: it returns false on transport failure AND on
+// RouterOS error text.
+bool sendCommandChecked(String script){
+  tc.clearReply();
+  if(!sendCommand(script)){
+    return false;
+  }
+  if(routerReportedError()){
+    Serial.println("RouterOS refused the command");
+    return false;
+  }
+  return true;
 }
 
 void resetGlobalVariables(){
@@ -1236,6 +1643,9 @@ void resetGlobalVariables(){
   totalCoin = 0;
   currentDataLimit = 0;
   currentRateProfile = "";
+  // ponytail: this flag used to survive the reset, so a "new voucher" left over
+  // from an earlier purchase decided the validity rule for the next customer.
+  isNewVoucher = false;
 }
 
 void disableCoinSlot(){
@@ -1299,7 +1709,7 @@ void populateSystemConfiguration(){
     Serial.print("Backup data found ");
     Serial.println(backupLength);
     String backupData = eeReadString(BACKUP_CONFIG_LENGTH_INDEX+5, backupLength);
-    Serial.println(backupData);
+    // no payload echo: the backup carries the router and admin credentials
     handleFileWrite("/admin/config/system.data", backupData);
     eeWriteInt(BACKUP_CONFIG_LENGTH_INDEX, 0);
     Serial.print("Backup data restored!, restarting....");
@@ -1309,24 +1719,50 @@ void populateSystemConfiguration(){
 
   Serial.println("Loading system configuration");
   String data = readFile("/admin/config/system.data");
-  Serial.print("Data: ");
-  Serial.println(data);
+  // ponytail: this printed the whole file, which carries the MikroTik password
+  // and the admin credentials, onto the serial log. Log the shape only.
+  Serial.print("Loaded system.data, ");
+  Serial.print(data.length());
+  Serial.println(" bytes");
   int rowSize = 30;
   String rows[rowSize];
-  split(rows, rowSize, data, '|');
+  int rowCount = split(rows, rowSize, data, '|');
+  if(rowCount < rowSize){
+    // A short file used to leave rows[26..29] holding empty strings, so the
+    // static IP branch wrote 0.0.0.0 into the address bytes -- and a zero field
+    // for any pin lands on a strapping pin.
+    Serial.print("Warning: system.data has ");
+    Serial.print(rowCount);
+    Serial.print(" of ");
+    Serial.println(rowSize);
+    Serial.println("fields, the rest fall back to defaults");
+  }
   String ip[4];
   split(ip, 4, rows[3], '.');
- 
+  
   mikrotikRouterIp[0] = ip[0].toInt();
   mikrotikRouterIp[1] = ip[1].toInt();
   mikrotikRouterIp[2] = ip[2].toInt();
   mikrotikRouterIp[3] = ip[3].toInt();
-  vendorName = rows[0];
+  vendorName = sanitizeRouterOsComment(rows[0]);
   ssid = rows[1];
   password = rows[2];
   user = rows[4];
   pwd = rows[5];
-  MAX_WAIT_COIN_SEC = rows[6].toInt() * 1000;
+  // clamp the window: 0 seconds made every session expire on arrival, and the
+  // value is stored in milliseconds so it has to stay well inside an int
+  int waitSec = rows[6].toInt();
+  if(waitSec < 10){
+    if(rows[6].toInt() != 0){
+      Serial.println("Coin wait time too short, clamped to 10 seconds");
+    }
+    waitSec = 10;
+  }
+  if(waitSec > 3600){
+    Serial.println("Coin wait time too long, clamped to 3600 seconds");
+    waitSec = 3600;
+  }
+  MAX_WAIT_COIN_SEC = waitSec * 1000;
   ADMIN_USER = rows[7];
   ADMIN_PW = rows[8];
   adminAuth = base64::encode(ADMIN_USER+":"+ADMIN_PW);
@@ -1338,16 +1774,17 @@ void populateSystemConfiguration(){
   INSERT_COIN_LED = rows[14].toInt();
   INSERT_COIN_BTN_PIN = rows[16].toInt();
   CHECK_INTERNET_CONNECTION = rows[17].toInt();
-  VOUCHER_PREFIX = rows[18];
+  VOUCHER_PREFIX = sanitizeRouterOsToken(rows[18]);
   MARQUEE_MESSAGE = rows[19];
   SETUP_FINISH = rows[20].toInt();
   VOUCHER_LOGIN_OPTION = rows[21].toInt();
-  VOUCHER_PROFILE = rows[22];
+  VOUCHER_PROFILE = sanitizeRouterOsToken(rows[22]);
   VOUCHER_VALIDITY_OPTION = rows[23].toInt();
   LED_TRIGGER_TYPE = rows[24].toInt();
   IP_ADDRESS_MODE = rows[25].toInt();
+  hardwareConfigUsable = pinsAreUsable();
   
-  if(IP_ADDRESS_MODE == 1){
+  if(IP_ADDRESS_MODE == 1 && rowCount > 29){
     String localIpAddress[4];
     split(localIpAddress, 4, rows[26], '.');
    
@@ -1412,51 +1849,85 @@ void populateRates(){
 
   Serial.println("Loading promo rates");
   String data = readFile("/admin/config/rates.data");
-  Serial.print("Data: ");
-  Serial.println(data);
-  int dataLength = data.length() + 1;
-  char dataChar [dataLength];
-  String rows[100];
-  ratesCount = split(rows, 100, data, '|' );
+  Serial.print("Loaded rates.data, ");
+  Serial.print(data.length());
+  Serial.println(" bytes");
+  const int MAX_RATE_ROWS = 100;
+  String rows[MAX_RATE_ROWS];
+  int parsedCount = split(rows, MAX_RATE_ROWS, data, '|');
+  if(parsedCount > MAX_RATE_ROWS){
+    Serial.println("rates.data has more rows than the rate table holds, extra rows ignored");
+  }
+  // split() keeps counting delimiters past the capacity it was given, so the
+  // count can exceed the array. Only the rows it actually stored are readable.
+  int usableCount = parsedCount < MAX_RATE_ROWS ? parsedCount : MAX_RATE_ROWS;
 
-  for(int i=0;i<ratesCount;i++){
-    Serial.print("Data: ");
-    Serial.println(rows[i]);
+  ratesCount = 0;
+  for(int i=0;i<usableCount;i++){
     String column[6];
     split(column, 6, rows[i], '#' );
-    rates[i].rateName = column[0];
-    rates[i].price = column[1].toInt();
-    rates[i].minutes = (column[2]).toInt();
-    rates[i].validity = (column[3]).toInt();
-    rates[i].dataLimit = (column[4]).toInt();
-    rates[i].profileName = column[5];
+    // both the local row copy and the global rates[] are capped at 100, so the
+    // loop must not run off the end of either when the file is oversized
+    rates[ratesCount].rateName = column[0];
+    rates[ratesCount].price = column[1].toInt();
+    rates[ratesCount].minutes = (column[2]).toInt();
+    rates[ratesCount].validity = (column[3]).toInt();
+    rates[ratesCount].dataLimit = (column[4]).toInt();
+    rates[ratesCount].profileName = sanitizeRouterOsToken(column[5]);
+    ratesCount++;
   }
   
 }
 
-int coinWaiting = 0;
-long lastLinkStatusCheck = 0;
+unsigned long coinWaiting = 0;
+
+// Proves the telnet session still works by round-tripping a command that cannot
+// change anything. ":put" with an empty-ish value writes to the log at worst;
+// it never touches the hotspot table. Returns false if the exchange did not
+// complete, which is the only reliable signal that a socket claiming to be
+// connected has actually died.
+bool probeTelnetLink(){
+  // ":global jfprobe" then a read of it: two short commands, both harmless.
+  if(!sendCommand(":global jfprobe")){
+    return false;
+  }
+  if(!sendCommand(":set jfprobe [:tonum \"1\"]")){
+    return false;
+  }
+  return true;
+}
 
 void loop () {
    if(networkConnected){
     unsigned long currentMilis = millis();
 
    //handling for disconnection of AP
-   bool linkStatusOff = false;
-
-   #ifdef ESP32
-   //check ethernet status every 2 sec
-   if(currentMilis > lastLinkStatusCheck + 2000){
-    linkStatusOff = Ethernet.linkStatus() == LinkOFF;
-    lastLinkStatusCheck = currentMilis;
-   }
-   #endif
-   
-   if (!client.connected() || linkStatusOff) {
+   if (!client.connected()) {
       handleSystemAbnormal();
       server.handleClient();
       return;
-   }
+    }
+
+    // ponytail: client.connected() stayed true for tens of seconds to minutes
+    // after the router rebooted or dropped the telnet service, so the coin slot
+    // kept arming and checkIfSystemIsAvailable() kept reporting "available".
+    // Every credit then failed silently after the customer had paid. Probe the
+    // session periodically and treat a failed exchange as a dead link.
+    if(mikrotekConnectionSuccess && timeHasPassed(lastTelnetProbe + TELNET_PROBE_INTERVAL, currentMilis)){
+      lastTelnetProbe = currentMilis;
+      if(!probeTelnetLink()){
+        Serial.println("Telnet probe failed, treating the router link as down");
+        telnetProbeFailed = true;
+        mikrotekConnectionSuccess = false;
+        handleSystemAbnormal();
+        server.handleClient();
+        return;
+      }
+      if(telnetProbeFailed){
+        telnetProbeFailed = false;
+        Serial.println("Telnet probe recovered");
+      }
+    }
 
       int insertCoinButton = digitalRead(INSERT_COIN_BTN_PIN);
       if(insertCoinButton == LOW){
@@ -1486,7 +1957,7 @@ void loop () {
        
     //insert coin logic
     if(acceptCoin){
-      if((targetMilis > currentMilis)){
+      if(!timeHasPassed(targetMilis, currentMilis)){
           coinExpired = false;
           //wait for the coin to insert
           if(coinsChange > 0){
@@ -1511,7 +1982,7 @@ void loop () {
             if(manualVoucher){
               totalCoin += processCoin;
               timeToAdd = calculateAddTime();
-              activateCoinSlot();
+              activateCoinSlot(false);
             }
           }
           // ponytail: goto target for the 700ms coin settle window above.
@@ -1530,12 +2001,25 @@ void loop () {
         if(timeToAdd > 0 ) {
           clearAttemptToCoinSlot();
           Serial.print("Coin insert waiting expired, Auto using the voucher ");
-          Serial.print(currentActiveVoucher);
+          Serial.println(currentActiveVoucher);
+          // same honesty rule as useVoucher(): no client is listening on this
+          // path, so a failure cannot be reported to anyone. Log it, refuse to
+          // bank the sale, and take the router link down so the next request
+          // re-authenticates before it takes another coin.
+          bool credited = true;
           if(isNewVoucher){
-            registerNewVoucher(currentActiveVoucher);
+            credited = registerNewVoucher(currentActiveVoucher);
           }
-          updateStatistic();
-          addTimeToVoucher(currentActiveVoucher, timeToAdd);
+          if(credited){
+            credited = addTimeToVoucher(currentActiveVoucher, timeToAdd);
+          }
+          if(credited){
+            updateStatistic();
+          }else{
+            Serial.println("Auto credit failed, the router did not accept the command");
+            mikrotekConnectionSuccess = false;
+            telnetProbeFailed = true;
+          }
         }else{
           addAttemptToCoinslot();
         }
@@ -1544,7 +2028,7 @@ void loop () {
     }else{
       //if coinslot is disable
       //print welcome again after x seconds after thank you message
-      if(targetMilis < currentMilis && currentMilis > (lastSaleTime + thankyou_cooldown)){
+      if(timeHasPassed(targetMilis, currentMilis) && timeHasPassed(lastSaleTime + thankyou_cooldown, currentMilis)){
         welcomePrinted = true;
       }
     }
@@ -1557,19 +2041,11 @@ void loop () {
         ESP.restart();
       }
     }
-    #ifdef ESP32
-      //nothing
-    #else
      dnsServer.processNextRequest();
-    #endif
   }
   
   server.handleClient();
-  #ifdef ESP32
-    //nothing
-  #else
-    MDNS.update();
-  #endif
+  MDNS.update();
 }
 
 void handleSystemAbnormal(){
@@ -1577,8 +2053,22 @@ void handleSystemAbnormal(){
     mikrotekConnectionSuccess = false;
     digitalWrite(INSERT_COIN_LED, evaluateTriggerOutput(TURN_OFF));
     digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_OFF));
-    //Reconnect after 30 seconds
-    delay(30000);
+    //Reconnect, re-running the telnet login rather than only restarting. loginMirotik()
+    //no longer claims success it did not get, so a router that is merely rebooting
+    //used to take the whole unit down with it. Keep serving the web UI while retrying,
+    //and only reboot the ESP as the last resort.
+    unsigned long startedAt = millis();
+    while(!timeHasPassed(startedAt + 30000UL, millis())){
+      server.handleClient();
+      loginMirotik();
+      if(mikrotekConnectionSuccess){
+        Serial.println("Mikrotik login recovered");
+        digitalWrite(SYSTEM_READY_LED, evaluateTriggerOutput(TURN_ON));
+        return;
+      }
+      delay(2000);
+    }
+    Serial.println("Mikrotik still unreachable, restarting");
     ESP.restart();
 }
 
@@ -1591,15 +2081,18 @@ bool activateManualVoucherPurchase(){
     return false;
   }
 
-  if(!checkIfSystemIsAvailable()){
+  // no respond flag: this runs from the button handler inside loop(), not from a
+  // request, and there is no client to send a body to
+  if(!checkIfSystemIsAvailable(false)){
       return false;
   }
 
   currentMacAttempt = currentMacAddress;
   currentValidity = 0;
-  isNewVoucher = true;
   resetGlobalVariables();
-  activateCoinSlot();
+  // must follow the reset, otherwise the flag this buys us is wiped again
+  isNewVoucher = true;
+  activateCoinSlot(true);
   currentActiveVoucher = generateVoucher();
   manualVoucher = true;
   //show 30 sec the voucher code
@@ -1616,25 +2109,103 @@ void handleGenerateVouchers(){
   int amount = server.arg("amt").toInt();
   int qty = server.arg("qty").toInt();
   int addToSales = server.arg("sales").toInt();
-  String prefix = server.arg("pfx");
+  String prefix = sanitizeRouterOsToken(server.arg("pfx"));
+  // The code space is only 9000 wide, so a runaway qty would loop forever and
+  // hand out duplicates. A duplicate voucher is not a cosmetic problem: the
+  // second customer topping up with it extends the first customer's session.
+  if(qty < 1 || qty > 500 || amount < 1){
+    server.send(400, "text/plain", "invalid quantity or amount");
+    return;
+  }
+  if(prefix.length() == 0){
+    prefix = sanitizeRouterOsToken(VOUCHER_PREFIX);
+  }
+  // calculateAddTime() and the voucher calls below write totalCoin, timeToAdd,
+  // currentValidity, currentDataLimit, currentRateProfile and isNewVoucher as
+  // globals. Those are the live state of whoever happens to be paying right now,
+  // so stash them and put them back: an admin generating stock vouchers must not
+  // zero out a customer's pending top up.
+  int sessionTotalCoin = totalCoin;
+  int sessionTimeToAdd = timeToAdd;
+  int sessionValidity = currentValidity;
+  int sessionDataLimit = currentDataLimit;
+  String sessionRateProfile = currentRateProfile;
+  bool sessionIsNewVoucher = isNewVoucher;
+  // every voucher built here is brand new, and the flag has to be set outside the
+  // loop because registerNewVoucher/addTimeToVoucher read it as a global
+  isNewVoucher = true;
   String voucherGenerated = "";
+  int generated = 0;
+  String issued = "";
   for(int i=0;i<qty;i++){
-    int randomNumber = random(1000, 9999);
-    String voucher = prefix+String(randomNumber);
+    String voucher = "";
+    bool duplicate = true;
+    for(int attempt=0; attempt<64 && duplicate; attempt++){
+      String candidate = prefix+String(random(1000, 9999));
+      if(issued.indexOf(candidate) == -1){
+        voucher = candidate;
+        duplicate = false;
+      }
+    }
+    if(duplicate){
+      // code space exhausted for this batch
+      break;
+    }
+    issued += "#" + voucher;
     totalCoin = amount;
     timeToAdd = calculateAddTime();
-    registerNewVoucher(voucher);
+    // An amount below the cheapest rate buys nothing. addTimeToVoucher() would
+    // add 0m, leave the voucher at 00:00:00 and fail the credit read-back, but
+    // the reason is the operator's amount, not the router, so say so.
+    if(timeToAdd <= 0){
+      issued.remove(issued.length() - voucher.length() - 1);
+      Serial.print("Stopped: that amount buys no time at the current rates: ");
+      Serial.println(amount);
+      break;
+    }
+    // bulk generation is pre-paid stock, so a voucher the router refused to
+    // create must not be counted as issued or handed back to the operator as
+    // though it were sellable
+    if(!registerNewVoucher(voucher)){
+      issued.remove(issued.length() - voucher.length() - 1);
+      Serial.print("Stopped: the router refused voucher ");
+      Serial.println(voucher);
+      mikrotekConnectionSuccess = false;
+      telnetProbeFailed = true;
+      break;
+    }
+    if(!addTimeToVoucher(voucher, timeToAdd)){
+      issued.remove(issued.length() - voucher.length() - 1);
+      Serial.print("Stopped: the router refused to credit voucher ");
+      Serial.println(voucher);
+      mikrotekConnectionSuccess = false;
+      telnetProbeFailed = true;
+      break;
+    }
     if(addToSales == 1){
       updateStatistic();
     }
-    addTimeToVoucher(voucher, timeToAdd);
-    if(i > 0){
+    generated++;
+    if(generated > 1){
       voucherGenerated += "#";
     }
     voucherGenerated += voucher;
   }
-  String returnData = vendorName +"|"+amount+"|"+String(timeToAdd)+"|"+ voucherGenerated;
-  server.send(200, "text/pain", returnData);
+  if(generated < qty){
+    Serial.print("Voucher generation stopped early, issued ");
+    Serial.print(generated);
+    Serial.print(" of ");
+    Serial.println(qty);
+  }
+  int minutesAdded = timeToAdd;
+  totalCoin = sessionTotalCoin;
+  timeToAdd = sessionTimeToAdd;
+  currentValidity = sessionValidity;
+  currentDataLimit = sessionDataLimit;
+  currentRateProfile = sessionRateProfile;
+  isNewVoucher = sessionIsNewVoucher;
+  String returnData = vendorName +"|"+amount+"|"+String(minutesAdded)+"|"+ voucherGenerated;
+  server.send(200, "text/plain", returnData);
 }
 
 

@@ -1,16 +1,35 @@
 # AGENTS.md — JuanFiV2 Hotspot Portal
 
-MikroTik hotspot portal (`hotspot/`) + ESP8266 firmware (`firmware/`) + RouterOS scripts (§Scripts below), tested against original JuanFi ESP firmware. No npm/build/test/lint — do not invent commands. `firmware/JuanFi-nodemcu.ino` is reference-only and not part of the portal build; hardware verification is careful diff review, no test harness.
+MikroTik hotspot portal (`hotspot/`) + ESP8266 firmware (`firmware/`) + RouterOS scripts (§Scripts below), tested against original JuanFi ESP firmware. No npm/test/lint — do not invent commands. `firmware/JuanFi-nodemcu.ino` is ESP8266-only (the ESP32 Ethernet/W5x00 LAN base and `lan_definition.h` are removed) and is **not** part of the portal build; it *is* compilable here (see §Firmware). No hardware, no test harness — correctness rests on compiling plus careful diff review.
 
 ## Layout
 
 - `hotspot/` — canonical hotspot portal (upload its **contents** to the router's `hotspot` dir), one self-rendering file: `portal.html` holds all UI (login+status+paused views, rates inline table, inline coin/member sections — no modals) and probes `/status` at boot to render the matching view (`?state=` forces one); `login.html` / `status.html` are thin router shells (refresh-timeout + MikroTik vars into `window.*`, CHAP secrets on login, `./assets/js/boot.js` injects the app), `logout.html` is a script-only redirect back to `login` (auto-login lands on status). Edit UI only in `portal.html`. Shared `assets/js/core.js` (`detectState()`/`render()`/`boot()`, focus-mode `showCoinPanel`/`toggleBlock`, 9s failsafe).
 - RouterOS scripts, at repo root, pasted in order **A→D**: **A** = `juanfi-setup.rsc`, one idempotent `/import` (clock, hotspot profile, trial, cookies, FastTrack, site-ID publisher, netwatch); **B** = On-Login (`OnLogin.txt`); **C** = On-Logout (`OnLogout.txt`); **D** = portal file upload (drag `hotspot/`'s contents into the router's `hotspot` dir). There is no `README.md` — this section is the canonical reference.
+- Two portals, same bytes for now. `hotspot/` is the portal for **this repo's firmware**; `juanfi/hotspot/` is a pristine reference copy of it kept for the **original JuanFi firmware**, which is the build the router scripts and On-Login/On-Logout were written against. Keep them in sync by copying, and only diverge when a change exists to serve this firmware alone — the one such change so far is `/convertVoucher` (below), which the original firmware does not implement, so `showConvertVoucher` is a live row in `hotspot/` and a dead row in `juanfi/hotspot/`.
 - `.agents/skills/` + `skills-lock.json` are local-only (gitignored).
+
+## Firmware
+
+- Build with the real toolchain (present in this environment; nothing to install):
+  ```
+  SRC=<repo>/firmware; D=/tmp/jfv2/JuanFi-nodemcu
+  rm -rf "$D"; mkdir -p "$D"
+  cp "$SRC/JuanFi-nodemcu.ino" "$SRC/JuanFiTelnetClient.h" "$SRC/JuanFiTelnetClient.cpp" "$D/"
+  arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --libraries /root/Arduino/libraries "$D"
+  ```
+  The sketch dir **must** be named after the .ino, and `rm -rf /root/.cache/arduino/sketches` after adding/removing a sketch-local source file (stale objects give bogus duplicate-symbol link errors). Never write a default argument on a `.ino` function — arduino-cli then skips the forward prototype and no-arg call sites fail to compile.
+- `firmware/JuanFiTelnetClient.{h,cpp}` is a **vendored fork** of ESP8266-Telnet-Client and must keep its own class name. Upstream spins in unbounded `while (client->available() == 0) delay(1);` waits inside `send`/`listen`/`listenUntil`, which deadlocks the whole unit (no portal, no admin, no coin expiry) if the MikroTik ever stops echoing. Renaming it to `ESP8266TelnetClient` collides with the still-installed library. It also captures the router's reply (256 bytes, `clearReply`/`replyContains`/`replyIndexOf`/`replyLastIndexOf`/`replyLineAfter`) because upstream throws the answer away, so `sendCommand()` alone cannot tell a clean write from a RouterOS "no such item".
+- Do not put a coin/mikrotik/vendo pin on GPIO0, GPIO2 or GPIO15 (strapping pins) or outside 0..16: `pinsAreUsable()` fails the config, `activateCoinSlot()` then refuses to arm, and the admin UI stays reachable instead of taking coins it cannot deliver.
+- Never tell the router to add a *bare number* to a time value. `get limit-uptime` answers `00:15:00`, not `900`, so a read has to go through `[:tonum ...]` before any comparison and a write through `[:totime ...]` before it can be added to another time. `addTimeToVoucher()` and `mergeVoucherIntoSession()` both read time and add time, never time + number.
+- RouterOS reads back through `:put`, not through the telnet client: the client now keeps the last 256 reply bytes (`JuanFiTelnetClient::replyLineAfter`) so a value can be read, and `sendCommandChecked()` fails on RouterOS error text. Two traps: the router **echoes the command back**, so `replyLineAfter` matches the *last* occurrence of the marker, and `sendCommandChecked()` is substring-matched, so it must never be used on a command that embeds free text (a vendor name containing "cannot" would fail every top up). Money paths use a positive read-back instead — `voucherCredited()` and `voucherNameIsTaken()` ask the router for a number and require it, which has no false-positive direction.
+- `generateVoucher()` re-rolls a random code up to 4 times when the router already holds that name. The random space is only 9000 wide, so without this two customers can be handed the same code and the second one to pay extends the first one's session. Bulk generation (`handleGenerateVouchers`) additionally dedupes within its own batch.
 
 ## Vendo API quirks (would break the coin flow if missed)
 
 - Portal ↔ vendo flow is `topUp → checkCoin → useVoucher` (`cancelTopUp` aborts). Voucher codes are issued by the vendo firmware (e.g. `VCxxxxxx` on the original firmware) — the portal passes them through opaquely, never assume a prefix.
+- `POST /convertVoucher` (`voucher=<session>&convertVoucher=<code>`) folds a second code's remaining minutes into the open session, no coins. This repo's firmware implements it; the original JuanFi firmware does not, so the "Add time with another code" row only works on `hotspot/`, never on `juanfi/hotspot/`. It refuses a code that has an active session (that would boot a live customer off) and a code with no time left, and it deletes the merged code only after every earlier RouterOS write has succeeded. The merged code's `data/<mac>.txt` under the router's hotspot dir cannot be cleaned — that filename is the logging-in MAC, which the firmware never sees — so `juanfi-setup.rsc`'s daily sweep reclaims the user and scheduler and the stale `.txt` is harmless.
+- RouterOS reads back through `:put`, not through the telnet client: the client now keeps the last 256 reply bytes (`JuanFiTelnetClient::replyLineAfter`) so a value can be read, and `sendCommandChecked()` fails on RouterOS error text. Two traps: the router **echoes the command back**, so `replyLineAfter` matches the *last* occurrence of the marker, and `get limit-uptime` answers a **time value** (`00:15:00`), so it needs `[:tonum ...]` before any numeric comparison and `[:totime ...]` before it can be added to another time.
 
 ## Previewing the portal (no hardware needed)
 

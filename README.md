@@ -3,7 +3,18 @@
 > Maintained by [kioshiDesu](https://github.com/kioshiDesu/JuanFiV2).
 
 MikroTik hotspot portal + RouterOS setup scripts for a coinslot
-vendo system. Portal files only — no firmware in this repo.
+vendo system.
+
+## Which folder goes where
+
+| Folder | What it is |
+| --- | --- |
+| `hotspot/` | The portal for **this repo's firmware** (`firmware/`). Use this one. |
+| `juanfi/hotspot/` | A pristine copy kept for the **original JuanFi box**, which has no `POST /convertVoucher` route. |
+| `firmware/` | The ESP8266 firmware itself — not part of the portal upload. See `AGENTS.md` §Firmware for the build. |
+
+The two portals are byte-identical right now. They should only diverge when
+a change exists to serve this firmware alone.
 
 ## Features
 
@@ -280,10 +291,11 @@ at full interval, which preserves the customer's remaining minutes:
 
    `showConvertVoucher: true` adds an "Add time with another code" row
    to the coin panel — the customer types a second voucher and the coin
-   box folds its minutes into the open session, no coins needed. Only
-   works on box builds that answer `POST /convertVoucher`; on a build
-   without it the button reports that the box cannot do it, never that
-   the customer's code is bad. Turn it off to hide the row.
+   box folds its minutes into the open session, no coins needed. The box
+   must answer `POST /convertVoucher`: this repo's firmware does, the
+   original JuanFi box does not. On a build without it the button reports
+   that the box cannot do it, never that the customer's code is bad.
+   Turn it off to hide the row.
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
 `JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +
