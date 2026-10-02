@@ -140,7 +140,19 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
-var SOUND_V = "?v=167";
+// ponytail: the version used to be a hand-kept literal here AND in the script
+// tags AND in a vNNN string in the footer, so a partial bump stranded the
+// sounds and the footer behind the CSS. core.js is loaded from a URL that
+// already carries its own ?v=, so read it from there and use it for both the
+// sounds and the displayed build. One place to bump: the <script> tags.
+var SOUND_V = (function () {
+	try {
+		var s = (document.currentScript && document.currentScript.src) || "";
+		var m = /(\?v=[\w.\-]+)/.exec(s);
+		if (m) { return m[1]; }
+	} catch (e) { }
+	return "?v=26";
+})();
 function snd(p) { return p + SOUND_V; }
 var sfxAudio = {};
 function sfxPlayFile(name, src, loop, fallback) {
@@ -179,11 +191,18 @@ function sfxStartLoop() {
 	sfxStopLoop();
 	sfxPlayFile("insert", snd("assets/sounds/insertcoinbg.mp3"), true, null);
 }
+// ponytail: this is a metered captive portal, so boot-time bytes are the
+// expensive kind. "insert" is the looping bed that plays the moment the
+// customer taps INSERT COIN, so it stays eager (2.7 KB). "inserted" and
+// "success" are one-shots that only fire after a coin lands — success.mp3
+// alone is 26 KB — so they load on first play instead. sfxPlayFile already
+// creates-and-caches, so nothing is fetched twice. Saves ~30 KB and two
+// parallel requests off the critical path.
 function sfxPreload() {
 	try {
 		if (!sfxAudio["insert"]) { sfxAudio["insert"] = new Audio(snd("assets/sounds/insertcoinbg.mp3")); sfxAudio["insert"].preload = "auto"; }
-		if (!sfxAudio["inserted"]) { sfxAudio["inserted"] = new Audio(snd("assets/sounds/insertedcoin.mp3")); sfxAudio["inserted"].preload = "auto"; }
-		if (!sfxAudio["success"]) { sfxAudio["success"] = new Audio(snd("assets/sounds/success.mp3")); sfxAudio["success"].preload = "auto"; }
+		if (!sfxAudio["inserted"]) { sfxAudio["inserted"] = new Audio(snd("assets/sounds/insertedcoin.mp3")); sfxAudio["inserted"].preload = "none"; }
+		if (!sfxAudio["success"]) { sfxAudio["success"] = new Audio(snd("assets/sounds/success.mp3")); sfxAudio["success"].preload = "none"; }
 	} catch (e) {}
 }
 function coinBlip() {
@@ -565,7 +584,9 @@ function wipePortalStorage() {
 	// optional _<scope> tail. The old regex was tail-anchored with no scope
 	// allowed, so it only ever matched unscoped ones and every code the
 	// customer ever used leaked three permanent entries.
-	var perVoucher = /(remain|tempValidity|validity)(_.+)?$/;
+	// ponytail: anchored at the start too — unanchored, this matched ANY key on
+	// the router origin ending in "validity" and deleted it.
+	var perVoucher = /^(.+)?(remain|tempValidity|validity)(_.+)?$/;
 	function isOurs(k) {
 		if (fixed.indexOf(k) >= 0) { return true; }
 		for (var b = 0; b < scopedBases.length; b++) {
@@ -772,7 +793,10 @@ function boot() {
 		// would skip a box that is no longer empty. goReLogin reads after.
 		try { markAutoLoginTried(); } catch (e) {}
 		try { setBootText("Renewing session…"); } catch (e) {}
+		var reLoginFired = false;
 		var goReLogin = function () {
+			if (reLoginFired) { return; }
+			reLoginFired = true;
 			setTimeout(function () {
 				adoptScopedVoucher(true);
 				var code = $("#voucherInput").val() || voucher || getActiveVoucher();
@@ -780,6 +804,12 @@ function boot() {
 				try { doLogin(); } catch (e) { newLogin(); }
 			}, 500);
 		};
+		// ponytail: this path returns at the end of the block, so it never reaches
+		// the 9s failsafe further down. loadSiteId() normally settles and calls
+		// goReLogin itself, but a promise that never settles would strand the
+		// customer behind the loader with no in-page backstop. The guard makes the
+		// timer and the promise idempotent, so whichever fires first wins.
+		setTimeout(goReLogin, 9000);
 		try {
 			window.__siteIdLoaded = true;
 			var siteP = loadSiteId();
@@ -1129,6 +1159,11 @@ function applyFlags() {
 				}
 			}
 		} else {
+			// ponytail: this was the one unguarded .on() in the file — no .off(), no
+			// namespace — and the append loop above had no clear, so a second
+			// applyFlags() would duplicate every <option> and run this handler
+			// twice per change. Clear first, namespace the binding.
+			$("#vendoSelected").empty();
 			for (var k = 0; k < multiVendoAddresses.length; k++) {
 				$("#vendoSelected").append($('<option>', {
 					value: multiVendoAddresses[k].vendoIp,
@@ -1145,7 +1180,7 @@ function applyFlags() {
 				vendorIpAddress = selectedVendo;
 			}
 			$("#vendoSelected").val(vendorIpAddress);
-			$("#vendoSelected").change(function () {
+			$("#vendoSelected").off("change.vendo").on("change.vendo", function () {
 				vendorIpAddress = $("#vendoSelected").val();
 				setStorageValue(scopedKey('selectedVendo'), vendorIpAddress);
 			});
@@ -1195,7 +1230,7 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		try { if (!$("#portalVer").text()) { $("#portalVer").text("v167"); } } catch (e) {}
+		try { if (!$("#portalVer").text()) { $("#portalVer").text(SOUND_V.replace(/^\?v=/, "v")); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
 	} catch(e) {}
 }
@@ -1413,7 +1448,7 @@ function loadRates() {
 			if (rows[r] == "") { continue; }
 			var c = rows[r].split("#");
 			if (c.length < 4 || String(c[0]).trim() == "") { continue; }
-			html += "<tr><td>" + escHtml(rateDisplay(c[0])) + "</td>";
+			html += "<tr><td>" + escHtml(rateDisplay(c[0], c[1])) + "</td>";
 			html += "<td>" + humanDuration(c[2]) + "</td>";
 			html += "<td>" + humanDuration(c[3]) + "</td>";
 			html += "</tr>";
@@ -1434,10 +1469,17 @@ function escHtml(s) {
 	return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function rateDisplay(raw) {
+// priceHint is the authoritative price column (rates.data field 1). The name
+// normally already carries the number, so output is unchanged for every shipped
+// row; the hint only rescues names that do not, e.g. "2-hour promo" scraping
+// as 2 when the real price is 5.
+// ponytail: kept the scrape rather than adding a column, so today's table is
+// byte-identical and only the broken case changes.
+function rateDisplay(raw, priceHint) {
 	var t = String(raw == null ? "" : raw).trim();
 	var m = t.match(/(\d+(?:\.\d+)?)/);
 	if (m) { try { return currencySym + new Intl.NumberFormat("en-PH", { maximumFractionDigits: 2 }).format(parseFloat(m[1])); } catch (e) {} return currencySym + m[1]; }
+	if (priceHint != null && String(priceHint).trim() != "") { return rateDisplay(String(priceHint)); }
 	return t;
 }
 
@@ -1520,7 +1562,9 @@ function resumeSession() {
 				if (voucher && retried !== "1") {
 					setSessionValue("__loginRetry", "1");
 					try { dbgLog("resume: bad credentials, retrying once in 1.5s"); } catch (e) { }
-					try { val(voucher); } catch (e) { }
+					// ponytail: this called val(voucher), which is defined nowhere in
+					// the repo. The ReferenceError was swallowed and the retry ran off
+					// the setTimeout below regardless, so it never did anything.
 					$.toast({ title: 'Checking your code', content: "One moment while the Wi-Fi confirms your code", type: 'info', delay: 4000 });
 					setTimeout(function () {
 						try { clearAutoLoginTried(); } catch (e) { }
@@ -1850,6 +1894,10 @@ function callTopupAPI(retryCount, gen) {
 					return;
 				}
 				try { dbgLog("topUp rejected errorCode=" + data.errorCode, "dbg-err"); } catch (e) { }
+				// ponytail: the retry-exhausted branch below hides the loader but this
+				// plain-reject path did not, leaving a full-screen opaque cover with
+				// reload as the only exit. Keep the two branches consistent.
+				try { $("#loaderDiv").attr("class", "spinner hidden"); try { $("#paidNote").text(""); } catch (e) { } } catch (e) { }
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
 				timer = null;
@@ -1901,7 +1949,13 @@ function saveVoucherBtnAction() {
 	currentUseVoucherXhr = $.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/useVoucher",
-		timeout: VENDO_TIMEOUT,
+		// ponytail: useVoucher is the one endpoint that can exceed VENDO_TIMEOUT.
+		// It does two blocking telnet round-trips inside the request
+		// (registerNewVoucher + addTimeToVoucher), so on a slow MikroTik it timed
+		// out and told the customer the coin was processed when the router may
+		// never have received the command. Only this call gets the longer budget;
+		// the rest stay at 5000.
+		timeout: 10000,
 		data: { voucher: voucher },
 		complete: function(){ currentUseVoucherXhr = null; },
 		success: function (data) {
@@ -2120,6 +2174,11 @@ function pause() {
 	try { if (currentCheckCoinXhr) { currentCheckCoinXhr.abort(); currentCheckCoinXhr = null; } } catch (e) {}
 	try { if (currentTopUpXhr) { currentTopUpXhr.abort(); currentTopUpXhr = null; } } catch (e) {}
 	try { if (currentUseVoucherXhr) { currentUseVoucherXhr.abort(); currentUseVoucherXhr = null; } } catch (e) {}
+	// ponytail: abort() stops the in-flight request but not the topUp retry
+	// ladder's setTimeout, and nothing bumped the generation here, so a retry
+	// could still pass the gen check and reopen the coin panel behind the
+	// paused veil, stranding RESUME. Same guard cancelCoinForfeit uses.
+	topUpGen++;
 	try { sfxStopLoop(); } catch (e) {}
 	try { window.__useVoucherBusy = false; } catch (e) {}
 	if (totalCoinReceived > 0) {

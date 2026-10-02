@@ -7,8 +7,18 @@
     <meta http-equiv="pragma" content="no-cache">
     <meta http-equiv="expires" content="-1">
     <title>Internet hotspot - Error</title>
-    <link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-    <link rel="stylesheet" href="assets/css/core.css?v=167">
+    <link rel="stylesheet" href="assets/css/base.css?v=170">
+    <link rel="stylesheet" href="assets/css/core.css?v=170">
+    <link rel="stylesheet" href="assets/css/JuanFiV2.css?v=170">
+    <!-- ponytail: this page's .ie-fixMinHeight / .main / .wrap / .info were
+         defined in no stylesheet in the repo, so the error page rendered
+         unstyled. These four rules are what it actually needs. -->
+    <style>
+        .ie-fixMinHeight { min-height: 100dvh; }
+        .main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+        .wrap { max-width: 34rem; }
+        .info { opacity: .75; }
+    </style>
 </head>
 
 <body>

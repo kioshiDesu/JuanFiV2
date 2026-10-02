@@ -476,6 +476,14 @@ body { -webkit-tap-highlight-color: transparent; }
     position: relative;
     padding-right: 48px;
 }
+/* The forfeit pair decides whether a customer keeps the coins they already
+   inserted, and #histBack sits in a bare flex row, so neither picked up the
+   44px target the other buttons get. Bootstrap's .btn padding alone is ~38px. */
+#forfeitBar .btn,
+#histBack {
+    min-height: 44px;
+}
+
 .jtoast .jclose {
     position: absolute;
     top: 0;

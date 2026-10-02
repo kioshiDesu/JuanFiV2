@@ -1,0 +1,39 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "build",
+
+  // Skills self-select from their descriptions. Listing SKILL.md paths here
+  // would force all 8 into every turn's context.
+  "instructions": [],
+
+  "plugin": [
+    "@tarquinen/opencode-dcp@latest",
+    "caveman-opencode-plugin@latest",
+    "opencode-ponytail@latest"
+  ],
+
+  // Agents live in .opencode/agent/*.md. The old inline block used a "tools"
+  // key, which is not in opencode's agent schema — unknown keys route silently
+  // to "options", so it never did anything. Use "permission" instead.
+  "permission": {
+    "mcp_*": "ask"
+  },
+
+  // No "provider" and no firecrawl MCP. Authenticate with /login.
+
+  "mcp": {
+    // executablePath and --no-sandbox were Linux-only
+    // (/root/.cache/ms-playwright/...) and could never launch on Windows.
+    "chrome-devtools": {
+      "type": "local",
+      "command": [
+        "npx", "-y", "chrome-devtools-mcp@latest",
+        "--isolated",
+        "--headless",
+        "--no-usage-statistics",
+        "--no-performance-crux"
+      ],
+      "enabled": true
+    }
+  }
+}

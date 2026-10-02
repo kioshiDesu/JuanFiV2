@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+
+  // Dynamic Context Pruning — removes obsolete tool outputs from the
+  // conversation so long sessions stay inside the context window.
+  // Keys here are constrained by the schema (additionalProperties: false);
+  // anything not listed there will be rejected.
+
+  "enabled": true,
+  "pruneNotification": "minimal",
+  "pruneNotificationType": "chat",
+
+  // /dcp slash commands stay available for a manual /dcp sweep.
+  "commands": { "enabled": true },
+
+  // This repo verifies by re-reading recent output (diffs, settings.json,
+  // portal markup), so keep the last few turns of tool results intact.
+  // DCP's default is disabled — turning it on is deliberate.
+  "turnProtection": { "enabled": true, "turns": 6 },
+
+  "strategies": {
+    "deduplication": { "enabled": true },
+    "purgeErrors": { "enabled": true, "turns": 6 }
+  },
+
+  // Never prune reads of the files that define correctness for this project.
+  "protectedFilePatterns": [
+    "**/AGENTS.md",
+    "**/hotspot/settings.json",
+    "**/hotspot/portal.html",
+    "**/hotspot/assets/js/core.js",
+    "**/juanfi-setup.rsc",
+    "**/OnLogin.txt",
+    "**/OnLogout.txt"
+  ],
+
+  "compress": {
+    "mode": "range",
+    "permission": "allow",
+    "showCompression": false,
+    "summaryBuffer": true,
+    // Percentages of the model's context window, so this survives a model swap.
+    "maxContextLimit": "70%",
+    "minContextLimit": "35%",
+    "nudgeFrequency": 5,
+    "iterationNudgeThreshold": 15,
+    "nudgeForce": "soft",
+    "protectUserMessages": true
+  },
+
+  "experimental": {
+    "allowSubAgents": true
+  }
+}

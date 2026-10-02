@@ -6,9 +6,9 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="assets/css/bootstrap.min.css?v=26">
-	<link rel="stylesheet" href="assets/css/core.css?v=167">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=167">
+	<link rel="stylesheet" href="assets/css/base.css?v=170">
+	<link rel="stylesheet" href="assets/css/core.css?v=170">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=170">
 	<title>JuanFiV2 Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -78,7 +78,7 @@
 					<div id="voucherBlock" style="margin-top: 15px;">
 			<label for="voucherInput" class="vouchlabel">Voucher code</label>
 			<div class="voucher-pill">
-				<input type="text" class="form-control" id="voucherInput" name="voucher" aria-label="Voucher code" placeholder="Voucher code…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" enterkeyhint="go" translate="no">
+				<input type="text" class="form-control" id="voucherInput" name="voucher" aria-label="Voucher code" placeholder="Voucher code…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" enterkeyhint="go" translate="no" onkeydown="if(event.key === 'Enter'){ doLogin(); return false; }">
 				<button type="button" id="connectBtn" onClick="doLogin(); return false" class="btn btn-info">CONNECT</button>
 			</div>
 			<div id="voucherErr" role="alert"></div>
@@ -154,7 +154,7 @@
 		</div>
 
 		<div class="btnrow">
-			<button type="button" id="resumeBtn" onClick="resume(); return false" class="btn btn-info btn-block" style="display: block; width: 100%;">RESUME SESSION</button>
+			<button type="button" id="resumeBtn" onClick="resume(); return false" class="btn btn-info" style="display: block; width: 100%;">RESUME SESSION</button>
 		</div>
 
 		<div class="pausenote">Time is <b>paused</b> — feel free to turn off your Wi-Fi and close this browser. Reconnecting keeps your time paused; nothing happens until you tap <b>RESUME SESSION</b>.</div>
@@ -207,14 +207,14 @@
 		</div>
 	</div>
 
-	<div class="footer">
+	<footer class="footer">
 		<div class="brandmark">
 			<span class="brand-big" id="footerBrand">@NETBRO</span>
 			<span class="brand-sub" style="font-size:10px;opacity:.45;"><span id="footerSub">Internet Services</span> &copy; <span id="footYear">2026</span></span>
 			<span class="brand-sub" id="siteTag" style="font-size:10px;opacity:.45;"></span>
-			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;">v161</span>
+			<span class="brand-sub" id="portalVer" style="font-size:10px;opacity:.45;"></span>
 		</div>
-	</div>
+	</footer>
 
 	<form name="sendin" action="/portal/done" method="post" style="display:none" aria-hidden="true">
 		<input type="hidden" name="username" />
@@ -224,7 +224,7 @@
 		<form name="logout" action="/portal/logout" style="display:none" aria-hidden="true"></form>
 
 		<script src="assets/js/jquery.min.js?v=26"></script>
-		<script src="assets/js/core.js?v=167"></script>
+		<script src="assets/js/core.js?v=170"></script>
 		<script>
 			// Router shells override form actions via globals before this runs.
 			if (window.loginAction) { document.sendin.action = window.loginAction; }
