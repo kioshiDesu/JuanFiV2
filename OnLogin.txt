@@ -15,7 +15,7 @@
 :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
 :local rawNote [/ip hotspot user get [find name="$user"] comment];
 :local isTrial ([:pick $user 0 2] = "T-");
-# Trial sessions expire natively via trial-uptime (Scripts-A) — never
+# Trial sessions expire natively via trial-uptime (A1) — never
 # delete trial rows here, that resets the MAC wait.
 :if (($rawNote = "") or ($isTrial)) do={
   :log warning ("On-Login(" . $user . "): trial/empty comment, voucher timer skipped");

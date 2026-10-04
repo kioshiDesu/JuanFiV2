@@ -1173,7 +1173,7 @@ int mergeVoucherIntoSession(String sessionVoucher, String mergeVoucher){
 
   // The code's session file under the router's hotspot data dir is named after
   // the MAC that logged in, not after the voucher, and this firmware has no
-  // handle on that path, so it is left behind. juanfi-setup.rsc's daily sweep
+  // handle on that path, so it is left behind. juanfi-sweep's daily sweep (README §A3)
   // reclaims the user and the scheduler; the stale .txt is harmless and the
   // next login for that MAC overwrites it.
   Serial.print("Merged voucher ");

@@ -49,10 +49,6 @@ To add one:
 Re-running any of them is safe: each one checks whether it already did the work
 before it writes anything.
 
-Prefer one file instead of five pastes? [`juanfi-setup.rsc`](juanfi-setup.rsc) is
-these exact scripts plus their schedulers, as a single idempotent `/import`.
-Pick either the Winbox route or the `.rsc` — not both.
-
 Before you start: in the `juanfi-setup` source, edit `PROF` (the hotspot
 profile name, `hsprof1` by default), `NTP1`/`NTP2` and `Asia/Manila` to match
 your router.
@@ -286,8 +282,83 @@ Hotspot → Server Profiles → your profile → **Login** tab → **On Login**.
 Maximize the window first, the field is small. Run A1 first, so
 `data/site-id.txt` exists before anyone logs in.
 
-Open [`OnLogin.txt`](OnLogin.txt) and paste the whole file into that box — the
-first line through the closing brace on the last line. Then OK.
+Paste everything between the fences into that box — the first line through the
+closing brace on the last line. Then OK. It is also saved as
+[`OnLogin.txt`](OnLogin.txt) if you would rather open the file.
+
+```
+:local PROF "hsprof1";
+:local HSFilePath "";
+:do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
+:if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
+  :local cand "";
+  :foreach c in={"flash/hotspot"; "hotspot"} do={
+    :if ($cand = "") do={
+      :foreach f in={"portal.html"; "login.html"; "status.html"} do={
+        :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
+      };
+    };
+  };
+  :if ($cand != "") do={ :set HSFilePath $cand };
+};
+:if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
+:local rawNote [/ip hotspot user get [find name="$user"] comment];
+:local isTrial ([:pick $user 0 2] = "T-");
+# Trial sessions expire natively via trial-uptime (A1) — never
+# delete trial rows here, that resets the MAC wait.
+:if (($rawNote = "") or ($isTrial)) do={
+  :log warning ("On-Login(" . $user . "): trial/empty comment, voucher timer skipped");
+} else={
+:local aUsrNote [:toarray $rawNote];
+:local iUsrTime [:totime ($aUsrNote->0)];
+:local iExtCode ($aUsrNote->2);
+:local iTimeMin [/ip hotspot user get [find name="$user"] limit-uptime];
+:local iUserReg [/system scheduler find name="$user"];
+
+:if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
+  /ip hotspot user set [find name="$user"] comment="";
+  :local iFileMac;
+  :local mac $"mac-address";
+  :for i from=0 to=([:len $mac] - 1) do={
+    :local chr [:pick $mac $i]
+    :if ($chr = ":") do={ :set $chr "" }
+    :set iFileMac ($iFileMac . $chr)
+  }
+  :if (($iUserReg!="") and ($iExtCode=1)) do={
+    :local iTimeInt [/system scheduler get [find name="$user"] interval];
+    :set iTimeInt ($iTimeInt+$iUsrTime);
+    :if ($iTimeMin>$iTimeInt) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
+    /system scheduler set [find name="$user"] interval=$iTimeInt;
+  }
+  :local iDateBeg [/system clock get date];
+  :local iTimeBeg [/system clock get time];
+  :if ($iUserReg="") do={
+    :local iTimeInt $iUsrTime;
+    :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
+    :do { /system scheduler add name="$user" interval=$iTimeInt \
+      start-date=$iDateBeg start-time=$iTimeBeg disable=no \
+      policy=ftp,read,write,test \
+      on-event=("/ip hotspot user remove [find name=\"$user\"];\r\n".\
+                "/ip hotspot active remove [find user=\"$user\"];\r\n".\
+                "/system scheduler remove [find name=\"$user\"];\r\n".\
+                ":do {/file remove \"$HSFilePath/data/$iFileMac.txt\"} on-error={};\r\n")
+    } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
+    :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
+  };
+  :if ([/file find name="$HSFilePath/data/site-id.txt"]="") do={
+    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="http://127.0.0.1/portal.html"} on-error={ };
+    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/portal.html"} on-error={ };
+  }
+  :local iValidUntil "";
+  :if ([/system scheduler find name="$user"]!="") do={
+    :set iValidUntil [/system scheduler get [find name="$user"] next-run];
+    /file print file="$HSFilePath/data/$iFileMac.txt" where name="dummyfile";
+    :local x 5;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
+    /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
+  }
+};
+}
+```
 
 Trials skip the timer here on purpose — they expire via `trial-uptime` (A1),
 and deleting a trial row would reset its MAC wait. The portal splits the
@@ -300,8 +371,14 @@ Income`, `Reset Monthly Income`, `tg-creds-boot`. Nothing reads them.
 
 ### C. On-Logout (same profile)
 
-Same **Login** tab → **On Logout** box. Open [`OnLogout.txt`](OnLogout.txt),
-paste the whole file, OK.
+Same **Login** tab → **On Logout** box. Paste this whole block, then OK. Also
+saved as [`OnLogout.txt`](OnLogout.txt).
+
+```
+:if ($cause="session timeout") do={
+  /system scheduler set [find name="$user"] interval=5s;
+}
+```
 
 Only `session timeout` shortens the timer; other logout causes leave it at
 full interval, which preserves the customer's remaining minutes.
