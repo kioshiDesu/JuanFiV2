@@ -61,6 +61,18 @@ Sets the hotspot and user profiles, syncs the clock, adds the FastTrack accept
 rule, publishes this router's own site id into `data/site-id.txt`, and creates
 `data/netstatus.txt` as `up` so the netwatch entry in A2 has a file to write.
 
+That site id is what splits voucher history per venue — the customer's phone
+stores `voucherHistory_<site id>`, so two venues only share a list if they
+publish the same id. It comes from the router's serial number; if that is
+missing the script falls back to the router's identity name, then to the board
+model, and logs a warning for the last one. **Give every venue a distinct
+`System > Identity` name** — on a board with no serial that name is the only
+thing keeping two venues' histories apart, and board model is not unique.
+
+That only works when each venue has its own router. One router serving several
+venues through VLANs publishes a single site id, and no identity name changes
+that; a centralised install has to separate them some other way.
+
 A wrong year makes scheduler `next-run` garbage, which makes voucher validity
 garbage — the clock matters more than it looks. The FastTrack rule accepts
 hotspot traffic *before* FastTrack; without it, fasttracked sessions skip idle
@@ -117,6 +129,11 @@ Source:
 :if ($siteOld = "") do={
   :local sn "";
   :do { :set sn [/system routerboard get serial-number] } on-error={};
+  :if ([:len $sn] < 4) do={ :do { :set sn [/system identity get name] } on-error={} };
+  :if ([:len $sn] < 4) do={
+    :do { :set sn [/system routerboard get board-name] } on-error={};
+    :log warning "setup: no serial-number, site id falls back to board-name";
+  };
   :if ([:len $sn] < 4) do={ :set sn $PROF };
   :do { /file print file=$siteFile where name="dummyfile" } on-error={};
   :local y 5;
