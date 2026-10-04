@@ -143,8 +143,8 @@ Source:
 | Type | `simple` |
 | Interval | `00:00:10` |
 | Timeout | `1s` |
-| Down Script | `/file set [find name~"*data/netstatus.txt"] contents="down"` |
-| Up Script | `/file set [find name~"*data/netstatus.txt"] contents="up"` |
+| Down Script | `/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="down"` |
+| Up Script | `/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="up"` |
 | Policy | `read`, `write`, `test` |
 
 The two scripts are single lines — that is all §A2 is:
@@ -152,21 +152,33 @@ The two scripts are single lines — that is all §A2 is:
 Down Script:
 
 ```
-/file set [find name~"*data/netstatus.txt"] contents="down"
+/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="down"
 ```
 
 Up Script:
 
 ```
-/file set [find name~"*data/netstatus.txt"] contents="up"
+/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="up"
 ```
 
 That is the whole thing — no script, no scheduler. Netwatch pings `8.8.8.8`
-every 10 seconds and flips the one file the portal already reads; A1 created
-that file, and the `name~"*data/netstatus.txt"` glob matches it whether the
-portal lives in `hotspot/` or `flash/hotspot/`. Netwatch only fires a script
-when the state actually *changes*, so the file is written on every transition
-and never in between — flash wear stays flat.
+every 10 seconds and flips the one file the portal already reads. Netwatch only
+fires a script when the state actually *changes*, so the file is written on
+every transition and never in between — flash wear stays flat.
+
+Two bits of that line look odd on purpose, both about storage prefixes:
+
+- `name~"*data/netstatus.txt"` — the leading `*` is what makes this work on a
+  hex, hAP-ax, or anything else that stores files under `flash/`. The file is
+  really `flash/hotspot/data/netstatus.txt`, and `*` in a RouterOS glob matches
+  `/` as well, so the same string finds it on `hotspot/` and on `flash/hotspot/`
+  without asking the router where the portal lives.
+- `[:pick [/file find …] 0]` — `find` returns **every** match, and `/file set`
+  wants exactly one id. If the file ends up in two places at once (a copy in
+  `flash/` and another in the RAM overlay), the bare `find` version fails with
+  "too many values" and the banner silently stops updating forever. `:pick 0`
+  takes the first match and guarantees one id, so a duplicate costs you
+  determinism but never the feature.
 
 Policy must include `write`, or `/file set` is refused and the banner never
 updates. If the file is missing entirely, both scripts fail silently — re-run
