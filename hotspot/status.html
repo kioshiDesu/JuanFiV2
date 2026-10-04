@@ -2,13 +2,17 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="assets/css/base.css?v=170">
-		<link rel="stylesheet" href="assets/css/core.css?v=170">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=170">
-	<title>JuanFiV2 - Status</title>
+	<link rel="stylesheet" href="assets/css/base.css?v=172">
+		<link rel="stylesheet" href="assets/css/core.css?v=189">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=178">
+	<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
+		<title>JuanFiV2 - Status</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="#101418">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<script>
 		// Client facts for the single-file portal (portal.html renders the UI).
@@ -30,20 +34,23 @@
 		window.chapChallenge = "$(chap-challenge)";
 	</script>
 	$(endif)
-	<script src="assets/js/boot.js?v=170"></script>
 </head>
 
-<!-- $(username) is user-controlled: never inline in JS/attributes (quote
-     breakout). textContent read keeps quotes inert; attribute set via JS. -->
+<!-- $(username) and $(link-orig) are user-controlled and RouterOS escapes
+     neither. -esc percent-encodes < > " & so no tag or attribute can break
+     out. Username is decoded below (it is displayed and prefilled);
+     link-orig stays encoded because it is only ever the dst form field. -->
 <body id="loginBody" data-session-time="$(session-time-left-secs)">
-<span id="curV" style="display:none">$(username)</span>
-<span id="loginDst" style="display:none">$(link-orig)</span>
+<span id="curV" style="display:none">$(username-esc)</span>
+<span id="loginDst" style="display:none">$(link-orig-esc)</span>
 <span id="bytesIn" style="display:none">$(bytes-in-nice)</span>
 <span id="bytesOut" style="display:none">$(bytes-out-nice)</span>
 <script>
 	try {
-		window.currentVoucher = document.getElementById("curV").textContent || "";
-		document.getElementById("loginBody").setAttribute("data-current-voucher", window.currentVoucher);
+		var cv = document.getElementById("curV").textContent || "";
+		try { cv = decodeURIComponent(cv); } catch (x) { }
+		window.currentVoucher = cv;
+		document.getElementById("loginBody").setAttribute("data-current-voucher", cv);
 		window.loginDst = document.getElementById("loginDst").textContent || "";
 		window.bytesIn = document.getElementById("bytesIn").textContent || "";
 		window.bytesOut = document.getElementById("bytesOut").textContent || "";
@@ -68,13 +75,18 @@
 			if (typeof window.jQuery === 'undefined') { return; }
 			clearInterval(refreshWait);
 			setInterval(function () {
-				if (typeof insertingCoin === 'undefined' || !insertingCoin) {
+				// __histOpen is set while the voucher-history overlay is up; the
+				// overlay is a full-screen modal, so reloading under it would throw
+				// away whatever the customer was picking.
+				if ((typeof insertingCoin === 'undefined' || !insertingCoin) && !window.__histOpen) {
 					location.reload();
 				}
 			}, window.refreshSecs * 1000);
 		}, 500);
 	$(endif)
 </script>
+
+	<script src="assets/js/boot.js?v=172"></script>
 
 </body>
 

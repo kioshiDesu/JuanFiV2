@@ -4,12 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#101418">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta http-equiv="pragma" content="no-cache">
     <meta http-equiv="expires" content="-1">
-    <title>Internet hotspot - Error</title>
-    <link rel="stylesheet" href="assets/css/base.css?v=170">
-    <link rel="stylesheet" href="assets/css/core.css?v=170">
-    <link rel="stylesheet" href="assets/css/JuanFiV2.css?v=170">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
+		<title>Internet hotspot - Error</title>
+    <link rel="stylesheet" href="assets/css/base.css?v=172">
+    <link rel="stylesheet" href="assets/css/core.css?v=189">
+    <link rel="stylesheet" href="assets/css/JuanFiV2.css?v=178">
     <!-- ponytail: this page's .ie-fixMinHeight / .main / .wrap / .info were
          defined in no stylesheet in the repo, so the error page rendered
          unstyled. These four rules are what it actually needs. -->
@@ -25,15 +29,26 @@
     <div class="ie-fixMinHeight">
         <div class="main">
             <div class="wrap">
-                <h1>Hotspot error: <span id="errMsg">$(error)</span></h1>
+                <h1>Hotspot error: <span id="errMsg"></span></h1>
+                <!-- RouterOS escapes nothing in $(error), and errors.txt can
+                     embed $(error-orig) from a RADIUS reply, so -esc
+                     percent-encodes < > " & and the script fills the visible
+                     span with the decoded text. -->
+                <span id="errRaw" style="display:none">$(error-esc)</span>
                 <p class="info">Log in page: <a id="loginLink" href="login">log in</a></p>
                 <span id="loginDst" style="display:none">$(link-login)</span>
             </div>
         </div>
     </div>
     <script>
-        // $(error) stays inert span text (quotes can't break out); the
-        // login URL is set from span text after a scheme check.
+        // $(error) is percent-encoded by $(error-esc); decode it into the
+        // visible span. The login URL is set from span text after a scheme
+        // check.
+        try {
+            var raw = document.getElementById("errRaw").textContent || "";
+            try { raw = decodeURIComponent(raw); } catch (x) { }
+            document.getElementById("errMsg").textContent = raw;
+        } catch (x) { }
         try {
             var u = document.getElementById("loginDst").textContent || "login";
             document.getElementById("loginLink").href = /^(https?:\/\/|\/)/.test(u) ? u : "login";

@@ -32,6 +32,13 @@ var portalDebug = false;
 var brandHeaderHtml = "JUANFI<em>V2</em>";
 var footerBrandText = "@NETBRO";
 var footerSubText = "INTERNET SERVICES";
+// Footer link to the operator's page. The URL defaults to empty, which keeps
+// the pill hidden until settings.json names one - a router that was never
+// configured shows no dead link. Only http(s) is honoured; see
+// renderFooterSocial() for why the scheme is checked.
+var footerSocialUrl = "";
+var footerSocialLabel = "Facebook";
+var footerSocialIcon = "facebook";
 var currencySym = "₱";
 var showMemberSection = true;
 var showTrialLogin = false;
@@ -67,8 +74,14 @@ var showConvertVoucher = true;
 		if (typeof __setJson.vendorIpAddress === "string" && __setJson.vendorIpAddress) { vendorIpAddress = __setJson.vendorIpAddress; }
 		if (typeof __setJson.portalDebug === "boolean") { portalDebug = __setJson.portalDebug; }
 		if (typeof __setJson.brandHeaderHtml === "string" && __setJson.brandHeaderHtml) { brandHeaderHtml = __setJson.brandHeaderHtml; }
-		if (typeof __setJson.footerBrandText === "string" && __setJson.footerBrandText) { footerBrandText = __setJson.footerBrandText; }
+		// Blank is honoured here, unlike every other string below: an operator who
+		// sets footerBrandText to "" wants the big footer wordmark gone (the brand
+		// then lives in the social pill), not the hardcoded fallback text.
+		if (typeof __setJson.footerBrandText === "string") { footerBrandText = __setJson.footerBrandText; }
 		if (typeof __setJson.footerSubText === "string" && __setJson.footerSubText) { footerSubText = __setJson.footerSubText; }
+		if (typeof __setJson.footerSocialUrl === "string" && __setJson.footerSocialUrl) { footerSocialUrl = __setJson.footerSocialUrl; }
+		if (typeof __setJson.footerSocialLabel === "string" && __setJson.footerSocialLabel) { footerSocialLabel = __setJson.footerSocialLabel; }
+		if (typeof __setJson.footerSocialIcon === "string" && __setJson.footerSocialIcon) { footerSocialIcon = __setJson.footerSocialIcon; }
 		if (typeof __setJson.currency === "string" && __setJson.currency) { currencySym = __setJson.currency; }
 		if (typeof __setJson.showMemberSection === "boolean") { showMemberSection = __setJson.showMemberSection; }
 		if (typeof __setJson.showTrialLogin === "boolean") { showTrialLogin = __setJson.showTrialLogin; }
@@ -140,6 +153,93 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
+// iOS Safari only lets audio through when play() runs inside a real tap.
+// Every sound here fires from an XHR callback (topUp success, coin poll,
+// countdown tick), which is outside the gesture, so play() rejected with
+// NotAllowedError and sfxPlayFile swallowed it: the customer got a completely
+// silent portal on iPhone while Android played every blip.
+//
+// The fix is to spend the gesture on the tap that STARTS the flow, priming
+// both an AudioContext (which is what iOS actually gates) and each Audio
+// element. A silent one-frame buffer through the context, plus a muted
+// play()/pause() on the looping bed, and every later play() is already
+// unlocked. Once, on the first gesture — cost is zero after that.
+var sfxUnlocked = false;
+function sfxUnlock() {
+	if (sfxUnlocked) { return; }
+	sfxUnlocked = true;
+	try {
+		var AC = window.AudioContext || window.webkitAudioContext;
+		if (AC) {
+			var ctx = new AC();
+			// One frame of silence: enough to open the audio session without
+			// making a sound. resume() is for the case where iOS created the
+			// context already suspended.
+			var buf = ctx.createBuffer(1, 1, 22050);
+			var srcNode = ctx.createBufferSource();
+			srcNode.buffer = buf;
+			srcNode.connect(ctx.destination);
+			srcNode.start(0);
+			if (ctx.state === "suspended" && ctx.resume) { ctx.resume(); }
+		}
+	} catch (e) { }
+	// Prime the loop bed itself. It is the element that plays on INSERT COIN,
+	// and iOS unlocks per-element, so the one-shots still need their own
+	// gesture-time play(). Muted + zero volume keeps this inaudible.
+	var SRC = {
+		insert: snd("assets/sounds/insertcoinbg.mp3"),
+		inserted: snd("assets/sounds/insertedcoin.mp3"),
+		success: snd("assets/sounds/success.mp3"),
+		error: snd("assets/sounds/error.mp3")
+	};
+	// One element per call, held as a PARAMETER. It used to be a `var` inside
+	// the loop below, which is function-scoped: all four play() callbacks shared
+	// one binding, so every reset() un-paused and un-muted the LAST element and
+	// left insert/inserted/success pinned at volume 0 for the rest of the
+	// session. That is what made the portal silent everywhere, not just iPhone.
+	function primeOne(a) {
+		if (!a) { return; }
+		// volume 0 rather than muted: iOS treats a muted element as not worth
+		// unlocking, and `muted` would also have to be unset again later. Volume
+		// is restored before anything audible can play.
+		a.volume = 0;
+		var reset = function () {
+			try { a.pause(); a.currentTime = 0; a.volume = 1; } catch (e) { }
+		};
+		var p = a.play();
+		if (p && typeof p.then === "function") { p.then(reset, reset); }
+		else { reset(); }
+	}
+	for (var k in SRC) {
+		try {
+			if (!Object.prototype.hasOwnProperty.call(SRC, k)) { continue; }
+			if (!sfxAudio[k]) { sfxAudio[k] = new Audio(SRC[k]); }
+			primeOne(sfxAudio[k]);
+		} catch (e) { }
+	}
+}
+// Capture phase, once. Catches taps anywhere (the coin button, CONNECT, the
+// member toggle) without touching every onclick handler, and also catches the
+// case where the customer's first interaction is a keyboard Enter on desktop.
+(function () {
+	if (typeof document === "undefined") { return; }
+	var armed = true;
+	function firstGesture() {
+		if (!armed) { return; }
+		armed = false;
+		try { sfxUnlock(); } catch (e) { }
+		try {
+			document.removeEventListener("touchend", firstGesture, true);
+			document.removeEventListener("click", firstGesture, true);
+			document.removeEventListener("keydown", firstGesture, true);
+		} catch (e) { }
+	}
+	try {
+		document.addEventListener("touchend", firstGesture, true);
+		document.addEventListener("click", firstGesture, true);
+		document.addEventListener("keydown", firstGesture, true);
+	} catch (e) { }
+})();
 // ponytail: the version used to be a hand-kept literal here AND in the script
 // tags AND in a vNNN string in the footer, so a partial bump stranded the
 // sounds and the footer behind the CSS. core.js is loaded from a URL that
@@ -163,6 +263,12 @@ function sfxPlayFile(name, src, loop, fallback) {
 			a.preload = "auto";
 			sfxAudio[name] = a;
 		}
+		// sfxUnlock primes these elements at volume 0 and restores it when the
+		// play() promise settles. If that restore is ever lost (an aborted
+		// decode, a rejected play that never fires its callback), the sound
+		// stays silent forever. Re-assert full volume on the way out so a stuck
+		// element cannot mute the portal.
+		try { a.volume = 1; } catch (e) {}
 		if (loop) {
 			a.loop = true;
 			var p = a.play();
@@ -466,7 +572,19 @@ document.getElementById('view-history').addEventListener('keydown', function (ev
 } catch (e) {} }
 // Warn before back/refresh/CNA reclaim forfeits inserted coins.
 window.addEventListener("beforeunload", function (e) {
-	try { if (typeof insertingCoin !== "undefined" && insertingCoin && totalCoinReceived > 0) { e.preventDefault(); e.returnValue = ""; } } catch (err) {}
+	// Any unload while a coin insert is in flight asks first: the ESP slot may
+	// already hold money even before /checkCoin reports it, and reloading
+	// drops the slot on the floor. The old totalCoinReceived > 0 condition
+	// left the whole wait window unguarded.
+	// Keyed on __coinInsertLive, NOT on insertingCoin: pause() sets that one
+	// too (to hold off the router's session refresh) and reading the persisted
+	// isPaused flag here leaked across pages -- resume() keeps it set until
+	// the router rules, so the guard could go dead on a later page.
+	// __internalNav is the escape hatch for reloads the portal wants itself.
+	try {
+		if (window.__internalNav) { return; }
+		if (window.__coinInsertLive) { e.preventDefault(); e.returnValue = ""; }
+	} catch (err) {}
 });
 // Abandoned insert = orphaned coin slot. The box keeps the code it minted
 // and rejects the NEXT customer with coinslot.busy until its own wait
@@ -639,6 +757,10 @@ function loadSiteId() {
 			// "ERROR SITE ID" bucket before this fetch resolved.
 			__histBlocked = false;
 			adoptScopedVoucher(true);
+			// The paused view may already be on screen, painted under the
+			// pre-scope bucket. Repaint it now that the real venue scope is
+			// live, or the remaining time stays a dash until the next reload.
+			try { if (typeof STATE !== 'undefined' && STATE === "paused") { paintPausedView(); } } catch (e) {}
 			try {
 				// Venue-scoped with the bare key as the pre-scope fallback,
 				// then the bare key is dropped so there is one source.
@@ -654,7 +776,7 @@ function loadSiteId() {
 				}
 			} catch (e) {}
 				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
-			try { renderSiteTag(); } catch (e) {}
+try { renderSiteTag(); } catch (e) {}
 		try { removeStorageValue('voucherHistory'); } catch (e) {}
 		try { flushPendingHistory(); } catch (e) {}
 		try { paintVoucherHistory(); } catch (e) {}
@@ -988,8 +1110,8 @@ function render(state) {
 		$("#statusVoucher").text(voucher);
 		try { if (typeof trialNoExtend !== "undefined" && trialNoExtend && voucher && voucher.indexOf("T-") === 0) { $("#statusVoucher").text("FREE TRIAL"); $("#extendBtn").hide(); } } catch (e) {}
 		try {
-			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); }
-			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); }
+			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); } else { $("#upUsed").text("—"); }
+			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); } else { $("#downUsed").text("—"); }
 		} catch (e) {}
 		// Cache last known usage so the paused view can show it (router
 		// drops the byte counters once the session is paused/logged out).
@@ -1000,21 +1122,37 @@ function render(state) {
 		startCountdown();
 		previewUrgencyHook();
 	}
-	if (state == "paused") {
-		// detectState resolves "paused" off the local flag, so `voucher` may
-		// still be empty (or the pre-scope read) when this runs. Re-adopt
-		// before painting or the paused view shows a blank code and "—".
-		try { adoptScopedVoucher(false); } catch (e) {}
-		if (!voucher) { try { voucher = getActiveVoucher(); } catch (e) {} }
-		$("#pausedVoucher").text(voucher);
-		renderStoredRemain("#pauseRemainTime", voucher);
-		try {
-			var lastUp = getStorageValue(scopedKey("lastUp"));
-			var lastDown = getStorageValue(scopedKey("lastDown"));
-			if (lastUp) { $("#upUsedPaused").text(lastUp); }
-			if (lastDown) { $("#downUsedPaused").text(lastDown); }
-		} catch (e) {}
-	}
+	if (state == "paused") { paintPausedView(); }
+}
+
+// Paused-view paint, split out of render() because it has to run twice on a
+// refresh. boot() fires detectState() and loadSiteId() at the same moment, and
+// whichever HTTP response lands first wins. When detectState won, render()
+// painted the countdown under the "ERROR SITE ID" venue scope -- the site id
+// had not arrived yet, so activeVoucher and its <code>remain</code> key were
+// both missing and the boxes came up as a bare dash. loadSiteId() corrects the
+// scope afterwards but used to stop at adoptScopedVoucher(), so nothing ever
+// repainted. Hence this function is also called from there.
+function paintPausedView() {
+	// `voucher` is NOT trustworthy here, which is what made a refresh-while-
+	// paused show a bare dash. On a fresh load it holds the router's
+	// MAC-as-voucher placeholder, so it is non-empty, so adoptScopedVoucher()
+	// refuses to overwrite it (that guard exists to protect a live voucher),
+	// so the stored seconds were looked up under the MAC instead of the code
+	// pause() actually keyed them with. Read the active voucher straight back
+	// out of storage; fall back to `voucher` only when storage has none, which
+	// is the member-login case (no voucher code at all).
+	var vc = "";
+	try { vc = getActiveVoucher() || ""; } catch (e) {}
+	if (!vc) { try { vc = voucher || ""; } catch (e) {} }
+	$("#pausedVoucher").text(vc);
+	renderStoredRemain("#pauseRemainTime", vc);
+	try {
+		var lastUp = getStorageValue(scopedKey("lastUp"));
+		var lastDown = getStorageValue(scopedKey("lastDown"));
+		if (lastUp) { $("#upUsedPaused").text(lastUp); } else { $("#upUsedPaused").text("—"); }
+		if (lastDown) { $("#downUsedPaused").text(lastDown); } else { $("#downUsedPaused").text("—"); }
+	} catch (e) {}
 }
 
 function tbox(n, one, many) {
@@ -1026,8 +1164,15 @@ function boxesDhms(seconds) {
 	var d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600);
 	var m = Math.floor(t % 3600 / 60), s = t % 60;
 	var sep = '<span class="tsep">:</span>';
-	return [tbox(d, "Day", "Days"), tbox(h, "Hour", "Hours"),
-		tbox(m, "Min", "Mins"), tbox(s, "Sec", "Secs")].join(sep);
+	var units = [[d, "Day", "Days"], [h, "Hour", "Hours"], [m, "Min", "Mins"], [s, "Sec", "Secs"]];
+	// All four boxes, always. Dropping the leading zero units was a fix for a
+	// narrow-screen overflow that the .tbox sizing below now handles on its
+	// own, and it cost more than it bought: the row jumped from 4 boxes to 2
+	// the moment a session dropped under an hour, so the numbers the customer
+	// was reading moved sideways mid-countdown.
+	var out = [];
+	for (var i = 0; i < units.length; i++) { out.push(tbox(units[i][0], units[i][1], units[i][2])); }
+	return out.join(sep);
 }
 
 var __fitCache = {};
@@ -1213,7 +1358,10 @@ function applyFlags() {
 			$("#bootBrand").text(plain);
 			document.title = plain + " Portal";
 		}
-		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
+		if (typeof footerBrandText !== 'undefined') {
+			if (footerBrandText) { $("#footerBrand").text(footerBrandText).css("display", ""); }
+			else { $("#footerBrand").hide(); }
+		}
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		try { if (typeof currencySym !== 'undefined' && currencySym) $("#coinCur").text(currencySym); } catch (e) {}
 		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
@@ -1232,6 +1380,7 @@ function applyFlags() {
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
 		try { if (!$("#portalVer").text()) { $("#portalVer").text(SOUND_V.replace(/^\?v=/, "v")); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
+		try { renderFooterSocial(); } catch (e) {}
 	} catch(e) {}
 }
 
@@ -1241,7 +1390,45 @@ function renderSiteTag() {
 		if (!el || el.length === 0) { return; }
 		var s = "";
 		try { s = venueScopeSuffix(); } catch (e) {}
-		if (s) { el.text(s); }
+		// venueScopeSuffix() answers "ERROR SITE ID" when the router never
+		// published /data/site-id.txt. Printing that in the footer of every
+		// page tells the customer nothing and reads as a broken build; an
+		// operator who does publish a site id still sees it.
+		if (!s || s === "ERROR_SITE_ID") { el.text("").hide(); return; }
+		el.text(s).show();
+	} catch (e) {}
+}
+
+// Glyphs for the footer link, keyed by the footerSocialIcon setting so the
+// same pill can point at a Facebook page or any other site without touching
+// portal.html. Unknown keys fall back to the globe: a wrong-but-plausible
+// brand icon reads worse than a neutral one.
+var SOCIAL_ICONS = {
+	facebook: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.593 0 0 .593 0 1.325v21.351C0 23.407.593 24 1.325 24H12.82v-9.293H9.692v-3.62h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24h-1.918c-1.5 0-1.793.713-1.793 1.763v2.313h3.584l-.467 3.62h-3.117V24h6.112c.73 0 1.323-.593 1.323-1.325V1.325C24 .593 23.407 0 22.675 0z"/></svg>',
+	globe: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+};
+
+// The portal's one outbound link. Hidden until settings.json supplies a URL,
+// so the markup ships without a hardcoded destination and an unconfigured
+// router renders nothing rather than a link that goes nowhere.
+function renderFooterSocial() {
+	try {
+		var el = $("#footerSocial");
+		if (!el || el.length === 0) { return; }
+		var url = "";
+		try { if (typeof footerSocialUrl !== "undefined" && footerSocialUrl) { url = String(footerSocialUrl).replace(/^\s+|\s+$/g, ""); } } catch (e) {}
+		// http(s) only, and no whitespace. settings.json is operator-editable
+		// and a typo there would otherwise let a javascript: URL through into
+		// an anchor customers tap.
+		if (!/^https?:\/\/[^\s]+$/i.test(url)) { el.removeAttr("href").hide(); return; }
+		var label = "Facebook";
+		try { if (typeof footerSocialLabel !== "undefined" && footerSocialLabel) { label = String(footerSocialLabel); } } catch (e) {}
+		var key = "facebook";
+		try { if (typeof footerSocialIcon !== "undefined" && footerSocialIcon) { key = String(footerSocialIcon).toLowerCase(); } } catch (e) {}
+		if (!SOCIAL_ICONS[key]) { key = "globe"; }
+		try { $("#socialIco").attr("class", "sico sico-" + key).html(SOCIAL_ICONS[key]); } catch (e) {}
+		try { $("#socialLabel").text(label); } catch (e) {}
+		el.attr("href", url).attr("aria-label", label + " page, opens in a new tab").show();
 	} catch (e) {}
 }
 
@@ -1262,6 +1449,65 @@ function toggleBlock(id) {
 			head.innerHTML = h.replace("&#9662;", "&#9656;").replace("▾", "▸");
 		}
 	}
+}
+
+// Persistent coin-loss warning, painted whenever the insert state changes.
+//
+// The browser's own unload dialog cannot carry our wording: Chrome and Firefox
+// discard e.returnValue and show fixed text ("Changes you made may not be
+// saved"), and Safari ignores beforeunload entirely. So the warning the
+// customer actually reads has to be on the page, for as long as leaving the
+// page would cost them money.
+// One line that always says what the coin box is doing and what to do next.
+// The toasts used to carry this, but they vanish in 2-4s and the panel is a
+// modal people read at arm's length from a machine. Deliberately does NOT
+// repeat the per-second countdown: a live region that changes every second
+// is the reason #loNote lost its aria-live.
+// Reveals the "add time with another code" field. Kept collapsed until asked
+// for: it is a different job from paying, and it used to sit under the CANCEL
+// button where a thumb lands.
+function toggleConvertBlock() {
+	try {
+		var btn = document.getElementById("convertToggle");
+		var body = document.getElementById("convertBody");
+		if (!btn || !body) { return false; }
+		var open = body.style.display != "none" && body.offsetParent !== null;
+		body.style.display = open ? "none" : "";
+		btn.setAttribute("aria-expanded", open ? "false" : "true");
+		if (open) { try { body.getElementsByTagName("input")[0].value = ""; } catch (e) {} }
+		else { try { body.getElementsByTagName("input")[0].focus(); } catch (e) {} }
+	} catch (e) {}
+	return false;
+}
+
+function paintCoinStage() {
+	var el = document.getElementById("coinStage");
+	if (!el) { return; }
+	var txt = "";
+	try {
+		var panel = document.getElementById("coinPanel");
+		var open = false;
+		try { open = !!panel && panel.offsetParent !== null; } catch (e) { open = !!panel && panel.style.display != "none"; }
+		if (!open) { txt = ""; }
+		else if (window.__useVoucherBusy) { txt = "Confirming your purchase\u2026"; }
+		// No idle/coins text on purpose: the customer already sees the amount
+		// on the progress bar and the DONE button lights up when it is live.
+	} catch (e) { txt = ""; }
+	try { el.textContent = txt; el.style.display = txt ? "" : "none"; } catch (e) {}
+}
+
+function paintCoinLiveNote() {
+	var el = document.getElementById("coinLiveNote");
+	if (!el) { return; }
+	if (!window.__coinInsertLive) { el.style.display = "none"; return; }
+	var cur = "";
+	try { cur = (typeof currencySym !== "undefined" && currencySym) ? currencySym : ""; } catch (e) {}
+	var coins = 0;
+	try { coins = parseInt(totalCoinReceived, 10) || 0; } catch (e) {}
+	el.textContent = coins > 0
+		? cur + coins + " inserted — leaving this page now loses it."
+		: "Leaving this page now cancels the coin insert.";
+	el.style.display = "";
 }
 
 function showCoinPanel() {
@@ -1305,13 +1551,21 @@ function showCoinPanel() {
 		} catch (e) {}
 	}
 	window.__coinOpen = true;
+	paintCoinStage();
+	// Pull-to-refresh is a browser gesture: beforeunload cannot be relied on
+	// to stop it, so the coin window suppresses it outright. Everywhere else
+	// swipe-down refresh stays available.
+	document.body.classList.add("coin-live");
 }
 
 // One label for both flows: the button finishes the insert, it does not
 // "claim" anything. The coin panel already shows time + code amounts.
 function restoreCoinChrome() {
 	document.body.classList.remove("coin-focus");
+	document.body.classList.remove("coin-live");
 	window.__coinOpen = false;
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	$("#statusHero").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
 	$("#voucherBlock").attr("style", "");
@@ -1353,6 +1607,8 @@ function cancelCoinForfeit() {
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	window.__useVoucherBusy = false;
 	coinToastKey = null;
 	sfxStopLoop();
@@ -1457,9 +1713,9 @@ function loadRates() {
 		$("#ratesBody").html(html);
 	}).fail(function (xhr, status, err) {
 		// Timeout vs refuse vs HTTP error need different fixes (power,
-		var why = (status === "timeout")
-			? "Rates unavailable — vendo not answering (timeout). Check power & WiFi."
-			: "Rates unavailable — vendo error (" + (xhr && xhr.status ? "HTTP " + xhr.status : status || "network") + ").";
+		// Customer-facing copy stays plain; the machine detail already goes to
+		// dbgAjaxErr below for whoever is debugging the box.
+		var why = "Rates are unavailable right now.";
 		$("#ratesBody").html('<p class="rates-err">' + why + "</p>");
 		dbgAjaxErr("getRates", xhr, status, err);
 	});
@@ -1742,19 +1998,19 @@ function fallbackValidity() {
 		if (!isFinite(t.getTime())) {
 			removeVouchValue(voucher, "validity");
 			removeVouchValue(voucher, "tempValidity");
-			renderExpiration("Not Available");
+			renderExpiration("—");
 			return false;
 		}
 		if (t.getTime() < new Date().getTime()) {
 			removeVouchValue(voucher, "validity");
 			removeVouchValue(voucher, "tempValidity");
-			renderExpiration("Not Available");
+			renderExpiration("—");
 			return false;
 		}
 		renderExpiration(formatExpiryLeft(t));
 		return true;
 	}
-	renderExpiration("Not Available");
+	renderExpiration("—");
 	return false;
 }
 
@@ -1772,13 +2028,20 @@ function insertBtnAction() {
 	// insert, and the ===5 warning can never re-arm.
 	checkCoinFailStreak = 0;
 	insertingCoin = true;
+	// Arms the beforeunload guard for the whole insert, including the wait
+	// before the ESP reports anything. Cleared by every exit below.
+	window.__coinInsertLive = true;
+	paintCoinLiveNote();
+	try { dbgLog("guard: armed (coin insert live)"); } catch (e) { }
 	coinToastKey = null;
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
 	try { dbgLog("insert: type=" + $("#saveVoucherButton").attr('data-save-type') + " page=" + PAGE); } catch (e) { }
 	$("#progressDiv").css('width', '100%');
 	$("#progressDiv").attr("aria-valuenow", 100).attr("aria-valuetext", "Waiting for coins");
 	$("#progressDiv").removeClass("time-half time-low").addClass("time-ok");
-	$("#progressLabel").text("");
+	// Caption the track instead of blanking it: an empty 38px bar with no
+	// text reads as a broken widget.
+	$("#progressLabel").text("Confirming purchase…");
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', false);
 	$("#loaderDiv").attr("class", "spinner");try{$("#paidNote").text("Confirming purchase…");}catch(e){}
@@ -1799,6 +2062,7 @@ function insertBtnAction() {
 				try { probe = String(data == null ? "" : data); } catch (e) { probe = ""; }
 				if (probe.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					try { dbgLog("insert: already logged in, bouncing to status"); } catch (e) { }
+					window.__internalNav = true;
 					location.reload();
 				} else {
 					callTopupAPI(0);
@@ -1902,6 +2166,13 @@ function callTopupAPI(retryCount, gen) {
 				clearInterval(timer);
 				timer = null;
 				insertingCoin = false;
+				// No slot was ever opened on this path (coin.slot.banned and the
+				// other /topUp rejects), so nothing is at stake and the unload
+				// guard must stand down too. Otherwise a customer who taps
+				// INSERT COIN while banned is asked to confirm every later
+				// navigation for a coin session that never started.
+				window.__coinInsertLive = false;
+				try { paintCoinLiveNote(); } catch (e) {}
 				restoreStashedVoucher();
 			}
 	}, error: function (xhr, status, err) {
@@ -1915,6 +2186,10 @@ function callTopupAPI(retryCount, gen) {
 					$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 					notifyCoinSlotError("coin.slot.notavailable");
 					insertingCoin = false;
+					// Same as the plain-reject branch: the slot never opened, so
+					// the guard stands down with insertingCoin.
+					window.__coinInsertLive = false;
+					try { paintCoinLiveNote(); } catch (e) {}
 					restoreStashedVoucher();
 				}
 			}, 1000);
@@ -1927,6 +2202,7 @@ function saveVoucherBtnAction() {
 	// Entry guard: Done double-tap and the wait-expiry auto-finalize used
 	if (window.__useVoucherBusy) { return; }
 	window.__useVoucherBusy = true;
+	paintCoinStage();
 	// Snapshot the slot total BEFORE anything can clear it: the poll and the
 	// POST race, and "did the customer pay" must not be read afterwards.
 	var paidCoins = totalCoinReceived;
@@ -2046,11 +2322,15 @@ function checkCoin() {
 			if (data.status == "true") {
 			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
 			totalCoinReceived = (isFinite(parseInt(data.totalCoin, 10)) ? parseInt(data.totalCoin, 10) : 0);
+			paintCoinLiveNote();
 			$('#totalCoin').text(data.totalCoin);
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded, 10)));
 			$('#voucherInput').val(voucher);
 			setActiveVoucher( voucher);
 			setVouchValue(voucher, "tempValidity", data.validity);
+				try { $("#progressLabel").text("Coins received"); } catch (e) {}
+				try { $("#progressDiv").attr("aria-valuetext", "Coins received"); } catch (e) {}
+				paintCoinStage();
 				notifyCoinSuccess(data.newCoin);
 			} else if (data.errorCode == "coin.not.inserted") {
 				setVouchValue(voucher, "tempValidity", data.validity);
@@ -2062,9 +2342,11 @@ function checkCoin() {
 			// NaN totalCoin used to make cancelCoin() skip the forfeit warning
 			// and silently throw away money the customer had already inserted.
 			totalCoinReceived = (isFinite(parseInt(data.totalCoin, 10)) ? parseInt(data.totalCoin, 10) : 0);
+			paintCoinLiveNote();
 			if (totalCoinReceived > 0) {
 				$("#saveVoucherButton").prop('disabled', false);
 				$('#voucherInput').val(voucher);
+				paintCoinStage();
 			}
 				if (remainTime == 0) {
 					if (totalCoinReceived > 0) {
@@ -2111,7 +2393,19 @@ function checkCoin() {
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
 				timer = null;
-				insertingCoin = false;
+				// Only stand down when there is nothing left to lose. Clearing
+				// this with coins still in the slot disarms the beforeunload
+				// guard, so a swipe-refresh would void them with no prompt.
+				if (totalCoinReceived <= 0) {
+					insertingCoin = false;
+					// Same pairing: the guard is what protects a live coin
+					// session, so it follows insertingCoin down. Left armed,
+					// a customer whose ESP reports coin.slot.banned (or any
+					// terminal code) is prompted to confirm every later
+					// navigation for a slot that holds nothing.
+					window.__coinInsertLive = false;
+					try { paintCoinLiveNote(); } catch (e) {}
+				}
 			}
 		}, error: function (xhr, status, err) {
 			if (status === "abort") return;
@@ -2124,7 +2418,13 @@ function checkCoin() {
 			if (checkCoinFailStreak >= 8) {
 				clearInterval(timer);
 				timer = null;
-				insertingCoin = false;
+				// Same reasoning as the branch above: stay armed while coins sit
+				// in the slot so beforeunload still asks before they are lost.
+				if (totalCoinReceived <= 0) {
+					insertingCoin = false;
+					window.__coinInsertLive = false;
+					try { paintCoinLiveNote(); } catch (e) {}
+				}
 				notifyCoinSlotError("coin.slot.notavailable");
 			}
 		},
@@ -2133,6 +2433,9 @@ function checkCoin() {
 }
 
 function closeCoinModal() {
+	document.body.classList.remove("coin-live");
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	sfxStopLoop();
 	coinToastKey = null;
 	clearInterval(timer);
@@ -2140,10 +2443,13 @@ function closeCoinModal() {
 	insertingCoin = false;
 	window.__useVoucherBusy = false;
 	window.__cancelVoucher = null;
+	paintCoinStage();
 	render(STATE);
 }
 
 function autoLoginAfterCoin() {
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	try { dbgLog("autoLoginAfterCoin: type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
 	if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
 		setReLoginFlag();
@@ -2162,6 +2468,11 @@ function newLogin() {
 
 function pause() {
 	var vc = getActiveVoucher();
+	// PAUSE tears the coin flow down below (poll stopped, XHRs aborted, coins
+	// zeroed), so the unload guard must come off with it -- otherwise every
+	// later navigation asks to leave and PAUSE looks broken.
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); window.__logoutTimer = null; } } catch (e) {}
 	setPausedFlag();
 	// Store seconds, not markup: the old code saved $("#remainTime").html()
