@@ -1,15 +1,9 @@
 $(if http-status == 302)Hotspot redirect$(endif)
 $(if http-header == "Location")$(link-redirect)$(endif)
-<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
-<title>Hotspot redirect</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<!-- Line 2 above must stay raw: it IS the Location header value. This one is
-     an attribute, so $(link-redirect-esc) keeps a crafted dst from breaking
-     out of the content attribute. -->
-<meta http-equiv="refresh" content="0; url=$(link-redirect-esc)">
+<title>...</title>
+<meta http-equiv="refresh" content="0; url=$(link-redirect)">
 <meta http-equiv="pragma" content="no-cache">
 <meta http-equiv="expires" content="-1">
 </head>

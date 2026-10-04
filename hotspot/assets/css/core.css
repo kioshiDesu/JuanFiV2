@@ -46,29 +46,6 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     font-size: 14px;
     font-variant-numeric: tabular-nums;
 }
-/* RETRY button under the boot loader (boot.js fail(), portal.html). */
-.boot-retry {
-    margin-top: 6px;
-    padding: 12px 28px;
-    min-height: 44px;
-    font-size: 15px;
-    font-weight: 700;
-    color: #101418;
-    background: #4cd137;
-    border: 0;
-    border-radius: 8px;
-    cursor: pointer;
-}
-/* Free-trial toggle: the class existed in portal.html with no rule in any
-   stylesheet, so showTrialLogin:true rendered bare text with no tap area. */
-.trial-toggle {
-    display: inline-block;
-    padding: 10px 16px;
-    min-height: 44px;
-    line-height: 24px;
-    color: #4cd137;
-    text-decoration: underline;
-}
 .spinner-ring {
     width: 64px;
     height: 64px;
@@ -114,10 +91,8 @@ h2.sub { margin: 0; font-size: inherit; font-weight: inherit; }
     background: rgba(0, 0, 0, .28);
     color: #fff;
 }
-/* Infra failure, not a customer error: muted, not alarm red. The technical
-   detail still goes to dbgAjaxErr for the operator. */
 #ratesBody .rates-err {
-    color: #9aa5b1;
+    color: #f0aaaa;
 }
 #ratesSection .panelTitle {
     display: block;
@@ -164,12 +139,8 @@ html { color-scheme: dark; }
    Overflow is clipped on the ROOT, not on body: body{overflow-x} only
    works when html is visible and some WebViews ignore it, so the halo
    bleed used to hand the page a sideways scrollbar. */
-/* `overflow: clip` is Safari 16+. Below that both declarations are invalid
-   and dropped, so the .hero::before haze (which deliberately bleeds 34px past
-   each edge) can bring back the sideways scrollbar. `hidden` is the older
-   equivalent and is what actually applies on iPhone. */
-html { overflow-x: hidden; overflow-x: clip; }
-body { overflow-x: hidden; overflow-x: clip; }
+html { overflow-x: clip; }
+body { overflow-x: clip; }
 /* No height:100% here. It fights min-height:100dvh and rounding alone
    could make the page a few pixels taller than the screen, which is
    what produced a vertical scrollbar when the content already fit. */
@@ -179,19 +150,11 @@ body {
     display: flex;
     flex-direction: column;
 }
-/* Upstream: .portal carries flex-grow but nothing consumes it, so the spare
-   height sits below the footer (175px on a 390x844 phone). Parked here on
-   purpose -- the operator prefers the brand row where it is, with the page
-   background below it, over a footer pinned to the bottom edge. */
 .portal { flex: 1 0 auto; }
 /* Overscroll bounce must reveal the gradient's end colour, not grey. */
 html { background-color: #3d4044; }
 button, a, input, select { touch-action: manipulation; }
 body { -webkit-tap-highlight-color: transparent; }
-/* Coin session live: suppress pull-to-refresh so the gesture cannot reload
-   the page with coins in the ESP slot. Applied only while the coin panel
-   is up; swipe-down refresh works everywhere else. */
-body.coin-live { overscroll-behavior-y: contain; }
 /* Member toggle card: full-width tap target with title, hint, chevron. */
 #memberSection .member-toggle {
     display: flex;
@@ -286,15 +249,8 @@ body.coin-live { overscroll-behavior-y: contain; }
     margin-top: 10px;
 }
 .tbox {
-    /* Four boxes now, always (see boxesDhms in core.js). At a fixed 76px they
-       needed ~370px with separators and gaps, which overruns a 390px iPhone
-       and gets clipped by html{overflow-x:clip}. Sharing the row instead:
-       max-width keeps the boxes from stretching wide on a 480px portal, and
-       min-width:0 lets flex actually shrink them on narrow screens. */
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 96px;
-    padding: 10px 6px 8px 6px;
+    min-width: 76px;
+    padding: 10px 8px 8px 8px;
     border: 1px solid #485460;
     border-radius: 10px;
     background: rgba(0, 0, 0, .25);
@@ -371,9 +327,13 @@ body.coin-live { overscroll-behavior-y: contain; }
         font-size: 16px;
         padding-bottom: 12px;
     }
-    /* No #insertBtn sizing here: this query sits ABOVE the base rule, so an
-       equal-specificity override loses and the coin would ignore it. Its
-       narrow-screen size lives in the query after the base rule instead. */
+    #insertBtn {
+        width: 104px;
+        height: 104px;
+    }
+    #insertBtn .coin-peso {
+        font-size: 26px;
+    }
 }
 .clientline {
     color: #b4bcc6;
@@ -499,28 +459,6 @@ body.coin-live { overscroll-behavior-y: contain; }
     display: block;
     margin-bottom: 2px;
 }
-/* Coin-loss warning shown while an insert is live. The browser's unload
-   dialog cannot carry custom text, so the warning lives on the page. */
-.coinlive {
-    margin: 10px 0 12px;
-    padding: 7px 9px;
-    border: 1px solid #6b5320;
-    border-radius: 8px;
-    background: rgba(240, 198, 116, .09);
-    color: #f0c674;
-    font-size: .82rem;
-    line-height: 1.35;
-    text-align: center;
-}
-/* One line that always states the coin step. Toasts carried this and they
-   vanish in 2-4s, which left the panel silent at arm's length from a machine. */
-.coinstage {
-    margin: 8px 0 0;
-    color: #cfd4da;
-    font-size: .88rem;
-    line-height: 1.35;
-    text-align: center;
-}
 /* M1: coin-panel action targets, fat-finger safe. */
 .coinbtns {
     display: flex;
@@ -601,27 +539,8 @@ body.coin-live { overscroll-behavior-y: contain; }
     border-radius: 8px;
 }
 
-/* History overlay surface. #coinPanel sits on a raised card; the history view
-   was bare rows on the flat cover colour, so the list read as floating text
-   instead of a panel you interact with. Same card recipe. */
-#view-history .vhistlist {
-    background: #232a31;
-    border: 1px solid #485460;
-    border-radius: 14px;
-    padding: 10px;
-}
-
-/* The .vouchhint rule that used to sit here was removed with the hint text
-   from portal.html. Nothing references it; keeping it would ship a dead
-   selector that later looks load-bearing. */
-
 /* Coin-slot button: a gold coin, glowing + pressable.
-   Lives here (not in portal.html) so the thin router shells get it too.
-   Kept large on purpose (132px): on a phone it is the biggest tap target on
-   screen and the only thing that says "this hotspot takes coins". The idle
-   glow pulse stays off so it does not out-shout CONNECT, which is the action
-   most people arrive to take -- the spin shimmer alone still reads as a coin.
-   Narrow phones get 118px (see the 360px query) rather than a further cut. */
+   Lives here (not in portal.html) so the thin router shells get it too. */
 #insertBtn {
     display: flex;
     flex-direction: column;
@@ -631,10 +550,10 @@ body.coin-live { overscroll-behavior-y: contain; }
     overflow: hidden;
     width: 132px;
     height: 132px;
-    margin: 20px auto 16px auto;
+    margin: 28px auto 22px auto;
     padding: 0;
     border-radius: 50%;
-    border: 5px dashed rgba(121, 85, 0, .55);
+    border: 6px dashed rgba(121, 85, 0, .55);
     background: radial-gradient(circle at 35% 30%, #ffe082, #f9a825 55%, #c17900);
     color: #4e342e;
     font-family: inherit;
@@ -642,7 +561,9 @@ body.coin-live { overscroll-behavior-y: contain; }
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
-    box-shadow: 0 4px 0 #7c5a00, 0 6px 12px rgba(0, 0, 0, .45);
+    box-shadow: 0 6px 0 #7c5a00, 0 10px 18px rgba(0, 0, 0, .5);
+    -webkit-animation: coinGlow 2.4s ease-in-out infinite;
+    animation: coinGlow 2.4s ease-in-out infinite;
 }
 #insertBtn:active {
     transform: translateY(4px);
@@ -665,25 +586,21 @@ body.coin-live { overscroll-behavior-y: contain; }
     to { transform: rotate(360deg); }
 }
 #insertBtn .coin-peso {
-    font-size: 32px;
+    font-size: 34px;
     line-height: 1;
 }
 #insertBtn .coin-label {
     font-size: 12px;
-    letter-spacing: .1em;
-    margin-top: 3px;
+    letter-spacing: .12em;
+    margin-top: 2px;
 }
-/* Narrow phones: the coin still grows (104 -> 118px), just short of the full
-   132px so it does not crowd the voucher field. Placed AFTER the base rule --
-   the earlier 360px query in this file cannot override it at equal weight. */
-@media (max-width: 360px) {
-    #insertBtn {
-        width: 118px;
-        height: 118px;
-    }
-    #insertBtn .coin-peso {
-        font-size: 30px;
-    }
+@-webkit-keyframes coinGlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .88; }
+}
+@keyframes coinGlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .88; }
 }
 
 /* 4) Hairline rule: drawn by .hero::below so it tints with the halo
@@ -693,26 +610,10 @@ body.coin-live { overscroll-behavior-y: contain; }
     border-radius: 0 0 12px 12px;
 }
 
-/* 5) EXTEND reads positive, PAUSE reads reversible. Upstream painted PAUSE
-   a solid destructive red of the same weight as EXTEND, so the rare choice
-   looked like the primary one. An outline that fills on hover/press instead.
-   Kept as an id rule: it has to beat .btn / .btn-danger from base.css. */
+/* 5) EXTEND reads positive, PAUSE reads destructive at a glance. */
 #pauseTimeBtn {
-    /* Filled, not an outline. An outline made the rare choice (pause) look
-       unavailable next to the solid green EXTEND, and the customer reads
-       that as "disabled". Same red as upstream. */
     background-color: #c0392b;
     border-color: #c0392b;
-    /* .btn carries color:#212529 from base.css, which is near-black on this
-       red. It was legible on Android's lighter rendering and effectively
-       invisible on iPhone. Explicit, and kept out of the :hover/:active
-       pairs below so the label never darkens on press either. */
-    color: #fff;
-}
-#pauseTimeBtn:hover,
-#pauseTimeBtn:focus {
-    background-color: #d24436;
-    border-color: #d24436;
 }
 #pauseTimeBtn:active {
     background-color: #a93226;
@@ -735,10 +636,6 @@ body.coin-live { overscroll-behavior-y: contain; }
 /* Coin focus: dim everything under a veil except the coin panel + rates. */
 #coinDim {
     position: fixed;
-    /* Longhand before the shorthand: Safari only got `inset` in 14.1, and on
-       iPhone 14.0 and earlier the shorthand is dropped whole, leaving the
-       overlay with no offsets and no size. */
-    top: 0; right: 0; bottom: 0; left: 0;
     inset: 0;
     background: rgba(0, 0, 0, .65);
     z-index: 1500;
@@ -765,25 +662,19 @@ body.coin-focus #coinPanel {
     50% { box-shadow: 0 8px 28px rgba(255,193,7,.22); }
 }
 
-/* Both the panel and the rate list sit above the #coinDim veil, and the
-   z-index is shared because 1600 is the one value that clears it: drop it and
-   the veil swallows the panel's own taps. Rates stay undimmed on purpose --
-   a price list the customer cannot read while buying coins is useless, and
-   putting it under the veil read as a broken layer. */
 body.coin-focus #coinPanel,
 body.coin-focus #ratesSection {
     position: relative;
     z-index: 1600;
 }
-/* Lifted above the veil, the rate list needs its own paint: with no
-   background the 65% black shows through its gaps and the section reads as a
-   hole punched in the page. #3d4044 is the body colour (JuanFiV2.css), and
-   the radius/padding match the other cards so it does not jump when the coin
-   panel opens. */
 body.coin-focus #ratesSection {
-    background-color: #3d4044;
+    /* Opaque card in the page bg: the section paints above the veil, but
+       its transparent gaps would still show the darkened page through it.
+       Extra top margin keeps it clear of the coin panel's gold glow. */
+    background: #3d4044;
     border-radius: 10px;
-    padding: 10px 12px 12px 12px;
+    padding: 10px 10px 12px 10px;
+    margin-top: 20px;
 }
 
 hr.foot-hr {
@@ -828,10 +719,6 @@ hr.foot-hr {
 }
 #view-history {
     position: fixed;
-    /* Same Safari 14.1 `inset` story as #coinDim: without the longhand the
-       dialog loses its offsets and renders as a sliver, not a fullscreen
-       sheet. */
-    top: 0; right: 0; bottom: 0; left: 0;
     inset: 0;
     z-index: 10001;
     background: #101418;
@@ -914,10 +801,6 @@ hr.foot-hr {
 #coinPanel, #memberSection { margin-top: 14px; }
 
 /* Coin countdown gauge: large bar, timer text inside, traffic-light states. */
-/* showCoinPanel() focuses the title so screen readers announce it. That
-   focus must not draw the UA ring, or the heading reads as a broken
-   button sitting inside the dialog. */
-#coinPanelTitle:focus-visible { outline: none; }
 #coinPanel .progress {
     height: 38px;
     border-radius: 10px;
@@ -929,7 +812,6 @@ hr.foot-hr {
    near 0%. */
 #progressLabel {
     position: absolute;
-    top: 0; right: 0; bottom: 0; left: 0;
     inset: 0;
     display: block;
     text-align: center;
@@ -1041,24 +923,6 @@ body.coin-focus #coinPanel .hero .sub { margin-top: 0; }
     color: #c9cfd7;
     margin-bottom: 8px;
 }
-/* Subtle centered text button that reveals the code field. */
-.convertlink {
-    display: block;
-    margin: 0 auto;
-    min-height: 40px;
-    padding: 8px 12px;
-    background: none;
-    border: 0;
-    color: #9aa5b1;
-    font-size: 13px;
-    font-family: inherit;
-    line-height: 24px;
-    text-align: center;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-}
-.convertlink:hover { color: #cfd6de; }
 .convertrow { display: flex; gap: 8px; align-items: stretch; }
 .convertinput {
     flex: 1 1 auto;

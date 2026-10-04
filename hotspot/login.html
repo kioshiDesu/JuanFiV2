@@ -3,17 +3,13 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="assets/css/base.css?v=172">
-		<link rel="stylesheet" href="assets/css/core.css?v=189">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=178">
-	<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
-		<title>JuanFiV2 Login Portal</title>
+	<link rel="stylesheet" href="assets/css/base.css?v=170">
+		<link rel="stylesheet" href="assets/css/core.css?v=170">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=170">
+	<title>JuanFiV2 Login Portal</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="#101418">
-	<meta name="mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<script>
 		// Client facts for the single-file portal (portal.html renders the UI).
@@ -38,6 +34,7 @@
 	window.trialUrl = "$(link-login-only)?dst=$(link-orig-esc)&username=T-$(mac-esc)";
 	$(endif)
 	</script>
+	<script src="assets/js/boot.js?v=170"></script>
 </head>
 
 <body id="loginBody">
@@ -52,34 +49,21 @@
 
 <div id="app" style="display: none"></div>
 
-
 $(if error)
-<!-- RouterOS does no HTML escaping on $(var), and errors.txt embeds
-     $(username) in these messages, so a crafted login link could inject
-     markup here. -esc percent-encodes < > " &, which kills any tag or
-     attribute breakout. Decoded once below, back to readable text. -->
-<span id="loginErr" style="display:none">$(error-esc)</span>
+<!-- $(error) embeds the username: never inline it in a JS string (quote
+     breakout). textContent read keeps quotes inert. -->
+<span id="loginErr" style="display:none">$(error)</span>
 <script>
-	try {
-		var le = document.getElementById("loginErr").textContent || "";
-		try { le = decodeURIComponent(le); } catch (x) { }
-		window.loginError = le;
-	} catch (x) { }
+	try { window.loginError = document.getElementById("loginErr").textContent || ""; } catch (e) {}
 </script>
 $(endif)
 
 <!-- $(link-orig) is the pre-login URL the router redirects to after a
-     successful login. -esc keeps < > " ' out of the markup; it stays
-     percent-encoded on purpose because its only use is the dst form
-     field, which wants URL encoding. -->
-<span id="loginDst" style="display:none">$(link-orig-esc)</span>
+     successful login. textContent read, never inlined (URL metachars). -->
+<span id="loginDst" style="display:none">$(link-orig)</span>
 <script>
 	try { window.loginDst = document.getElementById("loginDst").textContent || ""; } catch (e) {}
 </script>
-
-	<!-- boot.js last: it fetches portal.html and writes into #app, which only
-	     exists once the body above has been parsed. -->
-	<script src="assets/js/boot.js?v=172"></script>
 
 </body>
 

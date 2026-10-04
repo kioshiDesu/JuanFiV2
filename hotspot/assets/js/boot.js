@@ -6,19 +6,9 @@
 (function () {
   function fail(msg) {
     var bt = document.getElementById("bootText");
-    if (!bt) { return; }
-    bt.textContent = msg || "Failed to load portal. Please reload.";
-    // portal.html's own RETRY button never runs when portal.html or core.js
-    // is what failed, so without one here every partial file-set failure is a
-    // dead-end spinner with no way forward.
-    var host = bt.parentNode;
-    if (!host || host.getElementsByClassName("boot-retry").length) { return; }
-    var rb = document.createElement("button");
-    rb.type = "button";
-    rb.className = "boot-retry";
-    rb.textContent = "RETRY";
-    rb.onclick = function () { location.reload(); };
-    host.appendChild(rb);
+    if (bt) {
+      bt.textContent = msg || "Failed to load portal. Please reload.";
+    }
   }
   function checkLibs() {
     // portal.html order guarantees jQuery before core.js; a 404 on either
@@ -54,11 +44,7 @@
     var doc = new DOMParser().parseFromString(html, "text/html");
     var app = doc.getElementById("app");
     if (!app) { fail("Portal page is empty."); return; }
-    // The live #app, not the parsed one. Shells load boot.js last so the body
-    // is parsed, but the guard keeps a too-early run from throwing.
-    var host = document.getElementById("app");
-    if (!host) { fail("Portal page is empty."); return; }
-    host.innerHTML = app.innerHTML;
+    document.getElementById("app").innerHTML = app.innerHTML;
     injectScripts(Array.prototype.slice.call(doc.querySelectorAll("script")), 0);
   }
   // status 0 is NOT success (file:// false positive / dead radio) — the

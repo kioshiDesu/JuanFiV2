@@ -2,33 +2,37 @@
 <html lang="en">
 
 <head>
-   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
-		<title>Congratulations</title>
-   <link rel="stylesheet" href="assets/css/base.css?v=172">
-    <link rel="stylesheet" href="assets/css/core.css?v=189">
+   <title>Congratulations</title>
+   <link rel="stylesheet" href="assets/css/base.css?v=170">
+    <link rel="stylesheet" href="assets/css/core.css?v=170">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#101418">
-	<meta name="mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
    <meta http-equiv="X-UA-Compatible" content="IE=edge">
    <meta http-equiv="refresh" content="1; url=$(link-status)">
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <span id="aloginErr" style="display:none">$(error-esc)</span>
-    <span id="aloginUser" style="display:none">$(username-esc)</span>
+    <span id="aloginErr" style="display:none">$(error)</span>
+    <span id="aloginUser" style="display:none">$(username)</span>
     <script>
-          // RouterOS escapes neither $(error) nor $(username), so -esc keeps
-          // < > " & from breaking out of the markup; decode once here for
-          // the comparison below.
+          // textContent reads: $(error)/$(username) never sit in a JS
+          // string, so quotes in vouchers can't break out.
           var error = "";
-          try { error = document.getElementById("aloginErr").textContent || ""; try { error = decodeURIComponent(error); } catch (x) {} } catch (e) {}
+          try { error = document.getElementById("aloginErr").textContent || ""; } catch (e) {}
           var aun = "";
-          try { aun = document.getElementById("aloginUser").textContent || ""; try { aun = decodeURIComponent(aun); } catch (x) {} } catch (e) {}
+          try { aun = document.getElementById("aloginUser").textContent || ""; } catch (e) {}
           if (error == "customer " + aun + " has reached uptime limit") {
                 window.location.href = "./login.html";
           }
     </script> 
+   
+         $(if chap-id)
+         <form name="sendin" action="$(link-login-only)" method="post">
+            <input type="hidden" name="username" />
+            <input type="hidden" name="password" />
+            <input type="hidden" name="dst" value="$(link-orig)" />
+            <input type="hidden" name="popup" value="true" />
+         </form>
 
+   $(endif)
 </head>
 <body>
    <div role="status" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#101418;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;text-align:center">

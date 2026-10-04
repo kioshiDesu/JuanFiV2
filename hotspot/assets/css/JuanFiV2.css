@@ -72,172 +72,37 @@ body {
 	font-size: 26px;
 }
 
-/* The portal's only outbound link, filled in from settings.json (see
-   renderFooterSocial in core.js). A bordered pill rather than bare text so it
-   reads as tappable on a phone and clears the 44px touch target iOS wants.
-   The label stays in the footer's own grey so the brand row above it does not
-   lose its hierarchy; only the glyph carries brand colour. */
-.footer-social {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 44px;
-	/* Sits above the brand lines, so the gap belongs under it, not over it. */
-	margin: 0 0 10px;
-	padding: 0 16px;
-	border: 1px solid rgba(255, 255, 255, .22);
-	border-radius: 22px;
-	color: rgba(255, 255, 255, .78);
-	font-size: 12px;
-	font-weight: 700;
-	letter-spacing: .04em;
-	line-height: 1;
-	text-decoration: none;
-	-webkit-tap-highlight-color: transparent;
-}
-.footer-social .sico {
-	width: 15px;
-	height: 15px;
-	margin-right: 8px;
-	flex: 0 0 auto;
-}
-.footer-social .sico svg {
-	display: block;
-	width: 100%;
-	height: 100%;
-}
-/* Facebook glyph is a solid mark and needs a fill; the globe is stroked and
-   picks its colour up from currentColor on this wrapper. */
-.footer-social .sico-facebook { fill: #1877f2; }
-.footer-social .sico-globe { color: rgba(255, 255, 255, .62); }
-.footer-social:active {
-	background: rgba(24, 119, 242, .24);
-	border-color: rgba(24, 119, 242, .7);
-}
-/* hover only where a real pointer exists, so the pill does not sit in a stuck
-   highlighted state after a tap on touch devices */
-@media (hover: hover) {
-	.footer-social:hover {
-		color: #fff;
-		background: rgba(24, 119, 242, .14);
-		border-color: rgba(24, 119, 242, .6);
-	}
-}
-.footer-social:focus-visible {
-	outline: 2px solid #1877f2;
-	outline-offset: 2px;
-}
-
 .memdiv {
 	width: 100%;
 	margin: 10px auto 0 auto;
-	border: 1px solid rgba(160, 160, 160, .3);
+	border: 1px solid rgba(164, 176, 190, .25);
 	padding: 14px 12px 12px 12px;
 	border-radius: 10px;
 	text-align: left;
 }
 
-/* Fallback only. Every input in .memdiv is wrapped in .memfield, and
-   .memdiv .memfield input below outranks this on specificity, so these colors
-   are dead in the shipped markup -- kept matching so a field added without the
-   pill wrapper does not come out dark. */
 .memdiv input {
 	display: block;
 	width: 100%;
 	min-height: 44px;
 	border-radius: 5px;
 	padding: 10px;
-	border: 2px solid #5c5c5c;
-	background-color: #fff;
-	color: #1a1a1a;
+	border: 2px solid #576574;
+	background-color: #1e272e;
+	color: #fff;
 	font-size: 16px;
 }
 
-/* Label and input share ONE pill: the label sits inside the left of the
-   rounded box instead of stacking above the input, so each row reads as a
-   single control and the form is two compact rows rather than four bands.
-   The pill owns the border, radius and background and neither child draws
-   its own -- that is what stops the corners doubling up and the seam
-   showing. Fixed label width keeps both inputs starting at the same x. */
-/* The pill itself is a black well so the gray label block beside it reads as a
-   solid, non-typeable half. Grayscale on purpose: the portal's dark panels are
-   all blue-tinted, and a blue-gray field just disappeared into them. Gray on
-   black gives the two halves a visible step without adding a hue. */
 .memfield {
-	display: flex;
-	align-items: stretch;
-	min-height: 48px;
 	margin-bottom: 10px;
-	border: 2px solid #5c5c5c;
-	border-radius: 9px;
-	background-color: #000;
-	box-shadow: inset 0 1px 3px rgba(0, 0, 0, .75);
-	overflow: hidden;
 }
+.memfield:focus-within { outline: 3px solid #4cd137; outline-offset: 2px; border-radius: 8px; }
 
 .memfield label {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
-	width: 90px;
-	margin: 0;
-	padding: 0 10px;
-	border-right: 1px solid rgba(0, 0, 0, .65);
-	background: linear-gradient(180deg, #4b4b4b 0%, #3c3c3c 100%);
-	color: #e6e6e6;
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: .09em;
-	text-transform: uppercase;
-	white-space: nowrap;
-	/* the label is part of the tap surface for the input beside it */
-	cursor: text;
-	-webkit-user-select: none;
-	user-select: none;
-}
-
-/* Beats the generic .memdiv input above. min-height:0 cancels its 44px so the
-   row height comes from the pill. The typing half is WHITE with near-black
-   text: a dark field on this panel kept reading as a hole rather than
-   something to write in, and white is what the voucher input above already
-   uses, so the two halves of the form now match. The gray label block is the
-   only dark mass on the row, which is what makes the pill read as one control.
-   The top inset is dark, not light, because the fill it sits on is now light.
-   caret-color keeps Safari from drawing its default black-on-black caret. */
-.memdiv .memfield input {
-	flex: 1 1 auto;
-	width: auto;
-	min-width: 0;
-	min-height: 0;
-	padding: 10px 12px;
-	border: none;
-	border-radius: 0;
-	background-color: #fff;
-	background-image: none;
-	box-shadow: inset 0 1px 0 rgba(0, 0, 0, .08);
-	color: #1a1a1a;
-	font-size: 16px;
-	caret-color: #1a1a1a;
-	/* Safari draws its own rounded inner shadow on some form controls; kill it
-	   so the pill's radius is the only curve on the row. */
-	-webkit-appearance: none;
-	appearance: none;
-}
-.memdiv .memfield input:focus {
-	outline: none;
-	background-color: #f0f0f0;
-}
-/* The pill already carries the focus ring via :focus-within. Needs the #app
-   prefix to outrank core.css's `#app input:focus-visible`, or the input
-   draws a second ring inside the pill. */
-#app .memfield input:focus-visible {
-	outline: none;
-}
-
-.memfield:focus-within {
-	border-color: #4cd137;
-	outline: 3px solid #4cd137;
-	outline-offset: 2px;
+	display: block;
+	margin-bottom: 4px;
+	font-size: 12px;
+	color: #c9cfd7;
 }
 
 .memlogin {

@@ -2,17 +2,13 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="assets/css/base.css?v=172">
-	<link rel="stylesheet" href="assets/css/core.css?v=189">
-	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=178">
+	<link rel="stylesheet" href="assets/css/base.css?v=170">
+	<link rel="stylesheet" href="assets/css/core.css?v=170">
+	<link rel="stylesheet" href="assets/css/JuanFiV2.css?v=170">
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="#101418">
-	<meta name="mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-	<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
-		<title>Logged out</title>
+	<title>Logged out</title>
 	<script>
 	// Auto-login pending: leave before first paint, no screen flash.
 	try {
@@ -26,12 +22,11 @@
 
 <!-- The router already ended the session by the time this page renders, so
      there is no uptime/usage to show: just the voucher, one button, and the
-     way back. $(username) is user-typed and RouterOS escapes neither it nor
-     quotes, so -esc percent-encodes < > " & and the read below decodes it
-     once, so what is displayed and copied is the real code. -->
+     way back. $(username) is user-typed, so it stays in a span and is read
+     via textContent — never inlined into JS or an attribute. -->
 <body id="loginBody">
 <noscript><div style="padding:20px;text-align:center">This portal needs JavaScript. Please enable it and reload.</div></noscript>
-<span id="loU" style="display:none">$(username-esc)</span>
+<span id="loU" style="display:none">$(username)</span>
 <span id="loLink" style="display:none">$(link-login)</span>
 
 <div class="portal">
@@ -49,36 +44,17 @@
 		<button type="button" id="loCopy" class="btn btn-primary" style="display: block; width: 100%; min-height: 48px;">COPY VOUCHER</button>
 	</div>
 
-	<p class="pausenote" id="loNote">Returning to login in <span id="loCount">10</span>s</p>
-	<!-- The countdown ticks once a second, so it must stay out of a live region
-	     (ten separate announcements); the copy result is announced here. -->
-	<p id="loLive" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);"></p>
+	<p class="pausenote" id="loNote" role="status" aria-live="polite">Returning to login in <span id="loCount">10</span>s</p>
 </div>
 
 <script>
 (function () {
-		function t(id) { try { return document.getElementById(id).textContent || ""; } catch (e) { return ""; } }
-		// loU arrives percent-encoded from $(username-esc); the voucher has to
-		// be readable and copyable, so decode it (raw fallback on stray %).
-		function dz(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
-		try {
-			var code = dz(t("loU"));
-			document.getElementById("loUser").textContent = code || "—";
-			var link = t("loLink") || "login";
-			// Same scheme check error.html uses, so this can never become an
-			// off-site redirect.
-			if (!/^(https?:\/\/|\/)/.test(link)) { link = "login"; }
-			document.getElementById("loLogin").href = link;
-		document.getElementById("loCopy").onclick = function () {
-			function done(ok) {
-				try { document.getElementById("loLive").textContent = ok ? "Voucher copied." : "Copy failed — long-press the code above."; } catch (e) {}
-			}
-			try {
-				if (code && navigator.clipboard && navigator.clipboard.writeText) {
-					navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
-				} else { done(false); }
-			} catch (e) { done(false); }
-		};
+	function t(id) { try { return document.getElementById(id).textContent || ""; } catch (e) { return ""; } }
+	try {
+		var code = t("loU");
+		document.getElementById("loUser").textContent = code || "—";
+		var link = t("loLink") || "login";
+		document.getElementById("loLogin").href = link;
 		// Auto-login pending (pause/renew set reLogin): the login page
 		// submits on its own, so leave at once.
 		var relogin = null;
@@ -97,6 +73,16 @@
 			if (n <= 0) { clearInterval(iv); window.location.replace(link); return; }
 			try { el.textContent = n; } catch (e) {}
 		}, 1000);
+		document.getElementById("loCopy").onclick = function () {
+			function done(ok) {
+				try { document.getElementById("loNote").textContent = ok ? "Voucher copied." : "Copy failed — long-press the code above."; } catch (e) {}
+			}
+			try {
+				if (code && navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
+				} else { done(false); }
+			} catch (e) { done(false); }
+		};
 	} catch (e) {}
 })();
 </script>
