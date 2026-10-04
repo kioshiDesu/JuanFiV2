@@ -53,12 +53,13 @@ Before you start: in the `juanfi-setup` source, edit `PROF` (the hotspot
 profile name, `hsprof1` by default), `NTP1`/`NTP2` and `Asia/Manila` to match
 your router.
 
-#### A1. `juanfi-setup` — profile, clock, NTP, FastTrack, site ID
+#### A1. `juanfi-setup` — profile, clock, NTP, FastTrack, site ID, netstatus file
 
 Policy: `read`, `write`, `test`, `policy`, `ftp`
 
 Sets the hotspot and user profiles, syncs the clock, adds the FastTrack accept
-rule, and publishes this router's own site id into `data/site-id.txt`.
+rule, publishes this router's own site id into `data/site-id.txt`, and creates
+`data/netstatus.txt` as `up` so the netwatch entry in A2 has a file to write.
 
 A wrong year makes scheduler `next-run` garbage, which makes voucher validity
 garbage — the clock matters more than it looks. The FastTrack rule accepts
@@ -122,59 +123,67 @@ Source:
   :while (($y>0) and ([/file find name=$siteFile] = "")) do={ :set y ($y-1); :delay 1s };
   :do { /file set $siteFile contents=$sn } on-error={ :log warning "setup: site-id not written" };
 };
-```
-
-#### A2. `juanfi-netstatus` — internet up/down banner
-
-Policy: `read`, `write`, `test`
-
-Writes `up` or `down` into `data/netstatus.txt`; the portal shows a banner
-while it reads `down`. It re-resolves the portal folder on every run and only
-writes when the value actually changed, so flash wear stays flat.
-
-Source:
-
-```
-:local HSFilePath "";
-:foreach c in={"flash/hotspot"; "hotspot"} do={
-  :if ($HSFilePath = "") do={
-    :foreach f in={"portal.html"; "login.html"; "status.html"} do={
-      :if (($HSFilePath = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set HSFilePath $c };
-    };
-  };
-};
-:if ($HSFilePath = "") do={
-  :do {
-    :local pf [:pick [/ip hotspot profile print as-value] 0];
-    :if (($pf != "") and (($pf->"html-directory") != "")) do={ :set HSFilePath ($pf->"html-directory") };
-  } on-error={};
-};
-:if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
-:local dataDir ($HSFilePath . "/data");
-:local f ($dataDir . "/netstatus.txt");
-:local state "down";
-:if ([/ping 8.8.8.8 count=1 interval=1s] > 0) do={ :set state "up" };
-:local old "";
-:do { :set old [/file get [find name=$f] contents] } on-error={ :set old "" };
-:if ($old != $state) do={
-  :if ([/file find name=$f] = "") do={
-    :do { /file print file=$f where name="dummyfile" } on-error={};
-    :local x 3;
-    :while (($x>0) and ([/file find name=$f] = "")) do={ :set x ($x-1); :delay 1s };
-  };
-  :do { /file set $f contents=$state } on-error={ :log warning ("netstatus: " . $f . " not written") };
+:local netFile ($dataDir . "/netstatus.txt");
+:if ([/file find name=$netFile] = "") do={
+  :do { /file print file=$netFile where name="dummyfile" } on-error={};
+  :local z 5;
+  :while (($z>0) and ([/file find name=$netFile] = "")) do={ :set z ($z-1); :delay 1s };
+  :do { /file set $netFile contents="up" } on-error={ :log warning "setup: netstatus.txt not created" };
 };
 ```
 
-Then schedule it — **System → Scheduler → +**:
+#### A2. Netwatch — internet up/down banner
+
+**Tools → Netwatch → +**
 
 | Field | Value |
 | --- | --- |
-| Name | `juanfi-netstatus-1m` |
-| Start Time | `startup` |
-| Interval | `00:01:00` |
-| On Event | `/system script run juanfi-netstatus` |
+| Name | `juanfi-netwatch` |
+| Host | `8.8.8.8` |
+| Type | `simple` |
+| Interval | `00:00:10` |
+| Timeout | `1s` |
+| Down Script | `/file set [find name~"*data/netstatus.txt"] contents="down"` |
+| Up Script | `/file set [find name~"*data/netstatus.txt"] contents="up"` |
 | Policy | `read`, `write`, `test` |
+
+The two scripts are single lines — that is all §A2 is:
+
+Down Script:
+
+```
+/file set [find name~"*data/netstatus.txt"] contents="down"
+```
+
+Up Script:
+
+```
+/file set [find name~"*data/netstatus.txt"] contents="up"
+```
+
+That is the whole thing — no script, no scheduler. Netwatch pings `8.8.8.8`
+every 10 seconds and flips the one file the portal already reads; A1 created
+that file, and the `name~"*data/netstatus.txt"` glob matches it whether the
+portal lives in `hotspot/` or `flash/hotspot/`. Netwatch only fires a script
+when the state actually *changes*, so the file is written on every transition
+and never in between — flash wear stays flat.
+
+Policy must include `write`, or `/file set` is refused and the banner never
+updates. If the file is missing entirely, both scripts fail silently — re-run
+A1, which recreates it.
+
+The portal shows a banner while that file reads `down`; the wording comes from
+`offlineText` in `settings.json`, and `showInternetStatus: false` hides the
+check entirely.
+
+Two things this cannot see, both true of any ping:
+
+- ICMP blocked, internet fine — an ISP that filters ping makes this report
+  `down` forever. Point **Host** at something that answers if that happens
+  (a DNS resolver, or your own gateway for "WAN up").
+- WAN link up, internet gone — a router with a live cable to a dead uplink
+  still answers locally, so this reports `down` correctly, but a captive
+  portal redirect upstream will read as `up`.
 
 #### A3. `juanfi-sweep` — daily orphan sweep (04:20)
 
@@ -367,6 +376,12 @@ session file on the last `#`, so member names containing `#` still work.
 Ran an older build? Delete the leftovers: scripts `day-report`, `month-report`,
 `todayincome`, `monthlyincome`, `tg-creds` and schedulers `Reset Daily
 Income`, `Reset Monthly Income`, `tg-creds-boot`. Nothing reads them.
+
+Came from the version that used a scheduler instead of netwatch? Delete script
+`juanfi-netstatus` and scheduler `juanfi-netstatus-1m`, then add the
+`juanfi-netwatch` entry from §A2. Leaving the scheduler in place is not fatal —
+both write the same file — but it pings on top of netwatch and wins half the
+races, so the banner can lag by up to a minute.
 
 
 ### C. On-Logout (same profile)
