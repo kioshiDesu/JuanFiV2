@@ -24,17 +24,18 @@
 #   - `limit-uptime` reads back as "00:15:00", never 900, so a read needs
 #     [:tonum ...] and a write of a literal needs [:totime "..."]. Never
 #     time + bare number.
-#   - `next-run` is a DATE *and* TIME ("2026-10-04 16:20:00"). Split at the
-#     space with [:find ...] + [:pick ...], then [:totime ...] the time half.
-#     [:toarray] splits on commas and [:tonum] rejects "HH:MM:SS", so neither
-#     works here.
-#   - Time minus time is already a duration, so $jfLeft can be written to
-#     limit-uptime directly; no conversion round-trip.
-#   - next-run carries no rollover hint, so a voucher still running after
-#     midnight comes back as a large negative. Anything more than half a day
-#     behind is the day rolling over, not an expired voucher.
+#   - `next-run` is a DATE *and* TIME ("2026-10-04 16:20:00"), i.e. a timestamp,
+#     not a duration, and no time value can be subtracted from it. Split it at
+#     the space with [:find ...] + [:pick ...], [:tonum ...] the time half for
+#     seconds, and reduce BOTH dates to a plain day number before subtracting -
+#     see "Session clamp" at the bottom. [:toarray] splits on commas, so it is
+#     no help here.
+#   - The remaining seconds are a plain number, so the write needs
+#     [:totime $jfLeft] back; never a bare number at limit-uptime.
 #   - If next-run cannot be parsed at all, skip the clamp and log. Clamping to
-#     1s on a parse failure would log paying customers out at random.
+#     1s on a parse failure would log paying customers out at random. Same for
+#     a result over a month: no voucher runs that long, so it means a
+#     half-parsed date, and writing it would hand out free Wi-Fi.
 #
 # Trial users ("T-" prefix) have no scheduler entry, so the clamp block is
 # skipped for them by construction; their time is native trial-uptime (A1).
@@ -116,26 +117,75 @@
 :local jfSched [/system scheduler find name="$user"];
 :if ($jfSched != "") do={
   :local jfNext [/system scheduler get $jfSched next-run];
-  # next-run is "YYYY-MM-DD HH:MM:SS" - take the time half after the space
-  # and parse it as a TIME value (":tonum" only eats plain numbers).
-  :local jfTime -1;
+  # -------------------------------------------------------------------------
+  # Remaining time = next-run MINUS now, and next-run is a full civil date-time
+  # ("2026-10-04 16:20:00"), not a duration. Comparing only the two time halves
+  # would throw away whole days and clamp a 2-day voucher to the few hours left
+  # today, every single time the customer reconnects. So both halves are turned
+  # into a plain day number first (1 Jan = day 0, leap years included) and the
+  # difference is done in seconds.
+  #
+  #   dayNum(y,m,d) = y*365 + leapDays(y-1) + dayOfYear(y,m,d)
+  #   leapDays(n)   = (n-n%4)/4 - (n-n%100)/100 + (n-n%400)/400
+  #     leap days from years BEFORE y - counting year y itself would double
+  #     count 29 Feb against the +1 that dayOfYear already adds, and the two
+  #     then cancel wrongly every 31 Dec / 1 Jan.
+  #     Subtracting the remainder before dividing keeps each term an exact
+  #     integer no matter how RouterOS rounds a plain division.
+  #   dayOfYear    = d + cumDays[m-1], +1 after February in a leap year
+  # -------------------------------------------------------------------------
+  :local jfNowDayNum -1;
+  :do {
+    :local jfNowDate [/system clock get date];
+    :local jfNY [:tonum [:pick $jfNowDate 0 4]];
+    :local jfNM [:tonum [:pick $jfNowDate 5 7]];
+    :local jfND [:tonum [:pick $jfNowDate 8 10]];
+    :local jfCum {0 31 59 90 120 151 181 212 243 273 304 334};
+    :local jfNDoy ($jfND + [:pick $jfCum ($jfNM - 1)]);
+    :if ((($jfNY % 4) = 0) and ((($jfNY % 100) != 0) or (($jfNY % 400) = 0)) and ($jfNM > 2)) do={ :set jfNDoy ($jfNDoy + 1) };
+    :local jfPY ($jfNY - 1);
+    :local jfNLeap ((($jfPY - $jfPY % 4) / 4) - (($jfPY - $jfPY % 100) / 100) + (($jfPY - $jfPY % 400) / 400));
+    :set jfNowDayNum ((($jfNY * 365) + $jfNLeap) + $jfNDoy);
+  } on-error={ :set jfNowDayNum -1 };
+  :local jfNextDayNum -1;
+  :local jfTimeSec -1;
   :do {
     :local sp [:find $jfNext " "];
-    :if ($sp != nil) do={ :set jfTime [:totime [:pick $jfNext ($sp + 1) [:len $jfNext]]] };
-  } on-error={ :set jfTime -1 };
-  :if ($jfTime = -1) do={
-    # Unparseable next-run. Leave the session alone rather than guess: clamping
-    # to 1s here would log paying customers out at random.
-    :log warning ("On-Login(" . $user . "): next-run unreadable (" . $jfNext . "), clamp skipped");
+    :local jfDate [:pick $jfNext 0 $sp];
+    :local jfTimeStr [:pick $jfNext ($sp + 1) [:len $jfNext]];
+    :local jfNY [:tonum [:pick $jfDate 0 4]];
+    :local jfNM [:tonum [:pick $jfDate 5 7]];
+    :local jfND [:tonum [:pick $jfDate 8 10]];
+    :local jfCum {0 31 59 90 120 151 181 212 243 273 304 334};
+    :local jfNDoy ($jfND + [:pick $jfCum ($jfNM - 1)]);
+    :if ((($jfNY % 4) = 0) and ((($jfNY % 100) != 0) or (($jfNY % 400) = 0)) and ($jfNM > 2)) do={ :set jfNDoy ($jfNDoy + 1) };
+    :local jfPY ($jfNY - 1);
+    :local jfNLeap ((($jfPY - $jfPY % 4) / 4) - (($jfPY - $jfPY % 100) / 100) + (($jfPY - $jfPY % 400) / 400));
+    :set jfNextDayNum ((($jfNY * 365) + $jfNLeap) + $jfNDoy);
+    # ":tonum" is the only way out of "HH:MM:SS" - it answers seconds.
+    :set jfTimeSec [:tonum $jfTimeStr];
+  } on-error={ :set jfNextDayNum -1 };
+  :local jfLeft 0;
+  :local jfOk 0;
+  :local jfWhy ("unreadable next-run or clock date (" . $jfNext . ")");
+  :if (($jfNextDayNum >= 0) and ($jfNowDayNum >= 0)) do={
+    :set jfLeft ((($jfNextDayNum - $jfNowDayNum) * 86400) + ($jfTimeSec - [:tonum [/system clock get time]]));
+    :set jfOk 1;
+    # A voucher cannot plausibly run for more than a month; anything that big
+    # means a half-parsed date, and writing it would hand out free Wi-Fi.
+    :if ($jfLeft > 2678400) do={
+      :set jfOk 0;
+      :set jfLeft 0;
+      :set jfWhy ("implausible time left from next-run (" . $jfNext . ")");
+    };
+  };
+  :if ($jfOk = 0) do={
+    # Leave the session alone rather than guess: clamping to 1s here would log
+    # paying customers out at random.
+    :log warning ("On-Login(" . $user . "): " . $jfWhy . ", clamp skipped");
   } else={
-    # Both operands are time values, so the difference is a duration that can
-    # be written straight back to limit-uptime - no tonum/totime juggling.
-    :local jfLeft ($jfTime - [/system clock get time]);
-    # Past half a day behind can only be the day rolling over, not an expired
-    # voucher - next-run gives no rollover hint of its own.
-    :if ($jfLeft < -12:00:00) do={ :set jfLeft ($jfLeft + 1d) };
     :if ($jfLeft > 0) do={
-      :do { /ip hotspot user set [find name="$user"] limit-uptime=$jfLeft }
+      :do { /ip hotspot user set [find name="$user"] limit-uptime=[:totime $jfLeft] }
         on-error={ :log warning ("On-Login(" . $user . "): limit-uptime clamp write failed") };
     } else={
       # next-run has not fired yet but no time is left. Expire the row rather
