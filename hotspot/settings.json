@@ -1,25 +1,31 @@
 {
-  "isMultiVendo": false,
-  "multiVendoOption": 0,
+  "isMultiVendo": true,
+  "multiVendoOption": 1,
+  "GUIDE": "multiVendoOption: 0=manual picker, 1=auto by hotspot address, 2=auto by interface name. If 1/2 finds no match, the manual picker is shown.",
   "multiVendoAddresses": [
     {
-      "vendoName": "Vendo 1",
+      "vendoName": "main",
       "vendoIp": "10.0.0.254",
       "hotspotAddress": "10.0.0.1",
-      "interfaceName": "vlan1"
+      "interfaceName": "bridge1 HS"
+    },
+    {
+      "vendoName": "vlan10",
+      "vendoIp": "10.0.10.254",
+      "hotspotAddress": "10.0.10.1",
+      "interfaceName": "vlan10"
     }
   ],
-  "vendorIpAddress": "10.0.0.254",
+  "vendorIpAddress": "",
   "portalDebug": false,
   "brandHeaderHtml": "BROBRO <em>PISOWIFI</em>",
-  "footerBrandText": "@NETBRO",
-  "footerSubText": "INTERNET SERVICES",
+  "footerSocialUrl": "https://www.facebook.com/profile.php?id=61595026080323",
+  "footerSocialLabel": "NETBRO INTERNET SERVICES",
+  "footerSocialIcon": "facebook",
   "currency": "₱",
   "showMemberSection": true,
   "showTrialLogin": false,
   "trialNoExtend": true,
-  "showInternetStatus": true,
-  "offlineText": "No internet connection as of the moment, please try again later",
-  "macAsVoucherCode": false,
+  "macAsVoucherCode": true,
   "showConvertVoucher": true
 }

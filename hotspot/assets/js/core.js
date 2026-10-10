@@ -22,6 +22,11 @@ var errorCodeMap = {
 // ---------- settings (config.js folded in) ----------
 // Single source of truth is settings.json; below are offline fallbacks
 // used when the JSON fetch fails. Same key names (currency→currencySym).
+// multiVendoOption:
+// 0 = ask the customer to pick one manually.
+// 1 = auto-pick by $(hotspotAddress) matching a vendo's hotspotAddress.
+// 2 = auto-pick by $(interface-name) matching a vendo's interfaceName.
+// If 1/2 finds no match, UI falls back to showing the manual picker.
 var isMultiVendo = false;
 var multiVendoOption = 0;
 var multiVendoAddresses = [
@@ -30,13 +35,16 @@ var multiVendoAddresses = [
 var vendorIpAddress = "10.0.0.254";
 var portalDebug = false;
 var brandHeaderHtml = "JUANFI<em>V2</em>";
-var footerBrandText = "@NETBRO";
-var footerSubText = "INTERNET SERVICES";
+// Footer link to the operator's page. The URL defaults to empty, which keeps
+// the pill hidden until settings.json names one - a router that was never
+// configured shows no dead link. Only http(s) is honoured; see
+// renderFooterSocial() for why the scheme is checked.
+var footerSocialUrl = "";
+var footerSocialLabel = "Facebook";
+var footerSocialIcon = "facebook";
 var currencySym = "₱";
 var showMemberSection = true;
 var showTrialLogin = false;
-var showInternetStatus = true;
-var offlineText = "No internet connection as of the moment, please try again later";
 var trialNoExtend = true;
 // Send the client's own MAC as the voucher code. The coin box only mints
 // a random code when the topUp POST carries an empty voucher, so a
@@ -48,6 +56,10 @@ var macAsVoucherCode = false;
 // does the merge itself and only answers on builds that expose
 // /convertVoucher, so this is opt-out per site.
 var showConvertVoucher = true;
+	// Set only when settings.json was served but would not parse. Missing file is
+// a supported case (the fallbacks above), malformed JSON is an operator error
+// and must not be silent - see the note at the parse below.
+var __settingsLoadError = "";
 	try {
 		var __setReq = new XMLHttpRequest();
 		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
@@ -60,25 +72,54 @@ var showConvertVoucher = true;
 			} catch (e2) { __setReq = null; }
 		}
 		if (__setReq && __setReq.status === 200) {
-		var __setJson = JSON.parse(__setReq.responseText || "{}");
+		var __setJson = null;
+		try {
+			__setJson = JSON.parse(__setReq.responseText || "{}");
+		} catch (e3) {
+			// Served but unparseable - in practice a missing comma or brace from
+			// hand-editing. Swallowing this made a broken settings.json look
+			// exactly like the portal ignoring it, and the only visible symptom
+			// was the fallback brand in the header. Recorded and surfaced below.
+			__settingsLoadError = String((e3 && e3.message) || e3);
+		}
+		if (__setJson) {
 		if (typeof __setJson.isMultiVendo === "boolean") { isMultiVendo = __setJson.isMultiVendo; }
 		if (typeof __setJson.multiVendoOption === "number") { multiVendoOption = __setJson.multiVendoOption; }
 		if (__setJson.multiVendoAddresses instanceof Array) { multiVendoAddresses = __setJson.multiVendoAddresses; }
 		if (typeof __setJson.vendorIpAddress === "string" && __setJson.vendorIpAddress) { vendorIpAddress = __setJson.vendorIpAddress; }
 		if (typeof __setJson.portalDebug === "boolean") { portalDebug = __setJson.portalDebug; }
 		if (typeof __setJson.brandHeaderHtml === "string" && __setJson.brandHeaderHtml) { brandHeaderHtml = __setJson.brandHeaderHtml; }
-		if (typeof __setJson.footerBrandText === "string" && __setJson.footerBrandText) { footerBrandText = __setJson.footerBrandText; }
-		if (typeof __setJson.footerSubText === "string" && __setJson.footerSubText) { footerSubText = __setJson.footerSubText; }
+		if (typeof __setJson.footerSocialUrl === "string" && __setJson.footerSocialUrl) { footerSocialUrl = __setJson.footerSocialUrl; }
+		if (typeof __setJson.footerSocialLabel === "string" && __setJson.footerSocialLabel) { footerSocialLabel = __setJson.footerSocialLabel; }
+		if (typeof __setJson.footerSocialIcon === "string" && __setJson.footerSocialIcon) { footerSocialIcon = __setJson.footerSocialIcon; }
 		if (typeof __setJson.currency === "string" && __setJson.currency) { currencySym = __setJson.currency; }
 		if (typeof __setJson.showMemberSection === "boolean") { showMemberSection = __setJson.showMemberSection; }
 		if (typeof __setJson.showTrialLogin === "boolean") { showTrialLogin = __setJson.showTrialLogin; }
-		if (typeof __setJson.showInternetStatus === "boolean") { showInternetStatus = __setJson.showInternetStatus; }
-		if (typeof __setJson.offlineText === "string" && __setJson.offlineText) { offlineText = __setJson.offlineText; }
 		if (typeof __setJson.trialNoExtend === "boolean") { trialNoExtend = __setJson.trialNoExtend; }
 		if (typeof __setJson.macAsVoucherCode === "boolean") { macAsVoucherCode = __setJson.macAsVoucherCode; }
 		if (typeof __setJson.showConvertVoucher === "boolean") { showConvertVoucher = __setJson.showConvertVoucher; }
+		}
 	}
 } catch (e) {}
+
+// Deferred: $.toast is defined further down this file, so the warning has to
+// wait for the whole script to have evaluated.
+if (__settingsLoadError) {
+	try { if (window.console && console.warn) { console.warn("JuanFi: settings.json is not valid JSON, all settings fell back to defaults. " + __settingsLoadError); } } catch (e4) {}
+	try { dbgLog("settings.json invalid: " + __settingsLoadError, "err"); } catch (e5) {}
+	try {
+		$(function () {
+			try {
+				$.toast({
+					title: "Settings not applied",
+					content: "settings.json could not be read, so this portal is using built-in defaults.",
+					type: "error",
+					delay: 9000
+				});
+			} catch (e6) {}
+		});
+	} catch (e7) {}
+}
 
 var ROUTER_TIMEOUT = 3000;
 var VENDO_TIMEOUT = 5000;
@@ -140,6 +181,93 @@ var siteIdSuffix = "";
 function sfxVibrate(pattern) {
 	try { if (navigator.vibrate) { navigator.vibrate(pattern); } } catch (e) { }
 }
+// iOS Safari only lets audio through when play() runs inside a real tap.
+// Every sound here fires from an XHR callback (topUp success, coin poll,
+// countdown tick), which is outside the gesture, so play() rejected with
+// NotAllowedError and sfxPlayFile swallowed it: the customer got a completely
+// silent portal on iPhone while Android played every blip.
+//
+// The fix is to spend the gesture on the tap that STARTS the flow, priming
+// both an AudioContext (which is what iOS actually gates) and each Audio
+// element. A silent one-frame buffer through the context, plus a muted
+// play()/pause() on the looping bed, and every later play() is already
+// unlocked. Once, on the first gesture — cost is zero after that.
+var sfxUnlocked = false;
+function sfxUnlock() {
+	if (sfxUnlocked) { return; }
+	sfxUnlocked = true;
+	try {
+		var AC = window.AudioContext || window.webkitAudioContext;
+		if (AC) {
+			var ctx = new AC();
+			// One frame of silence: enough to open the audio session without
+			// making a sound. resume() is for the case where iOS created the
+			// context already suspended.
+			var buf = ctx.createBuffer(1, 1, 22050);
+			var srcNode = ctx.createBufferSource();
+			srcNode.buffer = buf;
+			srcNode.connect(ctx.destination);
+			srcNode.start(0);
+			if (ctx.state === "suspended" && ctx.resume) { ctx.resume(); }
+		}
+	} catch (e) { }
+	// Prime the loop bed itself. It is the element that plays on INSERT COIN,
+	// and iOS unlocks per-element, so the one-shots still need their own
+	// gesture-time play(). Muted + zero volume keeps this inaudible.
+	var SRC = {
+		insert: snd("assets/sounds/insertcoinbg.mp3"),
+		inserted: snd("assets/sounds/insertedcoin.mp3"),
+		success: snd("assets/sounds/success.mp3"),
+		error: snd("assets/sounds/error.mp3")
+	};
+	// One element per call, held as a PARAMETER. It used to be a `var` inside
+	// the loop below, which is function-scoped: all four play() callbacks shared
+	// one binding, so every reset() un-paused and un-muted the LAST element and
+	// left insert/inserted/success pinned at volume 0 for the rest of the
+	// session. That is what made the portal silent everywhere, not just iPhone.
+	function primeOne(a) {
+		if (!a) { return; }
+		// volume 0 rather than muted: iOS treats a muted element as not worth
+		// unlocking, and `muted` would also have to be unset again later. Volume
+		// is restored before anything audible can play.
+		a.volume = 0;
+		var reset = function () {
+			try { a.pause(); a.currentTime = 0; a.volume = 1; } catch (e) { }
+		};
+		var p = a.play();
+		if (p && typeof p.then === "function") { p.then(reset, reset); }
+		else { reset(); }
+	}
+	for (var k in SRC) {
+		try {
+			if (!Object.prototype.hasOwnProperty.call(SRC, k)) { continue; }
+			if (!sfxAudio[k]) { sfxAudio[k] = new Audio(SRC[k]); }
+			primeOne(sfxAudio[k]);
+		} catch (e) { }
+	}
+}
+// Capture phase, once. Catches taps anywhere (the coin button, CONNECT, the
+// member toggle) without touching every onclick handler, and also catches the
+// case where the customer's first interaction is a keyboard Enter on desktop.
+(function () {
+	if (typeof document === "undefined") { return; }
+	var armed = true;
+	function firstGesture() {
+		if (!armed) { return; }
+		armed = false;
+		try { sfxUnlock(); } catch (e) { }
+		try {
+			document.removeEventListener("touchend", firstGesture, true);
+			document.removeEventListener("click", firstGesture, true);
+			document.removeEventListener("keydown", firstGesture, true);
+		} catch (e) { }
+	}
+	try {
+		document.addEventListener("touchend", firstGesture, true);
+		document.addEventListener("click", firstGesture, true);
+		document.addEventListener("keydown", firstGesture, true);
+	} catch (e) { }
+})();
 // ponytail: the version used to be a hand-kept literal here AND in the script
 // tags AND in a vNNN string in the footer, so a partial bump stranded the
 // sounds and the footer behind the CSS. core.js is loaded from a URL that
@@ -163,6 +291,12 @@ function sfxPlayFile(name, src, loop, fallback) {
 			a.preload = "auto";
 			sfxAudio[name] = a;
 		}
+		// sfxUnlock primes these elements at volume 0 and restores it when the
+		// play() promise settles. If that restore is ever lost (an aborted
+		// decode, a rejected play that never fires its callback), the sound
+		// stays silent forever. Re-assert full volume on the way out so a stuck
+		// element cannot mute the portal.
+		try { a.volume = 1; } catch (e) {}
 		if (loop) {
 			a.loop = true;
 			var p = a.play();
@@ -289,7 +423,7 @@ function setCookie(name, value, days) {
 		expires = "; expires=" + date.toUTCString();
 	}
 	// Values encoded: raw vouchers/member names can contain ";" or "=",
-	document.cookie = name + "=" + encodeURIComponent(value || "") + expires + "; path=/";
+	document.cookie = name + "=" + encodeURIComponent(value || "") + expires + "; path=/; SameSite=Lax";
 }
 
 function getCookie(name) {
@@ -312,8 +446,14 @@ function eraseCookie(name) {
 	document.cookie = name + '=; Max-Age=-99999999; path=/';
 }
 
-// Venue-scoped voucher storage. A browser on two neighbouring vendos,
-// or a router with no site id file, would otherwise share one bucket.
+// Venue-scoped voucher storage. A browser on two neighbouring vendos, or a
+// router with no site id file, would otherwise share one bucket, so every key
+// is suffixed with the router's own site id (see venueScopeSuffix below).
+//
+// Appending a per-venue segment on top of the site id was implemented here and
+// then removed -- see the note above venueScopeSuffix for why, and for where
+// the raw values still live if a deployment ever needs it back.
+
 function venueScopeSuffix() {
 	var v = "";
 	try {
@@ -336,16 +476,29 @@ function getActiveVoucher() {
 			// the ts write was failing) would otherwise never age out.
 			// Stamp it now so the 7-day cap starts from here.
 			setStorageValue(scopedKey('activeVoucher_ts'), String(Date.now()));
-		} else if (v && (!isFinite(age) || age > 7*24*60*60*1000)) {
+		} else if (v && isFinite(age) && age > 7*24*60*60*1000) {
 			removeActiveVoucher();
 			return "";
+		} else if (v && ts && !isFinite(age)) {
+			// Corrupt _ts must not wipe a live voucher — restamp instead.
+			setStorageValue(scopedKey('activeVoucher_ts'), String(Date.now()));
 		}
 	} catch(e){}
 	return v;
 }
 function setActiveVoucher(v) {
-	try { setStorageValue(scopedKey('activeVoucher_ts'), String(Date.now())); } catch(e){}
-	return setStorageValue(scopedKey('activeVoucher'), v);
+	try {
+		var k = scopedKey('activeVoucher');
+		var prev = getStorageValue(k);
+		var ts = getStorageValue(scopedKey('activeVoucher_ts'));
+		// Value or stale timestamp changed? Avoid a localStorage write on
+		// every 1 s poll tick with the same values.
+		if (prev !== v || !ts || (Date.now() - parseInt(ts, 10)) > 60000) {
+			setStorageValue(scopedKey('activeVoucher_ts'), String(Date.now()));
+			setStorageValue(k, v);
+		}
+	} catch(e){}
+	return v;
 }
 function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVoucher_ts')); } catch(e){} return removeStorageValue(scopedKey('activeVoucher')); }
 // Adopt the venue-scoped voucher and prefill the box, safe to run twice.
@@ -355,7 +508,23 @@ function removeActiveVoucher() { try { removeStorageValue(scopedKey('activeVouch
 // voucher from detectState() and anything the customer is typing survive.
 function adoptScopedVoucher(fill) {
 	try {
+		// What to show in the box, best first:
+		//   1. the code this phone is already credited with (known good),
+		//   2. the most recent code from history (that venue's own list only),
+		//   3. the MAC, which with macAsVoucherCode IS the voucher.
+		// The MAC used to win outright and displace a real stored code, because
+		// it was written into the box before the venue scope resolved and
+		// nothing marked it as replaceable.
 		var sv = getActiveVoucher();
+		if (!sv) {
+			try {
+				var hist = getVoucherHistory();
+				// Newest first, and any entry is a code this phone has already
+				// used successfully, so it beats a MAC nobody typed.
+				if (hist && hist.length && hist[0] && hist[0].v) { sv = String(hist[0].v); }
+			} catch (e2) { }
+		}
+		if (!sv) { try { sv = window.__macPrefill || ""; } catch (e3) { } }
 		var mine = (voucher === "" || voucher === window.__adoptedPre);
 		if (mine) { voucher = sv; window.__adoptedPre = sv; }
 		if (fill && $("#voucherInput").length > 0) {
@@ -376,6 +545,14 @@ function siteScopeReady() { try { return typeof siteIdSuffix !== 'undefined' && 
 // Site ID missing => the scope would be the shared "ERROR SITE ID" bucket, so
 // codes leak between neighbouring vendos. Save nothing and show nothing until
 // the file is published; the queue drains if it arrives (Scripts-F).
+//
+// The venue segment is deliberately NOT required here. It refines the key on
+// the routers that can supply one, but an absent segment must never cost the
+// customer their history: a router that leaves every venue variable
+// unexpanded would otherwise show "Voucher history is unavailable on this
+// network" forever, with a perfectly good site id in hand. Scope then falls
+// back to the site-id-only bucket, which is no worse than before this
+// segmentation existed.
 var __histBlocked = false;
 function histBlocked() { return !!__histBlocked || !siteScopeReady(); }
 function flushPendingHistory() {
@@ -386,7 +563,7 @@ function getVoucherHistory() { if (histBlocked()) { return []; } try { var h = J
 function pushVoucherHistory(vc) {
 	vc = String(vc || "").trim();
 	if (!vc) { return; }
-	if (histBlocked()) { try { if (__pendingHistPush.indexOf(vc) === -1 && __pendingHistPush.length < 30) { __pendingHistPush.push(vc); } } catch (e) {} return; }
+	if (histBlocked()) { try { if (__pendingHistPush.indexOf(vc) === -1 && __pendingHistPush.length < 30) { __pendingHistPush.push(vc); try { setStorageValue('pendingHistQueue', JSON.stringify(__pendingHistPush)); } catch (e) {} } } catch (e) {} return; }
 	var h = getVoucherHistory().filter(function (e) { return String((e && e.v) || "") !== vc; });
 	var m = "";
 	try { m = String(window.mac || "").toUpperCase(); } catch (e2) {}
@@ -452,6 +629,109 @@ function closeHistoryView() {
 	window.__histOpen = false;
 	try { if (window.__histOpener && document.contains(window.__histOpener)) { window.__histOpener.focus(); } window.__histOpener = null; } catch (e) {}
 }
+// Voucher bank: saved codes clients want quick recall for. No router verify;
+// adding a code must never log the device in or touch the current session.
+var VOUCH_BANK_MAX = 50;
+function getVoucherBank() { if (histBlocked()) { return []; } try { var b = JSON.parse(getStorageValue(scopedKey('voucherBank')) || "[]"); return Array.isArray(b) ? b : []; } catch (e) { return []; } }
+function bankHas(vc) { var b = getVoucherBank(); for (var i = 0; i < b.length; i++) { if (b[i] && b[i].v === vc) { return true; } } return false; }
+function addToVoucherBank(vc) {
+	vc = String(vc || "").trim();
+	if (!vc) { return false; }
+	if (histBlocked()) {
+		try { $.toast({ title: "Site ID missing", content: "Failed saving voucher bank. Site ID file is missing.", type: "error", delay: 6000 }); } catch (e) {}
+		return false;
+	}
+	if (bankHas(vc)) { try { $.toast({ title: 'Saved', content: "Voucher already in the bank", type: 'info', delay: 2500 }); } catch (e) {} return true; }
+	var b = getVoucherBank();
+	b.unshift({ v: vc, t: Date.now(), m: String(window.mac || "").toUpperCase() });
+	try { setStorageValue(scopedKey('voucherBank'), JSON.stringify(b.slice(0, VOUCH_BANK_MAX))); } catch (e) {}
+	try { paintVoucherBank(); } catch (e) {}
+	try { paintConvertBank(); } catch (e) {}
+	try { $.toast({ title: 'Saved', content: "Voucher added to bank", type: 'success', delay: 2500 }); } catch (e) {}
+	return true;
+}
+function removeFromVoucherBank(vc) {
+	vc = String(vc || "").trim();
+	if (!vc) { return false; }
+	var b = getVoucherBank();
+	var out = [];
+	for (var i = 0; i < b.length; i++) { if (b[i] && b[i].v !== vc) { out.push(b[i]); } }
+	try { setStorageValue(scopedKey('voucherBank'), JSON.stringify(out)); } catch (e) {}
+	try { paintVoucherBank(); } catch (e) {}
+	try { paintConvertBank(); } catch (e) {}
+	return out.length !== b.length;
+}
+function saveVoucherToBank() {
+	var vc = "";
+	try { vc = String(document.getElementById('bankVoucherInput').value || "").trim(); } catch (e) {}
+	if (!vc) { try { vc = String($("#voucherInput").val() || "").trim(); } catch (e) {} }
+	if (!vc && typeof getActiveVoucher === 'function') { try { vc = getActiveVoucher(); } catch (e) {} }
+	if (vc) { addToVoucherBank(vc); }
+}
+function useBankVoucher(vc) {
+	vc = String(vc || "");
+	if (!vc) { return; }
+	try { $("#voucherInput").val(vc); } catch (e) {}
+	try { closeBankView(); } catch (e) {}
+	try { if (typeof STATE !== 'undefined' && STATE === 'status') { $.toast({ title: 'Loaded', content: 'Voucher copied to the login field', type: 'info', delay: 2500 }); return; } } catch (e) {}
+	try { if (typeof setPortalState === 'function') { setPortalState('login'); } } catch (e) {}
+}
+function bankCodeRow(e, onPick) {
+	var wrap = document.createElement('div');
+	wrap.className = 'bank-row';
+	var r = document.createElement('button');
+	r.type = 'button';
+	r.className = 'vhist-row';
+	var left = document.createElement('span');
+	left.className = 'vhist-left';
+	var c = document.createElement('span');
+	c.className = 'vhist-code';
+	c.textContent = e.v;
+	left.appendChild(c);
+	var sub = "";
+	try { sub = new Date(e.t).toLocaleDateString(); } catch (err) {}
+	if (e.m) { sub += (sub ? " · " : "") + e.m; }
+	if (sub) { var s = document.createElement('span'); s.className = 'vhist-sub'; s.textContent = sub; left.appendChild(s); }
+	r.appendChild(left);
+	r.setAttribute('data-vc', e.v);
+	r.addEventListener('click', onPick);
+	wrap.appendChild(r);
+	var del = document.createElement('button');
+	del.type = 'button';
+	del.className = 'bank-del';
+	del.setAttribute('aria-label', 'Remove voucher ' + e.v);
+	del.textContent = '×';
+	del.addEventListener('click', function (ev) {
+		try { ev.stopPropagation(); } catch (ex) {}
+		removeFromVoucherBank(e.v);
+	});
+	wrap.appendChild(del);
+	return wrap;
+}
+function paintVoucherBank() {
+	var box = document.getElementById('vbankFull');
+	if (!box) { return; }
+	if (histBlocked()) { box.textContent = "Voucher bank is unavailable on this network."; return; }
+	var b = getVoucherBank();
+	if (!b.length) { box.textContent = "No saved vouchers yet. Type a voucher code above and press ADD."; return; }
+	box.innerHTML = "";
+	b.forEach(function (e) {
+		box.appendChild(bankCodeRow(e, function () { useBankVoucher(e.v); }));
+	});
+	try { paintConvertBank(); } catch (e) {}
+}
+function showBankView() {
+	try { window.__bankOpener = document.activeElement; } catch (e) {}
+	try { paintVoucherBank(); } catch (e) {}
+	try { document.getElementById('view-bank').style.display = "block"; } catch (e) {}
+	window.__bankOpen = true;
+	try { document.getElementById('bankBack').focus(); } catch (e) {}
+}
+function closeBankView() {
+	try { document.getElementById('view-bank').style.display = "none"; } catch (e) {}
+	window.__bankOpen = false;
+	try { if (window.__bankOpener && document.contains(window.__bankOpener)) { window.__bankOpener.focus(); } window.__bankOpener = null; } catch (e) {}
+}
 // Keep Tab inside the history overlay while open (it lives inside #app,
 // so inert on #app would trap the overlay itself).
 if (!window.__histTrapBound) { window.__histTrapBound = true; try {
@@ -464,9 +744,32 @@ document.getElementById('view-history').addEventListener('keydown', function (ev
 	else if (!ev.shiftKey && document.activeElement === last) { first.focus(); ev.preventDefault(); }
 });
 } catch (e) {} }
+// Same Tab cage for the bank overlay.
+if (!window.__bankTrapBound) { window.__bankTrapBound = true; try {
+document.getElementById('view-bank').addEventListener('keydown', function (ev) {
+	if (ev.key !== 'Tab' || !window.__bankOpen) { return; }
+	var f = Array.prototype.filter.call(this.querySelectorAll('button,[href],[tabindex]:not([tabindex="-1"])'), function (el) { return !el.disabled && el.offsetParent !== null; });
+	if (!f.length) { return; }
+	var first = f[0], last = f[f.length - 1];
+	if (ev.shiftKey && document.activeElement === first) { last.focus(); ev.preventDefault(); }
+	else if (!ev.shiftKey && document.activeElement === last) { first.focus(); ev.preventDefault(); }
+});
+} catch (e) {} }
 // Warn before back/refresh/CNA reclaim forfeits inserted coins.
 window.addEventListener("beforeunload", function (e) {
-	try { if (typeof insertingCoin !== "undefined" && insertingCoin && totalCoinReceived > 0) { e.preventDefault(); e.returnValue = ""; } } catch (err) {}
+	// Any unload while a coin insert is in flight asks first: the ESP slot may
+	// already hold money even before /checkCoin reports it, and reloading
+	// drops the slot on the floor. The old totalCoinReceived > 0 condition
+	// left the whole wait window unguarded.
+	// Keyed on __coinInsertLive, NOT on insertingCoin: pause() sets that one
+	// too (to hold off the router's session refresh) and reading the persisted
+	// isPaused flag here leaked across pages -- resume() keeps it set until
+	// the router rules, so the guard could go dead on a later page.
+	// __internalNav is the escape hatch for reloads the portal wants itself.
+	try {
+		if (window.__internalNav) { return; }
+		if (window.__coinInsertLive) { e.preventDefault(); e.returnValue = ""; }
+	} catch (err) {}
 });
 // Abandoned insert = orphaned coin slot. The box keeps the code it minted
 // and rejects the NEXT customer with coinslot.busy until its own wait
@@ -578,15 +881,16 @@ function clearAutoLoginTried() {
 function wipePortalStorage() {
 	var fixed = ["activeVoucher", "activeVoucher_ts", "isPaused", "forceLogout",
 		"redirectLogin", "ignoreSaveCode", "insertCoinRefreshed",
-		"totalCoinReceived", "reLogin", "selectedVendo"];
-	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin", "selectedVendo"];
+		"totalCoinReceived", "reLogin", "selectedVendo", "voucherHistory",
+		"voucherBank", "pendingHistQueue", "lastUp", "lastDown"];
+	var scopedBases = ["activeVoucher", "activeVoucher_ts", "isPaused", "reLogin", "selectedVendo", "voucherHistory", "voucherBank", "lastUp", "lastDown"];
 	// Per-voucher keys are <voucher>remain / tempValidity / validity with an
 	// optional _<scope> tail. The old regex was tail-anchored with no scope
 	// allowed, so it only ever matched unscoped ones and every code the
 	// customer ever used leaked three permanent entries.
 	// ponytail: anchored at the start too — unanchored, this matched ANY key on
 	// the router origin ending in "validity" and deleted it.
-	var perVoucher = /^(.+)?(remain|tempValidity|validity)(_.+)?$/;
+	var perVoucher = /^[A-Za-z0-9][A-Za-z0-9-]{2,31}(remain|tempValidity|validity)(_[^_]+)?$/;
 	function isOurs(k) {
 		if (fixed.indexOf(k) >= 0) { return true; }
 		for (var b = 0; b < scopedBases.length; b++) {
@@ -639,6 +943,10 @@ function loadSiteId() {
 			// "ERROR SITE ID" bucket before this fetch resolved.
 			__histBlocked = false;
 			adoptScopedVoucher(true);
+			// The paused view may already be on screen, painted under the
+			// pre-scope bucket. Repaint it now that the real venue scope is
+			// live, or the remaining time stays a dash until the next reload.
+			try { if (typeof STATE !== 'undefined' && STATE === "paused") { paintPausedView(); } } catch (e) {}
 			try {
 				// Venue-scoped with the bare key as the pre-scope fallback,
 				// then the bare key is dropped so there is one source.
@@ -654,10 +962,30 @@ function loadSiteId() {
 				}
 			} catch (e) {}
 				try { dbgLog("site scope: " + siteIdSuffix, "dbg-ok"); } catch (e) {}
-			try { renderSiteTag(); } catch (e) {}
+try { renderSiteTag(); } catch (e) {}
 		try { removeStorageValue('voucherHistory'); } catch (e) {}
+		try {
+			var stashedQ = getStorageValue('pendingHistQueue');
+			if (stashedQ) {
+				var sq = JSON.parse(stashedQ);
+				if (Array.isArray(sq)) { for (var qi = 0; qi < sq.length; qi++) { try { if (__pendingHistPush.indexOf(sq[qi]) === -1) { __pendingHistPush.push(sq[qi]); } } catch (e) {} } }
+				removeStorageValue('pendingHistQueue');
+			}
+		} catch (e) {}
 		try { flushPendingHistory(); } catch (e) {}
 		try { paintVoucherHistory(); } catch (e) {}
+			} else {
+				// Published but unreadable/placeholder: block history under the
+				// stale scope instead of silently writing into the wrong bucket.
+				try { dbgLog("site-id unreadable: " + m); } catch (e) {}
+				__histBlocked = true;
+				try { paintVoucherHistory(); } catch (e) {}
+				try {
+					if (!getSessionValue("__siteIdWarned")) {
+						try { setSessionValue("__siteIdWarned", "1"); } catch (e) {}
+						$.toast({ title: "Site ID missing", content: "Failed saving voucher history. Site ID file is missing.", type: "error", delay: 6000 });
+					}
+				} catch (e) { }
 			}
 		})
 		.fail(function (xhr, status, err) {
@@ -666,6 +994,7 @@ function loadSiteId() {
 			// No site id => a shared "ERROR SITE ID" bucket, so voucher history
 			// is neither saved nor shown until the file is published.
 			__histBlocked = true;
+			try { if (__pendingHistPush.length) { setStorageValue('pendingHistQueue', JSON.stringify(__pendingHistPush)); } } catch (e) {}
 			try { paintVoucherHistory(); } catch (e) {}
 			try {
 				if (!getSessionValue("__siteIdWarned")) {
@@ -724,45 +1053,24 @@ function timedStep(label, promise, soft) {
 	var t0 = (new Date()).getTime();
 	__bootTotal++;
 	__renderBoot();
+	var settled = false;
+	function settleOnce() { if (settled) { return; } settled = true; __bootSettle(label, t0, promise, soft); }
 	if (!promise || typeof promise.always !== "function") {
-		setTimeout(function () { __bootSettle(label, t0, promise, soft); }, 500);
+		setTimeout(settleOnce, 500);
 		return promise;
 	}
 	var elapsed0 = (new Date()).getTime() - t0;
 	var delay0 = Math.max(0, 500 - elapsed0);
 	setTimeout(function () {
 		try {
-			if (promise.state && promise.state() != "pending") { __bootSettle(label, t0, promise, soft); return; }
+			if (promise.state && promise.state() != "pending") { settleOnce(); return; }
 		} catch (e) {}
-		promise.always(function () { __bootSettle(label, t0, promise, soft); });
+		promise.always(settleOnce);
+		// Never-settling promise: settle soft after 9 s so a stuck step
+		// cannot strand the boot counter with rates never loaded.
+		setTimeout(settleOnce, 9000);
 	}, delay0);
 	return promise;
-}
-
-function checkNetStatus() {
-	var d = $.Deferred();
-	try {
-		if (typeof showInternetStatus !== "undefined" && !showInternetStatus) { d.resolve(); return d.promise(); }
-	} catch (e) { d.resolve(); return d.promise(); }
-	$.ajax({ type: "GET", url: "data/netstatus.txt?query=" + new Date().getTime(), timeout: ROUTER_TIMEOUT, dataType: "text" })
-	.done(function (t) {
-		try {
-			var raw = String(t || "").toLowerCase();
-			// Script writes plain up/down, but a RouterOS-created file can
-			// carry print-header comments — only an explicit "down" means offline.
-			if (raw.indexOf("down") !== -1) {
-				var msg = "No internet connection as of the moment, please try again later";
-				try { if (typeof offlineText !== "undefined" && offlineText) { msg = offlineText; } } catch (e2) {}
-				$("#netBannerText").text(msg); $("#netBanner").show();
-			} else {
-				try { dbgLog("net: up"); } catch (e2) {}
-				$("#netBanner").hide();
-			}
-		} catch (e) {}
-		d.resolve();
-	})
-	.fail(function () { try { $("#netBanner").hide(); } catch (e) {} try { if ((typeof showInternetStatus === "undefined" || showInternetStatus) && !getSessionValue("__netWarned")) { setSessionValue("__netWarned", "1"); $.toast({ title: "Status file missing", content: "Internet status file missing.", type: "error", delay: 5000 }); } } catch (e2) {} d.resolve(); });
-	return d.promise();
 }
 
 function boot() {
@@ -811,14 +1119,12 @@ function boot() {
 		// timer and the promise idempotent, so whichever fires first wins.
 		setTimeout(goReLogin, 9000);
 		try {
-			window.__siteIdLoaded = true;
 			var siteP = loadSiteId();
-			if (siteP && siteP.always) { siteP.always(goReLogin); } else { goReLogin(); }
+			if (siteP && siteP.always) { siteP.always(function () { try { window.__siteIdLoaded = true; } catch (e) {} goReLogin(); }); } else { window.__siteIdLoaded = true; goReLogin(); }
 		} catch (e) { goReLogin(); }
 		// Not awaited: this path must submit fast or the extend looks stuck.
 		// Fire-and-forget so a FAILED renew still shows rates + net banner.
 		try { loadRates(); } catch (e) {}
-		try { checkNetStatus(); } catch (e) {}
 		return;
 	}
 	try { if (!window.__siteIdLoaded) { loadSiteId(); } } catch (e) {}
@@ -827,6 +1133,12 @@ function boot() {
 	var bootStateKnown = false;
 	setTimeout(function () {
 		if (bootStateKnown) { hideBoot(); return; }
+		// boot.js already reported a hard failure or its own deadline?
+		// Do not paper over it with a generic "still trying".
+		try {
+			var bt = document.getElementById("bootText");
+			if (bt && /fail|too long|retry|error/i.test(bt.textContent || "")) { return; }
+		} catch (e) {}
 		setBootText("Loading… still trying, check your connection.");
 		setTimeout(hideBoot, 11000);
 	}, 9000);
@@ -844,13 +1156,12 @@ function boot() {
 		if (state == "paused") {
 			setTimeout(hideBoot, 120);
 			timedStep("Loading session", showValidity(), true);
-			timedStep("Checking internet", checkNetStatus(), true);
 			timedStep("Checking session", checkStalePause(), true).always(function () {
 				try { loadRates(); } catch (e) {}
 			});
 			return;
 		}
-		var jobs = [timedStep("Loading Wi-Fi rates", loadRates(), true), timedStep("Checking internet", checkNetStatus(), true)];
+		var jobs = [timedStep("Loading Wi-Fi rates", loadRates(), true)];
 		if (state == "login") {
 			jobs.push(timedStep("Checking session", resumeSession(), true));
 		} else {
@@ -901,7 +1212,9 @@ function detectState() {
 	var d = $.Deferred();
 	try {
 		var force = new URLSearchParams(location.search).get("state");
-		if (force == "login" || force == "status" || force == "paused") {
+		var stateOverrideOk = false;
+		try { stateOverrideOk = (getSessionValue("__allowStateOverride") == "1") || /[?&]dbg=1/.test(location.search || ""); } catch (e) {}
+		if (stateOverrideOk && (force == "login" || force == "status" || force == "paused")) {
 			try { dbgLog("state forced: " + force); } catch (e) { }
 			d.resolve(force);
 			return d.promise();
@@ -976,7 +1289,16 @@ function paintStateHaze(state) {
 function render(state) {
 	setPortalState(state);
 	try { paintStateHaze(state); } catch (e) {}
-	try { if (state != "login" && voucher) { pushVoucherHistory(voucher); } } catch (e) {}
+	// Record the code actually in use, not whatever the global happens to hold:
+	// with macAsVoucherCode the global can still be the boot-time MAC prefill
+	// even though the session is running on a stored voucher, and recording the
+	// MAC would push a code the customer never used into their history.
+	try {
+		if (state != "login") {
+			var hv = getActiveVoucher() || voucher;
+			if (hv) { pushVoucherHistory(hv); }
+		}
+	} catch (e) {}
 	try { paintVoucherHistory(); } catch (e) {}
 	try { dbgLog("render: " + state); } catch (e) { }
 	// Login succeeded (status/paused views): arm the next auto-login.
@@ -988,8 +1310,8 @@ function render(state) {
 		$("#statusVoucher").text(voucher);
 		try { if (typeof trialNoExtend !== "undefined" && trialNoExtend && voucher && voucher.indexOf("T-") === 0) { $("#statusVoucher").text("FREE TRIAL"); $("#extendBtn").hide(); } } catch (e) {}
 		try {
-			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); }
-			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); }
+			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); } else { $("#upUsed").text("—"); }
+			if (typeof window.bytesOut !== "undefined" && window.bytesOut) { $("#downUsed").text(window.bytesOut); } else { $("#downUsed").text("—"); }
 		} catch (e) {}
 		// Cache last known usage so the paused view can show it (router
 		// drops the byte counters once the session is paused/logged out).
@@ -1000,21 +1322,37 @@ function render(state) {
 		startCountdown();
 		previewUrgencyHook();
 	}
-	if (state == "paused") {
-		// detectState resolves "paused" off the local flag, so `voucher` may
-		// still be empty (or the pre-scope read) when this runs. Re-adopt
-		// before painting or the paused view shows a blank code and "—".
-		try { adoptScopedVoucher(false); } catch (e) {}
-		if (!voucher) { try { voucher = getActiveVoucher(); } catch (e) {} }
-		$("#pausedVoucher").text(voucher);
-		renderStoredRemain("#pauseRemainTime", voucher);
-		try {
-			var lastUp = getStorageValue(scopedKey("lastUp"));
-			var lastDown = getStorageValue(scopedKey("lastDown"));
-			if (lastUp) { $("#upUsedPaused").text(lastUp); }
-			if (lastDown) { $("#downUsedPaused").text(lastDown); }
-		} catch (e) {}
-	}
+	if (state == "paused") { paintPausedView(); }
+}
+
+// Paused-view paint, split out of render() because it has to run twice on a
+// refresh. boot() fires detectState() and loadSiteId() at the same moment, and
+// whichever HTTP response lands first wins. When detectState won, render()
+// painted the countdown under the "ERROR SITE ID" venue scope -- the site id
+// had not arrived yet, so activeVoucher and its <code>remain</code> key were
+// both missing and the boxes came up as a bare dash. loadSiteId() corrects the
+// scope afterwards but used to stop at adoptScopedVoucher(), so nothing ever
+// repainted. Hence this function is also called from there.
+function paintPausedView() {
+	// `voucher` is NOT trustworthy here, which is what made a refresh-while-
+	// paused show a bare dash. On a fresh load it holds the router's
+	// MAC-as-voucher placeholder, so it is non-empty, so adoptScopedVoucher()
+	// refuses to overwrite it (that guard exists to protect a live voucher),
+	// so the stored seconds were looked up under the MAC instead of the code
+	// pause() actually keyed them with. Read the active voucher straight back
+	// out of storage; fall back to `voucher` only when storage has none, which
+	// is the member-login case (no voucher code at all).
+	var vc = "";
+	try { vc = getActiveVoucher() || ""; } catch (e) {}
+	if (!vc) { try { vc = voucher || ""; } catch (e) {} }
+	$("#pausedVoucher").text(vc);
+	renderStoredRemain("#pauseRemainTime", vc);
+	try {
+		var lastUp = getStorageValue(scopedKey("lastUp"));
+		var lastDown = getStorageValue(scopedKey("lastDown"));
+		if (lastUp) { $("#upUsedPaused").text(lastUp); } else { $("#upUsedPaused").text("—"); }
+		if (lastDown) { $("#downUsedPaused").text(lastDown); } else { $("#downUsedPaused").text("—"); }
+	} catch (e) {}
 }
 
 function tbox(n, one, many) {
@@ -1026,8 +1364,15 @@ function boxesDhms(seconds) {
 	var d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600);
 	var m = Math.floor(t % 3600 / 60), s = t % 60;
 	var sep = '<span class="tsep">:</span>';
-	return [tbox(d, "Day", "Days"), tbox(h, "Hour", "Hours"),
-		tbox(m, "Min", "Mins"), tbox(s, "Sec", "Secs")].join(sep);
+	var units = [[d, "Day", "Days"], [h, "Hour", "Hours"], [m, "Min", "Mins"], [s, "Sec", "Secs"]];
+	// All four boxes, always. Dropping the leading zero units was a fix for a
+	// narrow-screen overflow that the .tbox sizing below now handles on its
+	// own, and it cost more than it bought: the row jumped from 4 boxes to 2
+	// the moment a session dropped under an hour, so the numbers the customer
+	// was reading moved sideways mid-countdown.
+	var out = [];
+	for (var i = 0; i < units.length; i++) { out.push(tbox(units[i][0], units[i][1], units[i][2])); }
+	return out.join(sep);
 }
 
 var __fitCache = {};
@@ -1042,6 +1387,7 @@ function fitCountdown(sel) {
 			__fitCache = {};
 			fitCountdown("#remainTime");
 			fitCountdown("#pauseRemainTime");
+			fitBrand();
 		});
 	}
 	el.css("font-size", "");
@@ -1053,6 +1399,20 @@ function fitCountdown(sel) {
 		guard++;
 	}
 	__fitCache[sel] = node.textContent;
+}
+
+function fitBrand() {
+	var el = $("#brandHeader");
+	if (el.length == 0) { return; }
+	var node = el.get(0);
+	el.css("font-size", "");
+	var size = parseFloat(el.css("font-size")) || 32;
+	var guard = 0;
+	while (size > 12 && node.scrollWidth > node.clientWidth + 1 && guard < 32) {
+		size -= 1;
+		el.css("font-size", size + "px");
+		guard++;
+	}
 }
 
 function paintRemainA11y(time) {
@@ -1082,7 +1442,13 @@ function startCountdown() {
 		return;
 	}
 	time = parseInt(time, 10);
-	if (!isFinite(time) || time < 0) { time = 0; }
+	if (!isFinite(time) || time <= 0) {
+		// sessiontime of 0 on this firmware means unlimited — never "expired".
+		// A real expiry ticks the clock down to 0 and the interval below fires.
+		window.__remainSecs = null;
+		$("#remainTime").html("Unlimited");
+		return;
+	}
 	window.__remainSecs = time;
 	// The original session length, kept across re-renders so the 5m/1m
 	// warnings still arm at the right thresholds after a mid-session restart.
@@ -1120,7 +1486,7 @@ function startCountdown() {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
 			clearInterval(window.remainingTimer);
 			try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); } } catch (e) {}
-			window.__logoutTimer = setTimeout(function () { document.logout.submit(); }, 6000);
+			window.__logoutTimer = setTimeout(function () { try { if (document.logout && document.logout.submit) { document.logout.submit(); } } catch (e) {} }, 6000);
 		}
 	}, 1000);
 }
@@ -1145,17 +1511,43 @@ function paintCountdownUrgency(time) {
 
 function applyFlags() {
 	if (typeof isMultiVendo !== 'undefined' && isMultiVendo && $("#vendoSelected").length > 0) {
+		var vendoAutoResolved = true;
 		if (multiVendoOption == 1) {
+			vendoAutoResolved = false;
 			var currentHotspot = hotspotAddress.split(":")[0];
 			for (var i = 0; i < multiVendoAddresses.length; i++) {
 				if (multiVendoAddresses[i].hotspotAddress == currentHotspot) {
 					vendorIpAddress = multiVendoAddresses[i].vendoIp;
+					vendoAutoResolved = true;
+					break;
+				}
+			}
+			if (!vendoAutoResolved) {
+				for (var i2 = 0; i2 < multiVendoAddresses.length; i2++) {
+					if (multiVendoAddresses[i2].interfaceName == interfaceName) {
+						vendorIpAddress = multiVendoAddresses[i2].vendoIp;
+						vendoAutoResolved = true;
+						break;
+					}
 				}
 			}
 		} else if (multiVendoOption == 2) {
+			vendoAutoResolved = false;
 			for (var j = 0; j < multiVendoAddresses.length; j++) {
 				if (multiVendoAddresses[j].interfaceName == interfaceName) {
 					vendorIpAddress = multiVendoAddresses[j].vendoIp;
+					vendoAutoResolved = true;
+					break;
+				}
+			}
+			if (!vendoAutoResolved) {
+				var currentHotspot = hotspotAddress.split(":")[0];
+				for (var j2 = 0; j2 < multiVendoAddresses.length; j2++) {
+					if (multiVendoAddresses[j2].hotspotAddress == currentHotspot) {
+						vendorIpAddress = multiVendoAddresses[j2].vendoIp;
+						vendoAutoResolved = true;
+						break;
+					}
 				}
 			}
 		} else {
@@ -1177,17 +1569,52 @@ function applyFlags() {
 			var selectedVendo = getStorageValue(scopedKey('selectedVendo'));
 			if (!selectedVendo) { selectedVendo = getStorageValue('selectedVendo'); }
 			if (selectedVendo) {
-				vendorIpAddress = selectedVendo;
+				// A localStorage write must never redirect portal traffic to an
+				// arbitrary host — only honor a plausible address, and only one
+				// the admin actually configured when the list is known.
+				var vendoOk = /^[A-Za-z0-9.-]{3,63}$/.test(selectedVendo);
+				try {
+					if (vendoOk && typeof multiVendoAddresses !== 'undefined' && multiVendoAddresses && multiVendoAddresses.length) {
+						vendoOk = false;
+						for (var vi = 0; vi < multiVendoAddresses.length; vi++) {
+							if (multiVendoAddresses[vi].vendoIp === selectedVendo) { vendoOk = true; break; }
+						}
+					}
+				} catch (e) {}
+				if (vendoOk) { vendorIpAddress = selectedVendo; } else { try { removeStorageValue(scopedKey('selectedVendo')); removeStorageValue('selectedVendo'); } catch (e) {} }
 			}
 			$("#vendoSelected").val(vendorIpAddress);
 			$("#vendoSelected").off("change.vendo").on("change.vendo", function () {
 				vendorIpAddress = $("#vendoSelected").val();
 				setStorageValue(scopedKey('selectedVendo'), vendorIpAddress);
+				try { loadRates(); } catch (e) {}
 			});
 			$("#vendoSelected").trigger("change");
 			// Manual multi-vendo: isMultiVendo is the single switch,
 			// picker always shows here (auto modes resolve silently).
 			$("#vendoSelectDiv").attr("style", "display: block");
+		}
+		if (multiVendoOption == 1 || multiVendoOption == 2) {
+			if (!vendoAutoResolved) {
+				// Auto-match failed: fall back to the dropdown so the
+				// customer can still pick the right vendo instead of
+				// silently hitting the wrong box and getting no rates.
+				$("#vendoSelected").empty();
+				for (var k = 0; k < multiVendoAddresses.length; k++) {
+					$("#vendoSelected").append($('<option>', {
+						value: multiVendoAddresses[k].vendoIp,
+						text: multiVendoAddresses[k].vendoName
+					}));
+				}
+				$("#vendoSelected").val(vendorIpAddress || (multiVendoAddresses && multiVendoAddresses[0] ? multiVendoAddresses[0].vendoIp : ""));
+				vendorIpAddress = String($("#vendoSelected").val() || vendorIpAddress || "");
+				$("#vendoSelected").off("change.vendo").on("change.vendo", function () {
+					vendorIpAddress = $("#vendoSelected").val();
+					setStorageValue(scopedKey('selectedVendo'), vendorIpAddress);
+					try { loadRates(); } catch (e) {}
+				});
+				$("#vendoSelectDiv").attr("style", "display: block");
+			}
 		}
 	}
 
@@ -1208,30 +1635,40 @@ function applyFlags() {
 	}
 	try {
 		if (typeof brandHeaderHtml !== 'undefined' && brandHeaderHtml) {
-			$("#brandHeader").html(brandSafe(brandHeaderHtml));
-			var plain = brandHeaderHtml.replace(/<[^>]*>/g, "");
+		$("#brandHeader").html(brandSafe(brandHeaderHtml));
+		try { fitBrand(); } catch (e) {}
+		var plain = brandHeaderHtml.replace(/<[^>]*>/g, "");
 			$("#bootBrand").text(plain);
 			document.title = plain + " Portal";
 		}
-		if (typeof footerBrandText !== 'undefined' && footerBrandText) $("#footerBrand").text(footerBrandText);
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		try { if (typeof currencySym !== 'undefined' && currencySym) $("#coinCur").text(currencySym); } catch (e) {}
-		if (typeof footerSubText !== 'undefined' && footerSubText) $("#footerSub").text(footerSubText);
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}
 		try { if (typeof showTrialLogin !== "undefined" && showTrialLogin) { $("#trialWrap").show(); } } catch (e) {}
 		try { if (typeof showConvertVoucher !== "undefined" && !showConvertVoucher) { $("#convertWrap").hide(); } } catch (e) {}
 		// Pre-fill the MAC as the voucher. Skipped when the box already
 		// holds something, so a returning customer keeps the code that
 		// actually has time on it.
+		//
+		// This runs before the site id (and therefore the venue bucket) is
+		// known, so the prefill MUST be declared as ours -- __macPrefill,
+		// __adoptedPre and __prefillVoucher together -- or adoptScopedVoucher()
+		// treats the MAC as something the customer typed and refuses to replace
+		// it with the stored voucher once the scope arrives. That bug made
+		// auto-login submit the MAC on every reload.
 		try {
 			if (typeof macAsVoucherCode !== "undefined" && macAsVoucherCode && !$("#voucherInput").val() && !getActiveVoucher()) {
 				voucher = macNoColon();
 				$("#voucherInput").val(voucher);
+				window.__macPrefill = voucher;
+				window.__adoptedPre = voucher;
+				window.__prefillVoucher = voucher;
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
 		try { if (!$("#portalVer").text()) { $("#portalVer").text(SOUND_V.replace(/^\?v=/, "v")); } } catch (e) {}
 		try { renderSiteTag(); } catch (e) {}
+		try { renderFooterSocial(); } catch (e) {}
 	} catch(e) {}
 }
 
@@ -1241,7 +1678,45 @@ function renderSiteTag() {
 		if (!el || el.length === 0) { return; }
 		var s = "";
 		try { s = venueScopeSuffix(); } catch (e) {}
-		if (s) { el.text(s); }
+		// venueScopeSuffix() answers "ERROR SITE ID" when the router never
+		// published /data/site-id.txt. Printing that in the footer of every
+		// page tells the customer nothing and reads as a broken build; an
+		// operator who does publish a site id still sees it.
+		if (!s || s === "ERROR_SITE_ID") { el.text("").hide(); return; }
+		el.text(s).show();
+	} catch (e) {}
+}
+
+// Glyphs for the footer link, keyed by the footerSocialIcon setting so the
+// same pill can point at a Facebook page or any other site without touching
+// portal.html. Unknown keys fall back to the globe: a wrong-but-plausible
+// brand icon reads worse than a neutral one.
+var SOCIAL_ICONS = {
+	facebook: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.593 0 0 .593 0 1.325v21.351C0 23.407.593 24 1.325 24H12.82v-9.293H9.692v-3.62h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24h-1.918c-1.5 0-1.793.713-1.793 1.763v2.313h3.584l-.467 3.62h-3.117V24h6.112c.73 0 1.323-.593 1.323-1.325V1.325C24 .593 23.407 0 22.675 0z"/></svg>',
+	globe: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+};
+
+// The portal's one outbound link. Hidden until settings.json supplies a URL,
+// so the markup ships without a hardcoded destination and an unconfigured
+// router renders nothing rather than a link that goes nowhere.
+function renderFooterSocial() {
+	try {
+		var el = $("#footerSocial");
+		if (!el || el.length === 0) { return; }
+		var url = "";
+		try { if (typeof footerSocialUrl !== "undefined" && footerSocialUrl) { url = String(footerSocialUrl).replace(/^\s+|\s+$/g, ""); } } catch (e) {}
+		// http(s) only, and no whitespace. settings.json is operator-editable
+		// and a typo there would otherwise let a javascript: URL through into
+		// an anchor customers tap.
+		if (!/^https?:\/\/[^\s]+$/i.test(url)) { el.removeAttr("href").hide(); return; }
+		var label = "Facebook";
+		try { if (typeof footerSocialLabel !== "undefined" && footerSocialLabel) { label = String(footerSocialLabel); } } catch (e) {}
+		var key = "facebook";
+		try { if (typeof footerSocialIcon !== "undefined" && footerSocialIcon) { key = String(footerSocialIcon).toLowerCase(); } } catch (e) {}
+		if (!SOCIAL_ICONS[key]) { key = "globe"; }
+		try { $("#socialIco").attr("class", "sico sico-" + key).html(SOCIAL_ICONS[key]); } catch (e) {}
+		try { $("#socialLabel").text(label); } catch (e) {}
+		el.attr("href", url).attr("aria-label", label + " page, opens in a new tab").show();
 	} catch (e) {}
 }
 
@@ -1262,6 +1737,80 @@ function toggleBlock(id) {
 			head.innerHTML = h.replace("&#9662;", "&#9656;").replace("▾", "▸");
 		}
 	}
+}
+
+// Persistent coin-loss warning, painted whenever the insert state changes.
+//
+// The browser's own unload dialog cannot carry our wording: Chrome and Firefox
+// discard e.returnValue and show fixed text ("Changes you made may not be
+// saved"), and Safari ignores beforeunload entirely. So the warning the
+// customer actually reads has to be on the page, for as long as leaving the
+// page would cost them money.
+// One line that always says what the coin box is doing and what to do next.
+// The toasts used to carry this, but they vanish in 2-4s and the panel is a
+// modal people read at arm's length from a machine. Deliberately does NOT
+// repeat the per-second countdown: a live region that changes every second
+// is the reason #loNote lost its aria-live.
+// Reveals the "add time with another code" field. Kept collapsed until asked
+// for: it is a different job from paying, and it used to sit under the CANCEL
+// button where a thumb lands.
+function paintConvertBank() {
+	var box = document.getElementById('convertBank');
+	if (!box) { return; }
+	if (histBlocked()) { box.textContent = "Voucher bank is unavailable on this network."; return; }
+	var b = getVoucherBank();
+	if (!b.length) { box.textContent = "No banked codes."; return; }
+	box.innerHTML = "";
+	b.forEach(function (e) {
+		box.appendChild(bankCodeRow(e, function () {
+			try { $("#convertVoucherCode").val(e.v); } catch (err) {}
+			window.__convertBankVc = e.v;
+			try { convertVoucherAction(); } catch (err) {}
+		}));
+	});
+}
+function toggleConvertBlock() {
+	try {
+		var btn = document.getElementById("convertToggle");
+		var body = document.getElementById("convertBody");
+		if (!btn || !body) { return false; }
+		var open = body.style.display != "none" && body.offsetParent !== null;
+		body.style.display = open ? "none" : "";
+		btn.setAttribute("aria-expanded", open ? "false" : "true");
+		if (open) { try { body.getElementsByTagName("input")[0].value = ""; } catch (e) {} }
+		else { try { paintConvertBank(); } catch (e) {} try { body.getElementsByTagName("input")[0].focus(); } catch (e) {} }
+	} catch (e) {}
+	return false;
+}
+
+function paintCoinStage() {
+	var el = document.getElementById("coinStage");
+	if (!el) { return; }
+	var txt = "";
+	try {
+		var panel = document.getElementById("coinPanel");
+		var open = false;
+		try { open = !!panel && panel.offsetParent !== null; } catch (e) { open = !!panel && panel.style.display != "none"; }
+		if (!open) { txt = ""; }
+		else if (window.__useVoucherBusy) { txt = "Confirming your purchase\u2026"; }
+		// No idle/coins text on purpose: the customer already sees the amount
+		// on the progress bar and the DONE button lights up when it is live.
+	} catch (e) { txt = ""; }
+	try { el.textContent = txt; el.style.display = txt ? "" : "none"; } catch (e) {}
+}
+
+function paintCoinLiveNote() {
+	var el = document.getElementById("coinLiveNote");
+	if (!el) { return; }
+	if (!window.__coinInsertLive) { el.style.display = "none"; return; }
+	var cur = "";
+	try { cur = (typeof currencySym !== "undefined" && currencySym) ? currencySym : ""; } catch (e) {}
+	var coins = 0;
+	try { coins = parseInt(totalCoinReceived, 10) || 0; } catch (e) {}
+	el.textContent = coins > 0
+		? cur + coins + " inserted — leaving this page now loses it."
+		: "Leaving this page now cancels the coin insert.";
+	el.style.display = "";
 }
 
 function showCoinPanel() {
@@ -1294,10 +1843,14 @@ function showCoinPanel() {
 		window.__coinEscBound = true;
 		try {
 			document.addEventListener("keydown", function (ev) {
-				if ((ev.key === "Escape" || ev.keyCode === 27) && window.__histOpen) {
-					try { closeHistoryView(); } catch (e) {}
-					return;
-				}
+			if ((ev.key === "Escape" || ev.keyCode === 27) && window.__bankOpen) {
+				try { closeBankView(); } catch (e) {}
+				return;
+			}
+			if ((ev.key === "Escape" || ev.keyCode === 27) && window.__histOpen) {
+				try { closeHistoryView(); } catch (e) {}
+				return;
+			}
 				if ((ev.key === "Escape" || ev.keyCode === 27) && window.__coinOpen) {
 					try { cancelCoin(); } catch (e) {}
 				}
@@ -1305,13 +1858,21 @@ function showCoinPanel() {
 		} catch (e) {}
 	}
 	window.__coinOpen = true;
+	paintCoinStage();
+	// Pull-to-refresh is a browser gesture: beforeunload cannot be relied on
+	// to stop it, so the coin window suppresses it outright. Everywhere else
+	// swipe-down refresh stays available.
+	document.body.classList.add("coin-live");
 }
 
 // One label for both flows: the button finishes the insert, it does not
 // "claim" anything. The coin panel already shows time + code amounts.
 function restoreCoinChrome() {
 	document.body.classList.remove("coin-focus");
+	document.body.classList.remove("coin-live");
 	window.__coinOpen = false;
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	$("#statusHero").attr("style", "");
 	$("#view-status .btnrow").attr("style", "");
 	$("#voucherBlock").attr("style", "");
@@ -1353,6 +1914,8 @@ function cancelCoinForfeit() {
 	clearInterval(timer);
 	timer = null;
 	insertingCoin = false;
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	window.__useVoucherBusy = false;
 	coinToastKey = null;
 	sfxStopLoop();
@@ -1370,6 +1933,24 @@ function cancelCoinForfeit() {
 	// Always release the ESP slot — including after a forfeit — so the next
 	var cancelVc = voucher;
 	try { if (window.__cancelVoucher) { cancelVc = window.__cancelVoucher; } } catch (e) {}
+	// Re-enable anything the insert paths left disabled, then skip the
+	// router call entirely when there is no code to cancel.
+	try { $("#saveVoucherButton").attr('disabled', false); } catch (e) {}
+	try { $("#cncl").html("Cancel"); $("#cncl").attr('disabled', false); } catch (e) {}
+	if (!cancelVc) {
+		try { dbgLog("cancel: no active code, skipping cancelTopUp"); } catch (e) {}
+		totalCoinReceived = 0;
+		try {
+			if (window.__stashedVoucher) {
+				if (!voucher) { voucher = window.__stashedVoucher; }
+				window.__stashedVoucher = null;
+				if (!$("#voucherInput").val()) { $("#voucherInput").val(voucher); }
+			}
+		} catch (e) {}
+		try { restoreCoinChrome(); } catch (e) {}
+		render(STATE);
+		return;
+	}
 	$.ajax({
 		type: "POST",
 		url: "http://" + vendorIpAddress + "/cancelTopUp",
@@ -1387,7 +1968,7 @@ function cancelCoinForfeit() {
 		if (window.__stashedVoucher) {
 			voucher = window.__stashedVoucher;
 			window.__stashedVoucher = null;
-			$("#voucherInput").val(voucher);
+			if (!$("#voucherInput").val()) { $("#voucherInput").val(voucher); }
 		}
 	} catch (e) {}
 	render(STATE);
@@ -1405,7 +1986,8 @@ function setPortalState(s) {
 	$("#view-paused").attr("style", s == "paused" ? "display: block" : "display: none");
 	$("#ratesSection").attr("style", "display: block");
 	$("#saveVoucherButton").attr('data-save-type', s == "status" ? "extend" : "purchase");
-	if (bootDone && (s == "status" || s == "paused") && $("#expirationTime").html() == "") {
+	if (bootDone && (s == "status" || s == "paused") && window.__validityFor != voucher) {
+		window.__validityFor = voucher;
 		showValidity();
 	}
 }
@@ -1457,9 +2039,9 @@ function loadRates() {
 		$("#ratesBody").html(html);
 	}).fail(function (xhr, status, err) {
 		// Timeout vs refuse vs HTTP error need different fixes (power,
-		var why = (status === "timeout")
-			? "Rates unavailable — vendo not answering (timeout). Check power & WiFi."
-			: "Rates unavailable — vendo error (" + (xhr && xhr.status ? "HTTP " + xhr.status : status || "network") + ").";
+		// Customer-facing copy stays plain; the machine detail already goes to
+		// dbgAjaxErr below for whoever is debugging the box.
+		var why = "Rates are unavailable right now.";
 		$("#ratesBody").html('<p class="rates-err">' + why + "</p>");
 		dbgAjaxErr("getRates", xhr, status, err);
 	});
@@ -1524,7 +2106,7 @@ function checkStalePause() {
 		}
 		d.resolve(stale);
 	})
-	.fail(function () { d.resolve(false); });
+	.fail(function () { try { dbgLog("stale-pause check failed, keeping paused view"); } catch (e) {} d.resolve(false); });
 	return d.promise();
 }
 
@@ -1532,8 +2114,35 @@ function resumeSession() {
 	var d = $.Deferred();
 	if (typeof STATE !== 'undefined' && STATE != "login") { d.resolve(); return d.promise(); }
 	// Router rejection lands back here with loginError set — show it
-	// BEFORE the one-shot guard below, or a failed submit (which marks
-	if (loginError != "") {
+	// BEFORE the one-shot auto-login guard below, or a failed submit (which
+	// marks auto-login as tried) would swallow the rejection and the customer
+	// would just see the login box again with no explanation.
+	//
+	// Two sources, one haystack. $(error) is the text from errors.txt, which
+	// operators overwrite with translations -- on a non-English router none of
+	// the English phrases below exist and every failure fell through to the
+	// last branch, telling the customer their code was invalid and wiping
+	// their stored voucher. $(error-orig) is RouterOS's own untranslated text
+	// and is identical in every locale, so search that too. Both are
+	// concatenated rather than tried in turn: which one carries the useful
+	// text varies by error and by router.
+	var eh = String(loginError == null ? "" : loginError).toLowerCase();
+	try {
+		var eo = String(typeof loginErrorOrig !== "undefined" && loginErrorOrig != null ? loginErrorOrig : "").toLowerCase();
+		if (eo && eo !== eh) { eh = eh ? (eh + " || " + eo) : eo; }
+	} catch (e3) { }
+	// Match against a second copy with "+" turned back into spaces. The router
+	// hands this text over form-encoded, so a real message arrives as
+	// "no+more+sessions+are+allowed+for+user+762df90eb213" and every phrase
+	// below misses it. login.html fixes this at the source too, but the matcher
+	// must not depend on which shell delivered the text. Display keeps the raw
+	// form on purpose: "the Wi-Fi said: ..." is a diagnostic, and seeing the
+	// exact bytes the router sent is more useful than a prettified string.
+	var em = eh.replace(/\+/g, " ");
+	// Guard on the combined text, not on $(error) alone: a router that leaves
+	// $(error) empty but fills $(error-orig) would otherwise skip this whole
+	// block and fail silently with no toast at all.
+	if (eh != "") {
 		// A failed RESUME arrives here with the flag still set. Keep it, or a
 		// customer who is merely online on another device comes back to an
 		// auto-login on the next refresh instead of their paused view.
@@ -1542,18 +2151,58 @@ function resumeSession() {
 		if (!resumePending) { removePausedFlag(); }
 		try { removeSessionValue("__resumePending"); } catch (e) {}
 		try { markAutoLoginTried(); } catch (e) {}
-		var loginErrLower = String(loginError).toLowerCase();
-		if (loginErrLower.indexOf("no more sessions") !== -1 || loginErrLower.indexOf("session limit") !== -1 || loginErrLower.indexOf("simultaneous") !== -1) {
+		// This text embeds $(username) — the customer's code — so it stays in the
+		// local debug log (Log menu) and is never sent anywhere.
+		try { dbgLog("login error raw: " + eh, "dbg-err"); } catch (e) { }
+		// Keys and phrasings taken from RouterOS's errors.txt: user-session-limit,
+		// auth-in-progress, license-session-limit, shared-users. Match the wording
+		// rather than trusting one phrase, since operators edit this file freely.
+		//
+		// Also matched on bare tokens, not just whole phrases. With User Manager in
+		// front of the hotspot the reply comes from radius-reply, whose text is
+		// whatever the operator typed into their admin panel -- so the real string
+		// in the field is things like "already in use" or "currently active", which
+		// no exact phrase above covers. That is what let a live code fall through to
+		// the invalid-voucher branch. These tokens are deliberately specific enough
+		// that no genuine invalid-credential or spent-code message contains them.
+		var inUse = (em.indexOf("no more sessions") !== -1
+			|| em.indexOf("user-session-limit") !== -1
+			|| em.indexOf("session limit") !== -1
+			|| em.indexOf("shared users") !== -1
+			|| em.indexOf("shared-users") !== -1
+			|| em.indexOf("simultaneous") !== -1
+			|| em.indexOf("already authorizing") !== -1
+			|| em.indexOf("auth-in-progress") !== -1
+			|| em.indexOf("already active") !== -1
+			|| em.indexOf("already logged in") !== -1
+			|| em.indexOf("already online") !== -1
+			|| em.indexOf("already logged") !== -1
+			|| em.indexOf("already") !== -1
+			|| em.indexOf("in use") !== -1
+			|| em.indexOf("in-use") !== -1
+			|| em.indexOf("currently active") !== -1
+			|| em.indexOf("is active") !== -1
+			|| em.indexOf("on another device") !== -1
+			|| em.indexOf("user limit") !== -1
+			|| em.indexOf("login limit") !== -1
+			|| em.indexOf("device limit") !== -1);
+		if (inUse) {
 			// Code valid but online elsewhere (shared-users=1) — keep it
 			try { $('#voucherInput').val(voucher); } catch (e) {}
 			try { dbgLog("resume: code in use elsewhere, voucher kept", "dbg-err"); } catch (e) { }
 			$.toast({ title: 'In use', content: "This code is online on another device — pause it there or wait 30s, then tap CONNECT to retry", type: 'warning', delay: 8000 });
-		} else if (loginErrLower.indexOf("uptime limit") !== -1) {
+		} else if (em.indexOf("uptime limit") !== -1 || em.indexOf("uptime-limit") !== -1 || em.indexOf("traffic limit") !== -1 || em.indexOf("traffic-limit") !== -1 || em.indexOf("time has all been used") !== -1 || em.indexOf("traffic has all been used") !== -1) {
+			// UpTime and Traffic are the same verdict for the customer: the code is
+			// spent, retrying will never help. Traffic was unmapped before and fell
+			// to the invalid-voucher branch, which is a lie and wiped the voucher.
+			var spentVoucher = voucher;
 			removeActiveVoucher();
 			voucher = "";
-			try { dbgLog("resume: uptime exhausted, voucher cleared", "dbg-err"); } catch (e) { }
-			$.toast({ title: 'Expired', content: "This code has used up all its time", type: 'error', delay: 5000 });
-		} else if (loginErrLower.indexOf("invalid username or password") !== -1 || loginErrLower.indexOf("wrong password") !== -1) {
+			try { removePausedFlag(); } catch (e) {}
+			try { $("#voucherInput").val(""); } catch (e) {}
+			try { dbgLog("resume: uptime/traffic exhausted, voucher cleared", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Expired', content: (spentVoucher ? ("Your " + spentVoucher + " time has all been used") : "This code has used up all its time"), type: 'error', delay: 5000 });
+		} else if (em.indexOf("invalid username or password") !== -1 || em.indexOf("invalid-username") !== -1 || em.indexOf("wrong password") !== -1) {
 			// The box writes the new user to the router over telnet and
 			// never reads the reply, so a code it just minted can be
 			// rejected for a second or two. Retry once before believing it.
@@ -1576,12 +2225,55 @@ function resumeSession() {
 				removeSessionValue("__loginRetry");
 			} catch (e) { }
 			try { dbgLog("resume: bad credentials, giving up", "dbg-err"); } catch (e) { }
-			$.toast({ title: 'Login failed', content: "Wrong username or password — check and try again", type: 'error', delay: 5000 });
-		} else {
+			// invalid-username is RouterOS's own "this username/password pair is
+			// wrong", so this is the one branch that may call the code invalid and
+			// drop it. Everywhere else an unrecognised string is treated as "we do
+			// not know", never as proof the customer wasted their money.
 			removeActiveVoucher();
 			voucher = "";
-			try { dbgLog("resume: rejected by loginError, voucher cleared", "dbg-err"); } catch (e) { }
-			$.toast({ title: 'Error', content: "Invalid voucher, please make sure voucher is valid", type: 'error', delay: 5000 });
+			try { removePausedFlag(); } catch (e) {}
+			try { $("#voucherInput").val(""); } catch (e) {}
+			try { dbgLog("resume: wrong username or password, voucher cleared", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Invalid voucher', content: "That code is not valid, please check it and try again", type: 'error', delay: 6000 });
+		} else if (em.indexOf("this mac address is not yours") !== -1 || em.indexOf("not allowed to log in from this mac") !== -1) {
+			// wrong-mac-username / invalid-mac. The code itself is fine but is
+			// pinned to another device, so it can never work here: clearing it and
+			// saying so beats leaving a code in the box that always fails.
+			removeActiveVoucher();
+			voucher = "";
+			try { removePausedFlag(); } catch (e) {}
+			try { $("#voucherInput").val(""); } catch (e) {}
+			try { dbgLog("resume: code locked to another MAC, voucher cleared", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Wrong device', content: "This code is tied to another device and cannot be used here", type: 'error', delay: 6000 });
+		} else if ((function () {
+			// Router-side or infrastructure failure. NOT proof the code is bad, so
+			// keep the voucher and let the next tap succeed. Matched on the display
+			// text, never on the errors.txt key: the key does not appear in the
+			// message (config-error reads "configuration error", auth-in-progress
+			// reads "already authorizing, retry later"), which is exactly why half
+			// of these used to fall through and wipe a perfectly good code.
+			var S = ["internal error", "configuration error", "not logged in",
+				"no more free addresses", "shutting down", "challenge response",
+				"radius", "did not respond", "not allowed", "invalid parameters"];
+			for (var i = 0; i < S.length; i++) { if (em.indexOf(S[i]) !== -1) { return true; } }
+			return false;
+		})()) {
+			try { dbgLog("resume: router-side rejection, voucher kept", "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Cannot connect', content: "The Wi-Fi could not check your code just now — please tap CONNECT again in a moment", type: 'warning', delay: 6000 });
+		} else {
+			// Nothing matched. The router said something this portal has never seen,
+			// so the honest verdict is "unknown", not "your code is fake". The old
+			// branch claimed invalid and deleted the customer's voucher, which is how
+			// a live code ended up being called wrong in the field. Keep the code,
+			// let them retry, and echo the raw text so the operator can see exactly
+			// what the router said instead of guessing at it again. Safe to show:
+			// it embeds $(username), which is the code the customer just typed.
+			try {
+				var raw = eh.split(" || ")[0];
+				if (raw.length > 90) { raw = raw.substring(0, 90) + "..."; }
+			} catch (e) { var raw = ""; }
+			try { dbgLog("resume: UNMAPPED error, voucher kept: " + eh, "dbg-err"); } catch (e) { }
+			$.toast({ title: 'Cannot connect', content: "The Wi-Fi said: " + (raw || "unknown error") + " — please tap CONNECT again", type: 'warning', delay: 9000 });
 		}
 		d.resolve();
 		return d.promise();
@@ -1742,19 +2434,19 @@ function fallbackValidity() {
 		if (!isFinite(t.getTime())) {
 			removeVouchValue(voucher, "validity");
 			removeVouchValue(voucher, "tempValidity");
-			renderExpiration("Not Available");
+			renderExpiration("—");
 			return false;
 		}
 		if (t.getTime() < new Date().getTime()) {
 			removeVouchValue(voucher, "validity");
 			removeVouchValue(voucher, "tempValidity");
-			renderExpiration("Not Available");
+			renderExpiration("—");
 			return false;
 		}
 		renderExpiration(formatExpiryLeft(t));
 		return true;
 	}
-	renderExpiration("Not Available");
+	renderExpiration("—");
 	return false;
 }
 
@@ -1772,13 +2464,20 @@ function insertBtnAction() {
 	// insert, and the ===5 warning can never re-arm.
 	checkCoinFailStreak = 0;
 	insertingCoin = true;
+	// Arms the beforeunload guard for the whole insert, including the wait
+	// before the ESP reports anything. Cleared by every exit below.
+	window.__coinInsertLive = true;
+	paintCoinLiveNote();
+	try { dbgLog("guard: armed (coin insert live)"); } catch (e) { }
 	coinToastKey = null;
 	$("#saveVoucherButton").attr('data-save-type', STATE == "status" ? "extend" : "purchase");
 	try { dbgLog("insert: type=" + $("#saveVoucherButton").attr('data-save-type') + " page=" + PAGE); } catch (e) { }
 	$("#progressDiv").css('width', '100%');
 	$("#progressDiv").attr("aria-valuenow", 100).attr("aria-valuetext", "Waiting for coins");
 	$("#progressDiv").removeClass("time-half time-low").addClass("time-ok");
-	$("#progressLabel").text("");
+	// Caption the track instead of blanking it: an empty 38px bar with no
+	// text reads as a broken widget.
+	$("#progressLabel").text("Confirming purchase…");
 	$("#saveVoucherButton").prop('disabled', true);
 	$("#cncl").prop('disabled', false);
 	$("#loaderDiv").attr("class", "spinner");try{$("#paidNote").text("Confirming purchase…");}catch(e){}
@@ -1799,10 +2498,14 @@ function insertBtnAction() {
 				try { probe = String(data == null ? "" : data); } catch (e) { probe = ""; }
 				if (probe.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					try { dbgLog("insert: already logged in, bouncing to status"); } catch (e) { }
-					location.reload();
-				} else {
-					callTopupAPI(0);
-				}
+				window.__internalNav = true;
+				location.reload();
+				// If the reload never happened (blocked/failed), disarm the latch
+				// again or the coin-insert guard stays dead for the tab's life.
+				setTimeout(function () { window.__internalNav = false; }, 4000);
+			} else {
+				callTopupAPI(0);
+			}
 			},
 			error: function () {
 				try { dbgLog("insert: status probe failed, topping up"); } catch (e) { }
@@ -1819,9 +2522,10 @@ function insertBtnAction() {
 function restoreStashedVoucher() {
 	try {
 		if (window.__stashedVoucher) {
-			voucher = window.__stashedVoucher;
-			setActiveVoucher(voucher);
-			if (!$("#voucherInput").val()) { $("#voucherInput").val(voucher); }
+			// Never clobber a different code the customer typed while the
+			// coin window was open — only fill the empty slot.
+			if (!voucher) { voucher = window.__stashedVoucher; setActiveVoucher(voucher); }
+			if (!$("#voucherInput").val()) { $("#voucherInput").val(voucher || window.__stashedVoucher); }
 			window.__stashedVoucher = null;
 		}
 	} catch (e) {}
@@ -1902,6 +2606,13 @@ function callTopupAPI(retryCount, gen) {
 				clearInterval(timer);
 				timer = null;
 				insertingCoin = false;
+				// No slot was ever opened on this path (coin.slot.banned and the
+				// other /topUp rejects), so nothing is at stake and the unload
+				// guard must stand down too. Otherwise a customer who taps
+				// INSERT COIN while banned is asked to confirm every later
+				// navigation for a coin session that never started.
+				window.__coinInsertLive = false;
+				try { paintCoinLiveNote(); } catch (e) {}
 				restoreStashedVoucher();
 			}
 	}, error: function (xhr, status, err) {
@@ -1915,6 +2626,10 @@ function callTopupAPI(retryCount, gen) {
 					$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 					notifyCoinSlotError("coin.slot.notavailable");
 					insertingCoin = false;
+					// Same as the plain-reject branch: the slot never opened, so
+					// the guard stands down with insertingCoin.
+					window.__coinInsertLive = false;
+					try { paintCoinLiveNote(); } catch (e) {}
 					restoreStashedVoucher();
 				}
 			}, 1000);
@@ -1927,6 +2642,7 @@ function saveVoucherBtnAction() {
 	// Entry guard: Done double-tap and the wait-expiry auto-finalize used
 	if (window.__useVoucherBusy) { return; }
 	window.__useVoucherBusy = true;
+	paintCoinStage();
 	// Snapshot the slot total BEFORE anything can clear it: the poll and the
 	// POST race, and "did the customer pay" must not be read afterwards.
 	var paidCoins = totalCoinReceived;
@@ -1966,14 +2682,14 @@ function saveVoucherBtnAction() {
 			$("#loaderDiv").attr("class", "spinner hidden");try{$("#paidNote").text("");}catch(e){}
 			try { dbgLog("useVoucher resp " + JSON.stringify(data).slice(0, 200), (data && data.status == "true") ? "dbg-ok" : "dbg-err"); } catch (e) { }
 		if (data.status == "true") {
-			setVouchValue(voucher, "tempValidity", data.validity);
+			try { if (getVouchValue(voucher, "tempValidity") !== data.validity) { setVouchValue(voucher, "tempValidity", data.validity); } } catch (e) {}
 			try { sfxPlayFile("success", snd("assets/sounds/success.mp3"), false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
 		} else if (data.errorCode == "coinslot.busy" && paidCoins > 0) {
 			// Lost the race with the ESP wait-expiry: the vendo already
 			// registered the voucher and added the time itself (then cleared
-			if (data.validity) { setVouchValue(voucher, "tempValidity", data.validity); }
+			if (data.validity) { try { if (getVouchValue(voucher, "tempValidity") !== data.validity) { setVouchValue(voucher, "tempValidity", data.validity); } } catch (e) {} }
 			try { sfxPlayFile("success", snd("assets/sounds/success.mp3"), false, null); } catch (e) { }
 			$.toast({ title: 'Success', content: 'Thank you for the purchase!, will do auto login shortly', type: 'success', delay: 3000 });
 			autoLoginAfterUseVoucher();
@@ -2004,6 +2720,21 @@ function saveVoucherBtnAction() {
 }
 
 function autoLoginAfterUseVoucher() {
+	// Nothing is at stake any more: useVoucher already registered the voucher
+	// and added the time, and both callers above set totalCoinReceived = 0 and
+	// insertingCoin = false before getting here. Without this the coin guard was
+	// still armed for the 3s delay, and the navigation below -- which is the
+	// portal's own, not the customer's -- raised the browser's "Leave site?"
+	// dialog on every DONE tap. restoreCoinChrome() also clears the flag, but
+	// only setPortalState() calls it and this path never returns to a state.
+	window.__coinInsertLive = false;
+	try { paintCoinLiveNote(); } catch (e) {}
+	// Belt and braces for the same reason the already-logged-in bounce uses it:
+	// anything that navigates inside this window is the portal's doing.
+	window.__internalNav = true;
+	// Same self-clearing latch as the insert bounce: if the follow-up
+	// navigation is swallowed, the coin guard must come back.
+	setTimeout(function () { window.__internalNav = false; }, 4000);
 	if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
 		// A reload alone keeps the same router session, whose
 		// time-left never picks up the extended limit. End the
@@ -2046,14 +2777,18 @@ function checkCoin() {
 			if (data.status == "true") {
 			try { dbgLog("checkCoin COIN +" + data.newCoin + " total=" + data.totalCoin + " timeAdded=" + data.timeAdded + "s", "dbg-ok"); } catch (e) { }
 			totalCoinReceived = (isFinite(parseInt(data.totalCoin, 10)) ? parseInt(data.totalCoin, 10) : 0);
+			paintCoinLiveNote();
 			$('#totalCoin').text(data.totalCoin);
 			$('#totalTime').html(secondsToDhms(parseInt(data.timeAdded, 10)));
 			$('#voucherInput').val(voucher);
 			setActiveVoucher( voucher);
-			setVouchValue(voucher, "tempValidity", data.validity);
+			try { if (getVouchValue(voucher, "tempValidity") !== data.validity) { setVouchValue(voucher, "tempValidity", data.validity); } } catch (e) {}
+				try { $("#progressLabel").text("Coins received"); } catch (e) {}
+				try { $("#progressDiv").attr("aria-valuetext", "Coins received"); } catch (e) {}
+				paintCoinStage();
 				notifyCoinSuccess(data.newCoin);
 			} else if (data.errorCode == "coin.not.inserted") {
-				setVouchValue(voucher, "tempValidity", data.validity);
+				try { if (getVouchValue(voucher, "tempValidity") !== data.validity) { setVouchValue(voucher, "tempValidity", data.validity); } } catch (e) {}
 				var remainTime = parseInt(parseInt(data.remainTime, 10) / 1000, 10);
 				var waitTime = parseFloat(data.waitTime);
 				// Clamped 0-100: waitTime=0 used to yield Infinity% width.
@@ -2062,9 +2797,11 @@ function checkCoin() {
 			// NaN totalCoin used to make cancelCoin() skip the forfeit warning
 			// and silently throw away money the customer had already inserted.
 			totalCoinReceived = (isFinite(parseInt(data.totalCoin, 10)) ? parseInt(data.totalCoin, 10) : 0);
+			paintCoinLiveNote();
 			if (totalCoinReceived > 0) {
 				$("#saveVoucherButton").prop('disabled', false);
 				$('#voucherInput').val(voucher);
+				paintCoinStage();
 			}
 				if (remainTime == 0) {
 					if (totalCoinReceived > 0) {
@@ -2111,7 +2848,19 @@ function checkCoin() {
 				notifyCoinSlotError(data.errorCode);
 				clearInterval(timer);
 				timer = null;
-				insertingCoin = false;
+				// Only stand down when there is nothing left to lose. Clearing
+				// this with coins still in the slot disarms the beforeunload
+				// guard, so a swipe-refresh would void them with no prompt.
+				if (totalCoinReceived <= 0) {
+					insertingCoin = false;
+					// Same pairing: the guard is what protects a live coin
+					// session, so it follows insertingCoin down. Left armed,
+					// a customer whose ESP reports coin.slot.banned (or any
+					// terminal code) is prompted to confirm every later
+					// navigation for a slot that holds nothing.
+					window.__coinInsertLive = false;
+					try { paintCoinLiveNote(); } catch (e) {}
+				}
 			}
 		}, error: function (xhr, status, err) {
 			if (status === "abort") return;
@@ -2124,7 +2873,13 @@ function checkCoin() {
 			if (checkCoinFailStreak >= 8) {
 				clearInterval(timer);
 				timer = null;
-				insertingCoin = false;
+				// Same reasoning as the branch above: stay armed while coins sit
+				// in the slot so beforeunload still asks before they are lost.
+				if (totalCoinReceived <= 0) {
+					insertingCoin = false;
+					window.__coinInsertLive = false;
+					try { paintCoinLiveNote(); } catch (e) {}
+				}
 				notifyCoinSlotError("coin.slot.notavailable");
 			}
 		},
@@ -2133,6 +2888,9 @@ function checkCoin() {
 }
 
 function closeCoinModal() {
+	document.body.classList.remove("coin-live");
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	sfxStopLoop();
 	coinToastKey = null;
 	clearInterval(timer);
@@ -2140,10 +2898,13 @@ function closeCoinModal() {
 	insertingCoin = false;
 	window.__useVoucherBusy = false;
 	window.__cancelVoucher = null;
+	paintCoinStage();
 	render(STATE);
 }
 
 function autoLoginAfterCoin() {
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	try { dbgLog("autoLoginAfterCoin: type=" + $("#saveVoucherButton").attr('data-save-type')); } catch (e) { }
 	if ($("#saveVoucherButton").attr('data-save-type') == "extend") {
 		setReLoginFlag();
@@ -2162,6 +2923,11 @@ function newLogin() {
 
 function pause() {
 	var vc = getActiveVoucher();
+	// PAUSE tears the coin flow down below (poll stopped, XHRs aborted, coins
+	// zeroed), so the unload guard must come off with it -- otherwise every
+	// later navigation asks to leave and PAUSE looks broken.
+	window.__coinInsertLive = false;
+	paintCoinLiveNote();
 	try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); window.__logoutTimer = null; } } catch (e) {}
 	setPausedFlag();
 	// Store seconds, not markup: the old code saved $("#remainTime").html()
@@ -2185,7 +2951,13 @@ function pause() {
 		totalCoinReceived = 0;
 		try { $.toast({ title: 'Coins not processed', content: 'Your inserted coins were not used. Tap INSERT COIN to try again.', type: 'warning', delay: 5000 }); } catch (e) {}
 	}
-	insertingCoin = true;
+	insertingCoin = false;
+	// An in-flight insert has no more consumer once paused; release the ESP
+	// slot now (the pagehide beacon can no longer see a live insert, so it
+	// would never fire) and forget the pinned code so a later pagehide does
+	// not cancel the *next* customer's slot.
+	try { releaseCoinSlot(function () {}); } catch (e) {}
+	try { window.__cancelVoucher = ""; } catch (e) {}
 	render("paused");
 	// End the router session in the background without navigating, so no
 	// reload can win the race and bounce the client back to status. A
@@ -2270,17 +3042,29 @@ function convertVoucherAction() {
 		timeout: VENDO_TIMEOUT
 	}).done(function (txt) {
 		try { if (btn) btn.prop("disabled", false); } catch (e) {}
-		try { $("#convertVoucherCode").val(""); } catch (e) {}
 		var ok = false;
-		try { var d = JSON.parse(String(txt || "")); ok = (d && d.status === "true"); } catch (e) {}
+		var errCode = "";
+		try {
+			var d = JSON.parse(String(txt || ""));
+			ok = (d && d.status === "true");
+			errCode = String((d && d.errorCode) || "");
+		} catch (e) {}
 		if (ok) {
+			try { $("#convertVoucherCode").val(""); } catch (e) {}
+			if (window.__convertBankVc) { try { removeFromVoucherBank(window.__convertBankVc); } catch (e) {} window.__convertBankVc = null; }
 			try { $.toast({ title: "Code added", content: "That code's time is now on your session", type: "success", delay: 3500 }); } catch (e) {}
 		} else {
+			// convertVoucher.refused covers invalid/dead/used codes. Those are
+			// not worth banking. A missing route or coinslot mismatch keeps the
+			// bank entry because the code itself was not proven bad.
+			if (errCode === "convertVoucher.refused" && window.__convertBankVc) {
+				try { removeFromVoucherBank(window.__convertBankVc); } catch (e) {}
+				window.__convertBankVc = null;
+			}
 			notifyConvertFail("convertVoucher.refused");
 		}
 	}).fail(function (xhr) {
 		try { if (btn) btn.prop("disabled", false); } catch (e) {}
-		try { $("#convertVoucherCode").val(""); } catch (e) {}
 		try { dbgLog("convertVoucher failed status=" + (xhr && xhr.status), "dbg-err"); } catch (e) {}
 		// A 404 or a blank body means the box has no /convertVoucher route
 		// at all. Never report that as a bad code - the customer's code may
@@ -2288,6 +3072,12 @@ function convertVoucherAction() {
 		var body = "";
 		try { body = String((xhr && xhr.responseText) || ""); } catch (e) {}
 		var missing = !xhr || xhr.status === 404 || xhr.status === 0 || !body.trim();
+		var failErrCode = "";
+		try { failErrCode = String((JSON.parse(body) || {}).errorCode || ""); } catch (e) {}
+		if (failErrCode === "convertVoucher.refused" && window.__convertBankVc) {
+			try { removeFromVoucherBank(window.__convertBankVc); } catch (e) {}
+			window.__convertBankVc = null;
+		}
 		notifyConvertFail(missing ? "convertVoucher.unsupported" : "convertVoucher.refused");
 	});
 }

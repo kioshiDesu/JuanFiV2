@@ -1,3 +1,11 @@
 :if ($cause="session timeout") do={
-  /system scheduler set [find name="$user"] interval=5s;
+  # interval alone does NOT move an already-computed next-run, so the 5s
+  # never took effect. Re-anchor start-date/start-time to now so next-run
+  # is recomputed ~5s out, then shrink the interval too.
+  :local jfNow [/system clock get time];
+  :do {
+    /system scheduler set [find name="$user"] interval=5s \
+      start-date=[/system clock get date] \
+      start-time=($jfNow + 5s);
+  } on-error={ :log warning ("On-Logout(" . $user . "): scheduler timeout set failed") };
 }

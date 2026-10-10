@@ -6,9 +6,19 @@
 (function () {
   function fail(msg) {
     var bt = document.getElementById("bootText");
-    if (bt) {
-      bt.textContent = msg || "Failed to load portal. Please reload.";
-    }
+    if (!bt) { return; }
+    bt.textContent = msg || "Failed to load portal. Please reload.";
+    // portal.html's own RETRY button never runs when portal.html or core.js
+    // is what failed, so without one here every partial file-set failure is a
+    // dead-end spinner with no way forward.
+    var host = bt.parentNode;
+    if (!host || host.getElementsByClassName("boot-retry").length) { return; }
+    var rb = document.createElement("button");
+    rb.type = "button";
+    rb.className = "boot-retry";
+    rb.textContent = "RETRY";
+    rb.onclick = function () { location.reload(); };
+    host.appendChild(rb);
   }
   function checkLibs() {
     // portal.html order guarantees jQuery before core.js; a 404 on either
@@ -44,7 +54,11 @@
     var doc = new DOMParser().parseFromString(html, "text/html");
     var app = doc.getElementById("app");
     if (!app) { fail("Portal page is empty."); return; }
-    document.getElementById("app").innerHTML = app.innerHTML;
+    // The live #app, not the parsed one. Shells load boot.js last so the body
+    // is parsed, but the guard keeps a too-early run from throwing.
+    var host = document.getElementById("app");
+    if (!host) { fail("Portal page is empty."); return; }
+    host.innerHTML = app.innerHTML;
     injectScripts(Array.prototype.slice.call(doc.querySelectorAll("script")), 0);
   }
   // status 0 is NOT success (file:// false positive / dead radio) — the
@@ -62,20 +76,23 @@
   } else {
     try {
       var x = new XMLHttpRequest();
-      // Bust the cache on this path too. fetch gets no-store above, but the
-      // XHR fallback has no such guarantee, and a cached portal.html keeps
-      // serving stale markup forever (which is how an old button glyph
-      // survived a fixed shell).
+      var done = false;
+      function settle(fn) { if (done) { return; } done = true; fn(); }
+      // Same 10s overall deadline the fetch path has: a browser that ignores
+      // x.timeout or throws on the assignment must not spin forever.
+      setTimeout(function () { settle(function () { fail("Portal is taking too long."); }); }, 10000);
       x.open("GET", "portal.html?t=" + new Date().getTime(), true);
       try { x.timeout = 8000; } catch (e) {}
       x.onreadystatechange = function () {
         if (x.readyState === 4) {
-          if (x.status === 200) { inject(x.responseText); }
-          else { fail(); }
+          settle(function () {
+            if (x.status === 200) { inject(x.responseText); }
+            else { fail(); }
+          });
         }
       };
-      x.onerror = function () { fail(); };
-      try { x.ontimeout = function () { fail("Portal is taking too long."); }; } catch (e) {}
+      x.onerror = function () { settle(function () { fail(); }); };
+      try { x.ontimeout = function () { settle(function () { fail("Portal is taking too long."); }); }; } catch (e) {}
       x.send();
     } catch (e) { fail(); }
   }
