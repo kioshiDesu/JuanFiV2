@@ -1429,7 +1429,50 @@ function paintRemainA11y(time) {
 	} catch (e) {}
 }
 
+// Once the countdown has reached 0 the logout MUST survive a reload. The
+// timer below lives in window, and the status page reloads itself every
+// refresh-timeout-secs -- a reload inside the 6s window used to wipe the
+// timer, the fresh page then read session-time-left-secs as 0, startCountdown
+// painted "Unlimited" and armed nothing, and the customer sat on a live
+// session showing Unlimited while the page reloaded forever. The flag lives in
+// sessionStorage (per tab) and status.html's reload guard reads it, so the
+// bounce stops as well as the timer. It stores when the expiry was armed, not
+// "1", so it can expire on its own: sessionStorage outlives the logout
+// navigation, and a plain "1" left behind would log out the next customer who
+// logs in on the same phone.
+var LOGOUT_PENDING_MAX = 120;
+function logoutPendingFresh() {
+	try {
+		var v = parseInt(getSessionValue("__logoutPending"), 10);
+		if (isFinite(v) && v > 0) {
+			var age = Math.floor(Date.now() / 1000) - v;
+			if (age >= 0 && age <= LOGOUT_PENDING_MAX) { return true; }
+		}
+		// Anything older, unreadable, or stamped in the future (clock moved
+		// back) is not a live expiry: drop it so it cannot strand a later
+		// login on this phone.
+		removeSessionValue("__logoutPending");
+	} catch (e) { }
+	return false;
+}
+function armLogoutNow() {
+	try { setSessionValue("__logoutPending", String(Math.floor(Date.now() / 1000))); } catch (e) { }
+	try { if (window.__refreshTimer) { clearInterval(window.__refreshTimer); window.__refreshTimer = null; } } catch (e) {}
+	try { if (window.remainingTimer) { clearInterval(window.remainingTimer); window.remainingTimer = null; } } catch (e) {}
+	try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); } } catch (e) {}
+	window.__logoutTimer = setTimeout(function () { try { if (document.logout && document.logout.submit) { document.logout.submit(); } } catch (e) {} }, 6000);
+}
+
 function startCountdown() {
+	// Reached after a reload that landed inside the post-expiry window: the
+	// router may well report 0 or "unlimited" now, and both of those mean
+	// "no countdown to run". The pending flag is the only thing that still
+	// knows the time is up, so check it before anything is painted.
+	if (logoutPendingFresh()) {
+		try { $("#remainTime").html(boxesDhms(0)); } catch (e) { }
+		armLogoutNow();
+		return;
+	}
 	if ($("#remainTime").length == 0 || window.sessiontime == null) { return; }
 	// A re-render (coin cancel, slot close, failed pause) re-enters here.
 	// window.sessiontime is written once per page load, so restarting from it
@@ -1486,7 +1529,7 @@ function startCountdown() {
 			$.toast({ title: 'Success', content: 'Time limit exceeded, Thank you for the purchase, will be logout shortly', type: 'success', delay: 5000 });
 			clearInterval(window.remainingTimer);
 			try { if (window.__logoutTimer) { clearTimeout(window.__logoutTimer); } } catch (e) {}
-			window.__logoutTimer = setTimeout(function () { try { if (document.logout && document.logout.submit) { document.logout.submit(); } } catch (e) {} }, 6000);
+			armLogoutNow();
 		}
 	}, 1000);
 }
@@ -2498,7 +2541,16 @@ function insertBtnAction() {
 				try { probe = String(data == null ? "" : data); } catch (e) { probe = ""; }
 				if (probe.indexOf("IAMNOTLOGINSTRINGPLEASEDONTREMOVE") < 0) {
 					try { dbgLog("insert: already logged in, bouncing to status"); } catch (e) { }
+				// Tear the insert down BEFORE bouncing. Reload is a real unload:
+				// __coinInsertLive is still armed here, so beforeunload fired a
+				// "leave site?" prompt at the customer for a coin insert that
+				// never started. Every other exit path clears these.
 				window.__internalNav = true;
+				insertingCoin = false;
+				window.__coinInsertLive = false;
+				totalCoinReceived = 0;
+				try { $("#saveVoucherButton").prop('disabled', false); } catch (e) { }
+				try { paintCoinLiveNote(); } catch (e) { }
 				location.reload();
 				// If the reload never happened (blocked/failed), disarm the latch
 				// again or the coin-insert guard stays dead for the tab's life.

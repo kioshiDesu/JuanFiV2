@@ -71,11 +71,29 @@
 <script>
 	$(if refresh-timeout)
 		// Router session refresh; waits for the injected app (jQuery) first.
-		window.refreshSecs = $(refresh-timeout-secs);
+		// Validate before it reaches setInterval: an unset or 0 value made
+		// NaN*1000 the interval, which fires every ~4ms and turns the page
+		// into a reload loop nothing can escape.
+		window.refreshSecs = parseInt($(refresh-timeout-secs), 10);
+		if (!isFinite(window.refreshSecs) || window.refreshSecs < 0) { window.refreshSecs = 0; }
+		if (window.refreshSecs > 0 && window.refreshSecs < 5) { window.refreshSecs = 5; }
 		var refreshWait = setInterval(function () {
 			if (typeof window.jQuery === 'undefined') { return; }
 			clearInterval(refreshWait);
-			setInterval(function () {
+			if (window.refreshSecs <= 0) { return; }
+			window.__refreshTimer = setInterval(function () {
+				// A countdown that hit 0 is waiting out its logout timer.
+				// Reloading here wipes that timer (it lives in window) and
+				// hands the customer an "Unlimited" screen they can never
+				// get out of, so the pending stamp stops the bounce. Same
+				// 120s window armLogoutNow() uses, so a stamp left over
+				// from an earlier logout stops counting on its own.
+				var pending = "";
+				try { pending = sessionStorage.getItem("__logoutPending") || localStorage.getItem("__logoutPending") || ""; } catch (e) { }
+				if (pending) {
+					var pAge = Math.floor(Date.now() / 1000) - parseInt(pending, 10);
+					if (isFinite(pAge) && pAge >= 0 && pAge <= 120) { return; }
+				}
 				// __histOpen is set while the voucher-history overlay is up; the
 				// overlay is a full-screen modal, so reloading under it would throw
 				// away whatever the customer was picking.
@@ -85,6 +103,7 @@
 			}, window.refreshSecs * 1000);
 		}, 500);
 	$(endif)
+
 </script>
 
 	<script src="assets/js/boot.js?v=172"></script>
