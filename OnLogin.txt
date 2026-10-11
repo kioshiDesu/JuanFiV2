@@ -87,12 +87,7 @@
   :if ($iUserReg="") do={
     :local iTimeInt $iUsrTime;
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
-    :do { /system scheduler add name="$user" interval=$iTimeInt \
-      start-date=$iDateBeg start-time=$iTimeBeg disable=no \
-      policy=ftp,read,write,test \
-      on-event=("/ip hotspot active remove [find user=\"$user\"];\r\n".\
-                "/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n".\
-                "/system scheduler remove [find name=\"$user\"];\r\n")
+    :do { /system scheduler add name="$user" interval=$iTimeInt start-date=$iDateBeg start-time=$iTimeBeg disable=no policy=ftp,read,write,test on-event=("/ip hotspot active remove [find name=\"$user\"];\r\n"."/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n"."/system scheduler remove [find name=\"$user\"];\r\n")
     } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
     :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };

@@ -49,6 +49,19 @@ To add one:
 Re-running any of them is safe: each one checks whether it already did the work
 before it writes anything.
 
+**Pasting.** Every block below is written as one complete command per line, with
+no `\` line continuations and nothing that depends on indentation. That is
+deliberate: a continuation whose trailing space survives the copy, or one a
+terminal drops or auto-indents around, turns one command into two broken ones.
+Two rules if you paste into a terminal instead of a Winbox source box:
+
+- Paste one command at a time, and skip the blank lines. Some terminals treat a
+  blank line as a repeat of the last command, and the blank lines here are there
+  to be read, not run.
+- Paste B and C whole or not at all. They are the On-Login and On-Logout sources
+  and are byte-identical to `OnLogin.txt` / `OnLogout.txt`; half a paste leaves
+  the login path working but unwatched, which is worse than not applying it.
+
 Before you start: in the `juanfi-setup` source, edit `PROF` (the hotspot
 profile name, `juanfi` by default), `NTP1`/`NTP2` and `Asia/Manila` to match
 your router.
@@ -414,12 +427,7 @@ closing brace on the last line. Then OK. It is also saved as
   :if ($iUserReg="") do={
     :local iTimeInt $iUsrTime;
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
-    :do { /system scheduler add name="$user" interval=$iTimeInt \
-      start-date=$iDateBeg start-time=$iTimeBeg disable=no \
-      policy=ftp,read,write,test \
-      on-event=("/ip hotspot active remove [find user=\"$user\"];\r\n".\
-                "/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n".\
-                "/system scheduler remove [find name=\"$user\"];\r\n")
+    :do { /system scheduler add name="$user" interval=$iTimeInt start-date=$iDateBeg start-time=$iTimeBeg disable=no policy=ftp,read,write,test on-event=("/ip hotspot active remove [find name=\"$user\"];\r\n"."/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n"."/system scheduler remove [find name=\"$user\"];\r\n")
     } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
     :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };
@@ -568,11 +576,7 @@ saved as [`OnLogout.txt`](OnLogout.txt).
   # never took effect. Re-anchor start-date/start-time to now so next-run
   # is recomputed ~5s out, then shrink the interval too.
   :local jfNow [/system clock get time];
-  :do {
-    /system scheduler set [find name="$user"] interval=5s \
-      start-date=[/system clock get date] \
-      start-time=($jfNow + 5s);
-  } on-error={ :log warning ("On-Logout(" . $user . "): scheduler timeout set failed") };
+  :do { /system scheduler set [find name="$user"] interval=5s start-date=[/system clock get date] start-time=($jfNow + 5s) } on-error={ :log warning ("On-Logout(" . $user . "): scheduler timeout set failed") };
 }
 ```
 
