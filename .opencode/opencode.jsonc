@@ -8,7 +8,6 @@
 
   "plugin": [
     "@tarquinen/opencode-dcp@latest",
-    "caveman-opencode-plugin@latest",
     "opencode-ponytail@latest"
   ],
 
