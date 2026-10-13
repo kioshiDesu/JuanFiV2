@@ -347,6 +347,22 @@ closing brace on the last line. Then OK. It is also saved as
 ```
 # JuanFi - hotspot USER PROFILE (default), Login tab -> On Login.
 #
+# WHERE THIS GOES
+#   IP -> Hotspot -> User Profiles -> default -> Login tab -> "On Login"
+#
+#   NOT Hotspot -> Server Profiles. on-login/on-logout are properties of the
+#   hotspot USER profile. The server profile's Login tab holds the login-by
+#   checkboxes and trial-uptime and has no script field - pasted there the
+#   script never runs. Every voucher the firmware creates is
+#   /ip hotspot user add with no profile=, so they all land on `default`.
+#
+#   Paste everything from the line below to the closing brace on the last
+#   line. OnLogout.txt goes in the same box, different field ("On Logout").
+#
+# RUN A1 FIRST (README section A) so data/site-id.txt exists before anyone
+# logs in. This script creates the data/ directory itself on the first login,
+# but site-id.txt has to come from A1.
+#
 # Corrected copy for JuanFi-test: adds the session clamp, keeps the user row
 # on expiry, and clears stale comment/limit-uptime instead of deleting data.
 # Older JuanFi copies may still delete the row; do not mix them with test.
@@ -605,6 +621,16 @@ Same **User Profiles → default → Login** tab → **On Logout** box. Paste th
 whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
 
 ```
+# JuanFi - hotspot USER PROFILE (default), Login tab -> On Logout.
+#
+# NOT the server profile. on-logout is a property of the hotspot user
+# profile; the server profile's Login tab holds login-by and trial-uptime
+# and has no script field. Every voucher the firmware creates is
+# /ip hotspot user add with no profile=, so they all land on `default`.
+#
+# Paste everything from the line below to the closing brace on the last
+# line. Same box as OnLogin.txt, different field.
+
 :if ($cause="session timeout") do={
   # interval alone does NOT move an already-computed next-run, so the 5s
   # never took effect. Re-anchor start-date/start-time to now so next-run

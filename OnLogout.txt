@@ -1,3 +1,13 @@
+# JuanFi - hotspot USER PROFILE (default), Login tab -> On Logout.
+#
+# NOT the server profile. on-logout is a property of the hotspot user
+# profile; the server profile's Login tab holds login-by and trial-uptime
+# and has no script field. Every voucher the firmware creates is
+# /ip hotspot user add with no profile=, so they all land on `default`.
+#
+# Paste everything from the line below to the closing brace on the last
+# line. Same box as OnLogin.txt, different field.
+
 :if ($cause="session timeout") do={
   # interval alone does NOT move an already-computed next-run, so the 5s
   # never took effect. Re-anchor start-date/start-time to now so next-run
