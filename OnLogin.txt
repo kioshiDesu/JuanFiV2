@@ -135,41 +135,37 @@
 # ---------------------------------------------------------------------------
 :local jfSched [/system scheduler find name="$user"];
 # -------------------------------------------------------------------------
-# Publish the session file, OUTSIDE the scheduler gate. Two reasons it cannot
-# live inside: the gate skips it for any voucher with no scheduler (so a box
-# where the voucher branch never ran gets no data/ at all), and the voucher
-# branch above only runs while the comment is set, which it blanks on first
-# login. The portal reads this file from every other device, so it has to be
-# written on every login, whichever branch applies.
-# /file print is the only mkdir on RouterOS: it creates the file AND the
-# data/ directory when this is the first login on a fresh flash.
-# Save Data File. Original JuanFi creates data/ with /tool fetch first, then the
-# /file print below makes the file itself. Both kept: fetch is the only thing
-# that makes the directory, print is the only thing that makes the file.
-:if ([/file find name=($HSFilePath . "/data/")]="") do={
-  :do {/tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/"} on-error={};
+# Save Data File - original JuanFi's block, with its filename bug fixed.
+# /tool fetch is what creates the data/ DIRECTORY (there is no mkdir on
+# RouterOS); /file print then creates the file itself.
+# The original polls for "<mac>.txt" but writes "<mac>" with no extension, so
+# the portal's GET /data/<mac>.txt gets a 404. Same path used for both here.
+# The original writes the file only when a scheduler exists and never removes
+# it otherwise. An earlier version of this removed it on the no-scheduler
+# path, which meant a voucher whose scheduler was gone had its session file
+# deleted on every login - and that is what made the portal show nothing.
+# Do not add that back.
+:if ([/file find name=($HSFilePath . "/data")]="") do={
+  :do { /tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/" } on-error={};
 }
 :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
 :do { /file print file=$jfSess where name="dummyfile" } on-error={};
-:local jx 2;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
+:local jx 10;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
 :local jfValid "";
-# Scheduler next-run is the deadline, and it is a full civil date-time
-# ("2026-10-04 16:20:00"). Without a scheduler there is no date to publish:
-# limit-uptime is a duration and RouterOS has no datetime value to add it to
-# ([:todate]/[:timedate] are one-way casts, and :totime throws the date away),
-# so a trial or manually-added user simply gets no session file. The voucher
-# path always has a scheduler, so this costs nothing that matters.
-# settings.json ships showTrialLogin:false, so trials are off on this box too.
-:if ($jfSched != "") do={ :set jfValid [/system scheduler get $jfSched next-run] };
+:if ([:len [/system scheduler find name=$user]] > 0) do={ :set jfValid [/system scheduler get $user next-run] };
+# One line per login, so the next failure is visible in /log instead of guessed.
+:log info ("On-Login(" . $user . "): mac=[" . $iFileMac . "] dir=" . $HSFilePath . " file=[" . $jfSess . "] valid=[" . $jfValid . "]");
 :if ($jfValid != "") do={
   :do { /file set $jfSess contents=($user . "#" . $jfValid) } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
-} else={
-  :do { /file remove $jfSess } on-error={};
-  :log warning ("On-Login(" . $user . "): no expiry, session file removed");
 };
 # -------------------------------------------------------------------------
 if ($jfSched != "") do={
   :local jfNext [/system scheduler get $jfSched next-run];
+  # ponytail: the whole clamp is skipped when there is no scheduler. That is
+  # deliberate - the firmware adds one for every voucher with time on it - but
+  # it means a voucher whose scheduler is gone keeps whatever limit-uptime it
+  # had. The line above logs the scheduler state, so if that shows up, this is
+  # where to look.
   # -------------------------------------------------------------------------
   # Remaining time = next-run MINUS now, and next-run is a full civil date-time
   # ("2026-10-04 16:20:00"), not a duration. Comparing only the two time halves
