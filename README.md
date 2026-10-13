@@ -438,7 +438,13 @@ closing brace on the last line. Then OK. It is also saved as
   :local iValidUntil "";
   :if ([/system scheduler find name="$user"]!="") do={
     :set iValidUntil [/system scheduler get [find name="$user"] next-run];
-    :do { /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil" } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
+    # /file print is the only mkdir on RouterOS: it creates the file AND the
+    # data/ directory when this is the first login on a fresh flash. Without
+    # it nothing under data/ is ever written, and the portal falls back to
+    # browser-local state on every other device.
+    :do { /file print file=($HSFilePath . "/data/" . $iFileMac . ".txt") where name="dummyfile" } on-error={};
+    :local x 2;:while (($x>0) and ([/file find name=($HSFilePath . "/data/" . $iFileMac . ".txt")]="")) do={:set x ($x-1);:delay 1s};
+    :do { /file set ($HSFilePath . "/data/" . $iFileMac . ".txt") contents="$user#$iValidUntil" } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
   }
 };
 }
