@@ -39,34 +39,39 @@
 # false positive here (a WiFi blip that also reports "user request") costs the
 # customer one CONNECT tap and nothing else. That is why this gates on $cause
 # without trying to tell a pause apart from a typed /logout.
-:if ($cause="user request") do={
-  :local jfPM "";:local jfMC $"mac-address";
-  :for i from=0 to=([:len $jfMC] - 1) do={
-    :local jfC [:pick $jfMC $i]
-    :if ($jfC != ":") do={ :set jfPM ($jfPM . $jfC) }
-  };
-  :if ([:len $jfPM] > 0) do={
-    :local jfFrom ($HSFilePath . "/data/" . $jfPM . ".txt");
-    :local jfTo ($HSFilePath . "/data/p" . $jfPM . ".txt");
-    # Read the body out first. No session file means this throws, the body
-    # stays empty, and there is nothing to mark.
-    :local jfBody "";:local jfErr "";
-    :onerror jfErr in={ :set jfBody [/file get [:pick [/file find name=$jfFrom] 0] contents] } do={ :set jfBody "" };
-    :if ($jfBody != "") do={
-      # No /file move. It is the one command here not already proven to work
-      # on this box, and it failed here. Recreate at the new name instead:
-      # /file print makes it, /file set fills it, then drop the old one.
-      #
-      # :onerror rather than :do ... on-error because it hands back the real
-      # reason in $jfErr instead of a fixed string.
-      :local jfErr "";
-      :onerror jfErr in={
-        :if ([:len [/file find name=$jfTo]] > 0) do={ /file remove $jfTo };
-        /file print file=$jfTo where name="dummyfile";
-        /file set $jfTo contents=$jfBody;
-        /file remove $jfFrom;
-      } do={ :log warning ("On-Logout(" . $user . "): pause mark failed err=[" . $jfErr . "] from=[" . $jfFrom . "] to=[" . $jfTo . "]") };
-      :if ([:len [/file find name=$jfTo]] > 0) do={ :log info ("On-Logout(" . $user . "): paused, session file marked") };
-    }
+:local jfPM "";:local jfMC $"mac-address";
+:for i from=0 to=([:len $jfMC] - 1) do={
+  :local jfC [:pick $jfMC $i]
+  :if ($jfC != ":") do={ :set jfPM ($jfPM . $jfC) }
+};
+:local jfFrom ($HSFilePath . "/data/" . $jfPM . ".txt");
+:local jfTo ($HSFilePath . "/data/p" . $jfPM . ".txt");
+
+# Unconditional. Every branch below is silent when it does not fire, so this
+# is the only line that can say "on-logout ran and here is what it saw".
+# ponytail: delete once cause and path are confirmed.
+:local jfHit [:tostr [:len [/file find name=$jfFrom]]];
+:log info ("On-Logout-DEBUG(" . $user . ") cause=[" . $cause . "] mac=[" . $jfMC . "] pm=[" . $jfPM . "] from=[" . $jfFrom . "] found=" . $jfHit);
+
+:if (($cause="user request") and ([:len $jfPM] > 0)) do={
+  # Read the body out first. No session file means this throws, the body
+  # stays empty, and there is nothing to mark.
+  :local jfBody "";:local jfErr "";
+  :onerror jfErr in={ :set jfBody [/file get [:pick [/file find name=$jfFrom] 0] contents] } do={ :set jfBody "" };
+  :if ($jfBody != "") do={
+    # No /file move. It is the one command here not already proven to work
+    # on this box, and it failed there. Recreate at the new name instead:
+    # /file print makes it, /file set fills it, then drop the old one.
+    #
+    # :onerror rather than :do ... on-error because it hands back the real
+    # reason in $jfErr instead of a fixed string.
+    :local jfErr "";
+    :onerror jfErr in={
+      :if ([:len [/file find name=$jfTo]] > 0) do={ /file remove $jfTo };
+      /file print file=$jfTo where name="dummyfile";
+      /file set $jfTo contents=$jfBody;
+      /file remove $jfFrom;
+    } do={ :log warning ("On-Logout(" . $user . "): pause mark failed err=[" . $jfErr . "] from=[" . $jfFrom . "] to=[" . $jfTo . "]") };
+    :if ([:len [/file find name=$jfTo]] > 0) do={ :log info ("On-Logout(" . $user . "): paused, session file marked") };
   }
 }
