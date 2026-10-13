@@ -58,11 +58,15 @@
 
 # Find the server profile that actually serves our portal files instead of
 # trusting a name - boxes name it anything (hsprof1, default, juanfi...).
+# html-directory comes back RELATIVE ("hotspot"), but files live at
+# "flash/hotspot" - so check both prefixes or nothing ever matches.
 :local PROF "";
 :foreach p in=[/ip hotspot profile find] do={
   :if ($PROF = "") do={
     :local ph "";:do { :set ph [/ip hotspot profile get $p html-directory] } on-error={};
-    :if (($ph != "") and ([/file find name=($ph . "/portal.html")] != "")) do={ :set PROF [/ip hotspot profile get $p name] };
+    :foreach pre in={""; "flash/"} do={
+      :if (($PROF = "") and ([:len $ph] > 0) and ([/file find name=($pre . $ph . "/portal.html")] != "")) do={ :set PROF [/ip hotspot profile get $p name] };
+    };
   };
 };
 :if ($PROF = "") do={ :set PROF "juanfi" };
