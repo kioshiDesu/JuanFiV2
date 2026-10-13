@@ -37,16 +37,20 @@
 :local iTimeMin [/ip hotspot user get $user limit-uptime];
 :local iUserReg [/system scheduler find name=$user];
 
+# The session-file name. Upstream derives this INSIDE the gate below, which
+# only runs on a voucher's first login. The resume block at the bottom needs
+# it too, and a resume is exactly the case the gate skips.
+:local iFileMac;
+:local mac $"mac-address";
+:for i from=0 to=([:len $mac] - 1) do={
+  :local chr [:pick $mac $i]
+  :if ($chr = ":") do={ :set $chr "" }
+  :set iFileMac ($iFileMac . $chr)
+}
+
 # --- # Check User Data -----------------------------------------------------
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
   /ip hotspot user set $user comment="";
-  :local iFileMac;
-  :local mac $"mac-address";
-  :for i from=0 to=([:len $mac] - 1) do={
-    :local chr [:pick $mac $i]
-    :if ($chr = ":") do={ :set $chr "" }
-    :set iFileMac ($iFileMac . $chr)
-  }
 # --- # Extend User ---------------------------------------------------------
   :if (($iUserReg!="") and ($iExtCode=1)) do={
     :local iTimeInt [/system scheduler get $user interval];
@@ -91,3 +95,24 @@
   }
 # --- end of gate -----------------------------------------------------------
 };
+
+# --- resume: undo the pause mark OnLogout.txt wrote -------------------------
+# OnLogout.txt renames data/<mac>.txt to p<mac>.txt on a pause, so that the
+# portal's resumeSession() gets a 404 instead of auto-connecting from another
+# browser. Reaching here IS the customer reconnecting on purpose, so put the
+# file back. Runs outside the gate on purpose: a resume has an empty comment,
+# which is the one thing that always skips the gate.
+#
+# The scheduler is never touched. Pausing does not stop expiry - the voucher
+# still runs out on its original next-run, exactly as before this block.
+:if ([:len $iFileMac] > 0) do={
+  :local jfMark ($HSFilePath . "/data/p" . $iFileMac . ".txt");
+  :if ([:len [/file find name=$jfMark]] > 0) do={
+    :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
+    :do {
+      :if ([:len [/file find name=$jfSess]] > 0) do={ /file remove $jfSess };
+      /file move [:pick [/file find name=$jfMark] 0] to=$jfSess;
+      :log info ("On-Login(" . $user . "): resumed, pause mark cleared");
+    } on-error={ :log warning ("On-Login(" . $user . "): pause mark clear failed") };
+  }
+}

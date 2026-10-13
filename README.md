@@ -324,16 +324,20 @@ closing brace on the last line. Then OK. It is also saved as
 :local iTimeMin [/ip hotspot user get $user limit-uptime];
 :local iUserReg [/system scheduler find name=$user];
 
+# The session-file name. Upstream derives this INSIDE the gate below, which
+# only runs on a voucher's first login. The resume block at the bottom needs
+# it too, and a resume is exactly the case the gate skips.
+:local iFileMac;
+:local mac $"mac-address";
+:for i from=0 to=([:len $mac] - 1) do={
+  :local chr [:pick $mac $i]
+  :if ($chr = ":") do={ :set $chr "" }
+  :set iFileMac ($iFileMac . $chr)
+}
+
 # --- # Check User Data -----------------------------------------------------
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
   /ip hotspot user set $user comment="";
-  :local iFileMac;
-  :local mac $"mac-address";
-  :for i from=0 to=([:len $mac] - 1) do={
-    :local chr [:pick $mac $i]
-    :if ($chr = ":") do={ :set $chr "" }
-    :set iFileMac ($iFileMac . $chr)
-  }
 # --- # Extend User ---------------------------------------------------------
   :if (($iUserReg!="") and ($iExtCode=1)) do={
     :local iTimeInt [/system scheduler get $user interval];
@@ -378,6 +382,27 @@ closing brace on the last line. Then OK. It is also saved as
   }
 # --- end of gate -----------------------------------------------------------
 };
+
+# --- resume: undo the pause mark OnLogout.txt wrote -------------------------
+# OnLogout.txt renames data/<mac>.txt to p<mac>.txt on a pause, so that the
+# portal's resumeSession() gets a 404 instead of auto-connecting from another
+# browser. Reaching here IS the customer reconnecting on purpose, so put the
+# file back. Runs outside the gate on purpose: a resume has an empty comment,
+# which is the one thing that always skips the gate.
+#
+# The scheduler is never touched. Pausing does not stop expiry - the voucher
+# still runs out on its original next-run, exactly as before this block.
+:if ([:len $iFileMac] > 0) do={
+  :local jfMark ($HSFilePath . "/data/p" . $iFileMac . ".txt");
+  :if ([:len [/file find name=$jfMark]] > 0) do={
+    :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
+    :do {
+      :if ([:len [/file find name=$jfSess]] > 0) do={ /file remove $jfSess };
+      /file move [:pick [/file find name=$jfMark] 0] to=$jfSess;
+      :log info ("On-Login(" . $user . "): resumed, pause mark cleared");
+    } on-error={ :log warning ("On-Login(" . $user . "): pause mark clear failed") };
+  }
+}
 ```
 
 Trials skip the timer here on purpose — they expire via `trial-uptime` (A1),
@@ -416,9 +441,17 @@ whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
 # and has no script field. Every voucher the firmware creates is
 # /ip hotspot user add with no profile=, so they all land on `default`.
 #
-# Paste everything from the line below to the closing brace on the last
-# line. Same box as OnLogin.txt, different field.
+# Paste everything from the first line below to the closing brace. Same box
+# as OnLogin.txt, different field.
+#
+# CHANGE vs upstream: upstream is one line that only sets interval=5s and
+# never re-anchors, so it does nothing. Two blocks below, both real.
 
+# CHANGE: must match the HSFilePath in OnLogin.txt - flash/hotspot on a hex
+# board, hotspot on an hAP lite.
+:local HSFilePath "flash/hotspot";
+
+# --- session timeout: end the voucher now -----------------------------------
 :if ($cause="session timeout") do={
   # interval alone does NOT move an already-computed next-run, so the 5s
   # never took effect. Re-anchor start-date/start-time to now so next-run
@@ -426,10 +459,63 @@ whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
   :local jfNow [/system clock get time];
   :do { /system scheduler set [find name="$user"] interval=5s start-date=[/system clock get date] start-time=($jfNow + 5s) } on-error={ :log warning ("On-Logout(" . $user . "): scheduler timeout set failed") };
 }
+
+# --- pause: hide the session file so no other browser auto-resumes ----------
+# The portal's resumeSession() reads data/<mac>.txt in ANY browser and, if the
+# expiry is still in the future, fills the voucher and auto-clicks CONNECT.
+# The only guard there is a localStorage flag, which does not travel to a
+# different browser or a different device. So pause on the phone, reconnect on
+# the laptop, and the laptop logs itself straight back in.
+#
+# Renaming the file to p<mac>.txt makes that GET 404 until the customer
+# deliberately reconnects. OnLogin.txt renames it back on login, so the pause
+# holds across browsers but not forever.
+#
+# Deliberately has no destructive power: the scheduler is untouched, so a
+# false positive here (a WiFi blip that also reports "user request") costs the
+# customer one CONNECT tap and nothing else. That is why this gates on $cause
+# without trying to tell a pause apart from a typed /logout.
+:if ($cause="user request") do={
+  :local jfPM "";:local jfMC $"mac-address";
+  :for i from=0 to=([:len $jfMC] - 1) do={
+    :local jfC [:pick $jfMC $i]
+    :if ($jfC != ":") do={ :set jfPM ($jfPM . $jfC) }
+  };
+  :if ([:len $jfPM] > 0) do={
+    :local jfFrom ($HSFilePath . "/data/" . $jfPM . ".txt");
+    :local jfTo ($HSFilePath . "/data/p" . $jfPM . ".txt");
+    :if ([/file find name=$jfFrom] != "") do={
+      :do {
+        :if ([/file find name=$jfTo] != "") do={ /file remove $jfTo };
+        /file move [:pick [/file find name=$jfFrom] 0] to=$jfTo;
+        :log info ("On-Logout(" . $user . "): paused, session file marked");
+      } on-error={ :log warning ("On-Logout(" . $user . "): pause mark failed") };
+    }
+  }
+}
 ```
 
 Only `session timeout` shortens the timer; other logout causes leave it at
 full interval, which preserves the customer's remaining minutes.
+
+**Pause across browsers.** The `user request` block is the pause. On-Logout
+renames `data/<mac>.txt` to `data/p<mac>.txt`; On-Login renames it back. That
+matters because `resumeSession()` in `core.js` will read `data/<mac>.txt` in
+**any** browser and auto-click CONNECT when the expiry is still in the future.
+Its only guard is a localStorage flag, which does not travel — so without the
+rename, pausing on the phone and reconnecting on the laptop logs the customer
+straight back in. With it, the other browser gets a 404 and shows the login
+page until they deliberately tap CONNECT, at which point On-Login puts the file
+back.
+
+The scheduler is never touched, so pausing does **not** stop expiry: the
+voucher still runs out on its original `next-run`, exactly as before. Session
+uptime stops on its own, because RouterOS drops the active session on logout.
+
+It also cannot do damage if it fires when it should not. A WiFi blip that
+reports `user request` too would leave a pause mark nobody set, and all that
+costs is one extra CONNECT tap — no time is lost, because nothing about the
+scheduler or the balance changed.
 
 
 ### D. Portal files

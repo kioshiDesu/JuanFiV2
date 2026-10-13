@@ -5,13 +5,55 @@
 # and has no script field. Every voucher the firmware creates is
 # /ip hotspot user add with no profile=, so they all land on `default`.
 #
-# Paste everything from the line below to the closing brace on the last
-# line. Same box as OnLogin.txt, different field.
+# Paste everything from the first line below to the closing brace. Same box
+# as OnLogin.txt, different field.
+#
+# CHANGE vs upstream: upstream is one line that only sets interval=5s and
+# never re-anchors, so it does nothing. Two blocks below, both real.
 
+# CHANGE: must match the HSFilePath in OnLogin.txt - flash/hotspot on a hex
+# board, hotspot on an hAP lite.
+:local HSFilePath "flash/hotspot";
+
+# --- session timeout: end the voucher now -----------------------------------
 :if ($cause="session timeout") do={
   # interval alone does NOT move an already-computed next-run, so the 5s
   # never took effect. Re-anchor start-date/start-time to now so next-run
   # is recomputed ~5s out, then shrink the interval too.
   :local jfNow [/system clock get time];
   :do { /system scheduler set [find name="$user"] interval=5s start-date=[/system clock get date] start-time=($jfNow + 5s) } on-error={ :log warning ("On-Logout(" . $user . "): scheduler timeout set failed") };
+}
+
+# --- pause: hide the session file so no other browser auto-resumes ----------
+# The portal's resumeSession() reads data/<mac>.txt in ANY browser and, if the
+# expiry is still in the future, fills the voucher and auto-clicks CONNECT.
+# The only guard there is a localStorage flag, which does not travel to a
+# different browser or a different device. So pause on the phone, reconnect on
+# the laptop, and the laptop logs itself straight back in.
+#
+# Renaming the file to p<mac>.txt makes that GET 404 until the customer
+# deliberately reconnects. OnLogin.txt renames it back on login, so the pause
+# holds across browsers but not forever.
+#
+# Deliberately has no destructive power: the scheduler is untouched, so a
+# false positive here (a WiFi blip that also reports "user request") costs the
+# customer one CONNECT tap and nothing else. That is why this gates on $cause
+# without trying to tell a pause apart from a typed /logout.
+:if ($cause="user request") do={
+  :local jfPM "";:local jfMC $"mac-address";
+  :for i from=0 to=([:len $jfMC] - 1) do={
+    :local jfC [:pick $jfMC $i]
+    :if ($jfC != ":") do={ :set jfPM ($jfPM . $jfC) }
+  };
+  :if ([:len $jfPM] > 0) do={
+    :local jfFrom ($HSFilePath . "/data/" . $jfPM . ".txt");
+    :local jfTo ($HSFilePath . "/data/p" . $jfPM . ".txt");
+    :if ([/file find name=$jfFrom] != "") do={
+      :do {
+        :if ([/file find name=$jfTo] != "") do={ /file remove $jfTo };
+        /file move [:pick [/file find name=$jfFrom] 0] to=$jfTo;
+        :log info ("On-Logout(" . $user . "): paused, session file marked");
+      } on-error={ :log warning ("On-Logout(" . $user . "): pause mark failed") };
+    }
+  }
 }
