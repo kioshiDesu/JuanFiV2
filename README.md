@@ -383,24 +383,32 @@ closing brace on the last line. Then OK. It is also saved as
 # --- end of gate -----------------------------------------------------------
 };
 
-# --- resume: undo the pause mark OnLogout.txt wrote -------------------------
-# OnLogout.txt renames data/<mac>.txt to p<mac>.txt on a pause, so that the
+# --- resume: put the pause mark back -----------------------------------------
+# OnLogout.txt moves data/<mac>.txt aside to p<mac>.txt on a pause, so the
 # portal's resumeSession() gets a 404 instead of auto-connecting from another
 # browser. Reaching here IS the customer reconnecting on purpose, so put the
 # file back. Runs outside the gate on purpose: a resume has an empty comment,
 # which is the one thing that always skips the gate.
 #
+# No /file move, same reason as OnLogout: it is the one command not already
+# proven on this box. Recreate instead.
+#
 # The scheduler is never touched. Pausing does not stop expiry - the voucher
 # still runs out on its original next-run, exactly as before this block.
 :if ([:len $iFileMac] > 0) do={
   :local jfMark ($HSFilePath . "/data/p" . $iFileMac . ".txt");
-  :if ([:len [/file find name=$jfMark]] > 0) do={
+  :local jfBody "";:local jfErr "";
+  :onerror jfErr in={ :set jfBody [/file get [:pick [/file find name=$jfMark] 0] contents] } do={ :set jfBody "" };
+  :if ($jfBody != "") do={
     :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
-    :do {
+    :local jfErr "";
+    :onerror jfErr in={
       :if ([:len [/file find name=$jfSess]] > 0) do={ /file remove $jfSess };
-      /file move [:pick [/file find name=$jfMark] 0] to=$jfSess;
-      :log info ("On-Login(" . $user . "): resumed, pause mark cleared");
-    } on-error={ :log warning ("On-Login(" . $user . "): pause mark clear failed") };
+      /file print file=$jfSess where name="dummyfile";
+      /file set $jfSess contents=$jfBody;
+      /file remove $jfMark;
+    } do={ :log warning ("On-Login(" . $user . "): pause mark clear failed err=[" . $jfErr . "] mark=[" . $jfMark . "]") };
+    :if ([:len [/file find name=$jfSess]] > 0) do={ :log info ("On-Login(" . $user . "): resumed, pause mark cleared") };
   }
 }
 ```
@@ -467,8 +475,8 @@ whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
 # different browser or a different device. So pause on the phone, reconnect on
 # the laptop, and the laptop logs itself straight back in.
 #
-# Renaming the file to p<mac>.txt makes that GET 404 until the customer
-# deliberately reconnects. OnLogin.txt renames it back on login, so the pause
+# Recreating the file under a p- name makes that GET 404 until the customer
+# deliberately reconnects. OnLogin.txt puts it back on login, so the pause
 # holds across browsers but not forever.
 #
 # Deliberately has no destructive power: the scheduler is untouched, so a
@@ -484,12 +492,25 @@ whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
   :if ([:len $jfPM] > 0) do={
     :local jfFrom ($HSFilePath . "/data/" . $jfPM . ".txt");
     :local jfTo ($HSFilePath . "/data/p" . $jfPM . ".txt");
-    :if ([/file find name=$jfFrom] != "") do={
-      :do {
-        :if ([/file find name=$jfTo] != "") do={ /file remove $jfTo };
-        /file move [:pick [/file find name=$jfFrom] 0] to=$jfTo;
-        :log info ("On-Logout(" . $user . "): paused, session file marked");
-      } on-error={ :log warning ("On-Logout(" . $user . "): pause mark failed") };
+    # Read the body out first. No session file means this throws, the body
+    # stays empty, and there is nothing to mark.
+    :local jfBody "";:local jfErr "";
+    :onerror jfErr in={ :set jfBody [/file get [:pick [/file find name=$jfFrom] 0] contents] } do={ :set jfBody "" };
+    :if ($jfBody != "") do={
+      # No /file move. It is the one command here not already proven to work
+      # on this box, and it failed here. Recreate at the new name instead:
+      # /file print makes it, /file set fills it, then drop the old one.
+      #
+      # :onerror rather than :do ... on-error because it hands back the real
+      # reason in $jfErr instead of a fixed string.
+      :local jfErr "";
+      :onerror jfErr in={
+        :if ([:len [/file find name=$jfTo]] > 0) do={ /file remove $jfTo };
+        /file print file=$jfTo where name="dummyfile";
+        /file set $jfTo contents=$jfBody;
+        /file remove $jfFrom;
+      } do={ :log warning ("On-Logout(" . $user . "): pause mark failed err=[" . $jfErr . "] from=[" . $jfFrom . "] to=[" . $jfTo . "]") };
+      :if ([:len [/file find name=$jfTo]] > 0) do={ :log info ("On-Logout(" . $user . "): paused, session file marked") };
     }
   }
 }
