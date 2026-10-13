@@ -103,24 +103,40 @@
 # file back. Runs outside the gate on purpose: a resume has an empty comment,
 # which is the one thing that always skips the gate.
 #
-# No /file move, same reason as OnLogout: it is the one command not already
-# proven on this box. Recreate instead.
+# No hardcoded path and no /file move, for the same reasons as OnLogout: the
+# storage prefix is not reliably part of a file name, and /file move is the one
+# command here not already proven on this box.
 #
 # The scheduler is never touched. Pausing does not stop expiry - the voucher
 # still runs out on its original next-run, exactly as before this block.
-:if ([:len $iFileMac] > 0) do={
-  :local jfMark ($HSFilePath . "/data/p" . $iFileMac . ".txt");
-  :local jfBody "";:local jfErr "";
-  :onerror jfErr in={ :set jfBody [/file get [:pick [/file find name=$jfMark] 0] contents] } do={ :set jfBody "" };
-  :if ($jfBody != "") do={
-    :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
-    :local jfErr "";
-    :onerror jfErr in={
-      :if ([:len [/file find name=$jfSess]] > 0) do={ /file remove $jfSess };
-      /file print file=$jfSess where name="dummyfile";
-      /file set $jfSess contents=$jfBody;
-      /file remove $jfMark;
-    } do={ :log warning ("On-Login(" . $user . "): pause mark clear failed err=[" . $jfErr . "] mark=[" . $jfMark . "]") };
-    :if ([:len [/file find name=$jfSess]] > 0) do={ :log info ("On-Login(" . $user . "): resumed, pause mark cleared") };
-  }
+:local jfMSuf ("p" . $iFileMac . ".txt");
+:local jfErr "";
+:local jfHit "";
+:onerror jfErr in={ :set jfHit [:pick [/file find where name~(".*" . $jfMSuf . "$")] 0] } do={ :set jfHit "" };
+:local jfMark "";
+:local jfBody "";
+:if ($jfHit != "") do={
+  :local jfErr "";
+  :onerror jfErr in={ :set jfMark [/file get $jfHit name] } do={ :set jfMark "" };
+  :local jfErr "";
+  :onerror jfErr in={ :set jfBody [/file get $jfHit contents] } do={ :set jfBody "" };
+};
+# Same directory, p- dropped.
+:local jfSess "";
+:if ($jfMark != "") do={ :set jfSess ([:pick $jfMark 0 ([:len $jfMark] - [:len $jfMSuf])] . $iFileMac . ".txt") };
+
+:if (($jfHit != "") and ($jfBody != "")) do={
+  :local jfErr "";
+  :onerror jfErr in={
+    :local jfOld "";
+    :onerror jfErr in={ :set jfOld [:pick [/file find where name=($jfSess)] 0] } do={ :set jfOld "" };
+    :if ($jfOld != "") do={ /file remove $jfOld };
+    /file print file=$jfSess where name="dummyfile";
+    /file set $jfSess contents=$jfBody;
+    /file remove $jfHit;
+  } do={ :log warning ("On-Login(" . $user . "): pause mark clear failed err=[" . $jfErr . "] mark=[" . $jfMark . "] sess=[" . $jfSess . "]") };
+  :local jfMade "";
+  :local jfErr "";
+  :onerror jfErr in={ :set jfMade [:pick [/file find where name=($jfSess)] 0] } do={ :set jfMade "" };
+  :if ($jfMade != "") do={ :log info ("On-Login(" . $user . "): resumed, pause mark cleared") };
 }
