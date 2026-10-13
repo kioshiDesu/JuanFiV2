@@ -285,252 +285,98 @@ closing brace on the last line. Then OK. It is also saved as
 [`OnLogin.txt`](OnLogin.txt) if you would rather open the file.
 
 ```
-# JuanFi - hotspot USER PROFILE (default), Login tab -> On Login.
-#
 # WHERE THIS GOES
-#   IP -> Hotspot -> User Profiles -> default -> Login tab -> "On Login"
+# IP -> Hotspot -> User Profiles -> default -> Login tab -> On Login
 #
-#   NOT Hotspot -> Server Profiles. on-login/on-logout are properties of the
-#   hotspot USER profile. The server profile's Login tab holds the login-by
-#   checkboxes and trial-uptime and has no script field - pasted there the
-#   script never runs. Every voucher the firmware creates is
-#   /ip hotspot user add with no profile=, so they all land on `default`.
+# NOT Hotspot -> Server Profiles. The server profile's Login tab only holds
+# login-by checkboxes and trial-uptime; there is no script field there.
+# Every voucher the ESP creates is "/ip hotspot user add name=X" with no
+# profile=, so they all land on "default".
 #
-#   Paste everything from the line below to the closing brace on the last
-#   line. OnLogout.txt goes in the same box, different field ("On Logout").
+# Paste from the first line below to the closing brace. Clear the box first -
+# an older copy may still be sitting there.
 #
-# RUN A1 FIRST (README section A) so data/site-id.txt exists before anyone
-# logs in. This script creates the data/ directory itself on the first login,
-# but site-id.txt has to come from A1.
+# Run README script A1 FIRST. On-Login expects data/site-id.txt to exist.
 #
-# Corrected copy for JuanFi-test: adds the session clamp, keeps the user row
-# on expiry, and clears stale comment/limit-uptime instead of deleting data.
-# Older JuanFi copies may still delete the row; do not mix them with test.
+# This is the original JuanFi on-login script (ivanalayan15/JuanFi README
+# step 8) with exactly one change, marked CHANGE below. Everything else is
+# verbatim, including the parts that look odd.
 #
-# Why the clamp exists
-# --------------------
-# The hotspot user's `comment` carries the purchased minutes on the FIRST login
-# only, and the script clears it (see "/ip hotspot user set ... comment=""). Every
-# reconnect therefore lands in the "trial or empty comment, voucher timer
-# skipped" branch and does no timer work at all. `limit-uptime` is only ever
-# READ in this script, never written, so each reconnect gets a FRESH full
-# limit-uptime from the ESP firmware's original value while the scheduler's
-# next-run keeps ticking as the real balance. With a short idle-timeout that is a
-# free-Wi-Fi hole - reconnect often, collect a whole limit-uptime each time, and
-# all of it fits inside one absolute window.
+# Original also has three optional blocks for the upstream author's vending
+# business: Telegram notification, JuanFi online-monitoring API, and
+# daily/monthly income counters. They are dropped. The income counters call
+# "/system script get todayincome" with no error guard - if those scripts do
+# not exist, that line aborts the script.
 #
-# The clamp sets limit-uptime to whatever is genuinely left before next-run, on
-# EVERY login. It must stay OUTSIDE the empty-comment branch or it only ever runs
-# on the first login, which is the one place it is not needed.
-#
-# Time-value traps baked in here:
-#   - `limit-uptime` reads back as "00:15:00", never 900, so a read needs
-#     [:tonum ...] and a write of a literal needs [:totime "..."]. Never
-#     time + bare number.
-#   - `next-run` is a DATE *and* TIME ("2026-10-04 16:20:00"), i.e. a timestamp,
-#     not a duration, and no time value can be subtracted from it. Split it at
-#     the space with [:find ...] + [:pick ...], [:tonum ...] the time half for
-#     seconds, and reduce BOTH dates to a plain day number before subtracting -
-#     see "Session clamp" at the bottom. [:toarray] splits on commas, so it is
-#     no help here.
-#   - The remaining seconds are a plain number, so the write needs
-#     [:totime $jfLeft] back; never a bare number at limit-uptime.
-#   - If next-run cannot be parsed at all, skip the clamp and log. Clamping to
-#     1s on a parse failure would log paying customers out at random. Same for
-#     a result over a month: no voucher runs that long, so it means a
-#     half-parsed date, and writing it would hand out free Wi-Fi.
-#
-# Trial users ("T-" prefix) have no scheduler entry, so the clamp block is
-# skipped for them by construction; their time is native trial-uptime (A1).
+# OnLogout.txt goes in the same tab's On Logout box.
 
-# Find the server profile that actually serves our portal files instead of
-# trusting a name - boxes name it anything (hsprof1, default, juanfi...).
-# html-directory comes back RELATIVE ("hotspot"), but files live at
-# "flash/hotspot" - so check both prefixes or nothing ever matches.
-:local PROF "";
-:foreach p in=[/ip hotspot profile find] do={
-  :if ($PROF = "") do={
-    :local ph "";:do { :set ph [/ip hotspot profile get $p html-directory] } on-error={};
-    :foreach pre in={""; "flash/"} do={
-      :if (($PROF = "") and ([:len $ph] > 0) and ([/file find name=($pre . $ph . "/portal.html")] != "")) do={ :set PROF [/ip hotspot profile get $p name] };
-    };
-  };
-};
-:if ($PROF = "") do={ :set PROF "juanfi" };
-:local HSFilePath "";
-:do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
-:if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
-  :local cand "";
-  :foreach c in={"flash/hotspot"; "hotspot"; "flash"} do={
-    :if ($cand = "") do={
-      :foreach f in={"portal.html"; "login.html"; "status.html"} do={
-        :if (($cand = "") and ([/file find name=($c . "/" . $f)] != "")) do={ :set cand $c };
-      };
-    };
-  };
-  :if ($cand != "") do={ :set HSFilePath $cand };
-};
-:if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
-# Colon-free MAC, used for the data/ session file below. Hoisted out of the
-# voucher branch because the file write moved to the always-runs clamp block.
-:local iFileMac "";
-:local mac $"mac-address";
-:for i from=0 to=([:len $mac] - 1) do={
-  :local chr [:pick $mac $i]
-  :if ($chr != ":") do={ :set iFileMac ($iFileMac . $chr) }
-}
-:local rawNote [/ip hotspot user get [find name="$user"] comment];
-:local isTrial ([:pick $user 0 2] = "T-");
-# Trial sessions expire natively via trial-uptime (A1) — never
-# delete trial rows here, that resets the MAC wait.
-:if (($rawNote = "") or ($isTrial)) do={
-  :log warning ("On-Login(" . $user . "): trial/empty comment, voucher timer skipped");
-} else={
-:local aUsrNote [:toarray $rawNote];
+# CHANGE vs upstream: "flash/hotspot". Upstream ships "hotspot" and its own
+# comment says to change it for hex boards. Uncomment the other if needed.
+:local HSFilePath "flash/hotspot";
+
+# --- # Get User Data -------------------------------------------------------
+:local aUsrNote [/ip hotspot user get $user comment];
+:local aUsrNote [:toarray $aUsrNote];
 :local iUsrTime [:totime ($aUsrNote->0)];
+:local iSaleAmt [:tonum ($aUsrNote->1)];
 :local iExtCode ($aUsrNote->2);
-:local iTimeMin [/ip hotspot user get [find name="$user"] limit-uptime];
-:local iUserReg [/system scheduler find name="$user"];
+:local iVdoName ($aUsrNote->3);
+:local iTimeMin [/ip hotspot user get $user limit-uptime];
+:local iUserReg [/system scheduler find name=$user];
 
+# --- # Check User Data -----------------------------------------------------
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
-  /ip hotspot user set [find name="$user"] comment="";
+  /ip hotspot user set $user comment="";
+  :local iFileMac;
+  :local mac $"mac-address";
+  :for i from=0 to=([:len $mac] - 1) do={
+    :local chr [:pick $mac $i]
+    :if ($chr = ":") do={ :set $chr "" }
+    :set iFileMac ($iFileMac . $chr)
+  }
+# --- # Extend User ---------------------------------------------------------
   :if (($iUserReg!="") and ($iExtCode=1)) do={
-    :local iTimeInt [/system scheduler get [find name="$user"] interval];
+    :local iTimeInt [/system scheduler get $user interval];
     :set iTimeInt ($iTimeInt+$iUsrTime);
     :if ($iTimeMin>$iTimeInt) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
-    /system scheduler set [find name="$user"] interval=$iTimeInt;
+    /system scheduler set $user interval=$iTimeInt;
   }
+# --- # ADD User ------------------------------------------------------------
   :local iDateBeg [/system clock get date];
   :local iTimeBeg [/system clock get time];
   :if ($iUserReg="") do={
     :local iTimeInt $iUsrTime;
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
-    :do { /system scheduler add name="$user" interval=$iTimeInt start-date=$iDateBeg start-time=$iTimeBeg disable=no policy=ftp,read,write,test on-event=("/ip hotspot active remove [find name=\"$user\"];\r\n"."/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n".":do {/file remove \"$HSFilePath/data/$iFileMac.txt\"} on-error={};\r\n"."/system scheduler remove [find name=\"$user\"];\r\n")
-    } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
-    :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
+    :do { /system scheduler add name="$user" interval=$iTimeInt \
+      start-date=$iDateBeg start-time=$iTimeBeg disable=no \
+      policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+      on-event=("/ip hotspot user remove [find name=$user];\r\n".\
+                "/ip hotspot active remove [find user=$user];\r\n".\
+                "/ip hotspot cookie remove [find user=$user];\r\n".\
+                "/system scheduler remove [find name=$user];\r\n".\
+                ":do {/file remove \"$HSFilePath/data/$iFileMac.txt\"} on-error={};\r\n")
+    } on-error={ log error "( $user ) /system scheduler add => ERROR ADD!" };
+    :local x 10;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };
-  :if ([/file find name="$HSFilePath/data/site-id.txt"]="") do={
-    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="http://127.0.0.1/portal.html"} on-error={ };
-    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/portal.html"} on-error={ };
+# --- # Save Data File ------------------------------------------------------
+  :if ([/file find name="$HSFilePath/data"]="") do={
+    :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/"} on-error={ };
   }
-};
-}
-
-# ---------------------------------------------------------------------------
-# Session clamp - runs on EVERY login. See the header for why this cannot live
-# inside the empty-comment branch above.
-# ---------------------------------------------------------------------------
-:local jfSched [/system scheduler find name="$user"];
-# -------------------------------------------------------------------------
-# Save Data File - original JuanFi's block, with its filename bug fixed.
-# /tool fetch is what creates the data/ DIRECTORY (there is no mkdir on
-# RouterOS); /file print then creates the file itself.
-# The original polls for "<mac>.txt" but writes "<mac>" with no extension, so
-# the portal's GET /data/<mac>.txt gets a 404. Same path used for both here.
-# The original writes the file only when a scheduler exists and never removes
-# it otherwise. An earlier version of this removed it on the no-scheduler
-# path, which meant a voucher whose scheduler was gone had its session file
-# deleted on every login - and that is what made the portal show nothing.
-# Do not add that back.
-:if ([/file find name=($HSFilePath . "/data")]="") do={
-  :do { /tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/" } on-error={};
-}
-:local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
-:do { /file print file=$jfSess where name="dummyfile" } on-error={};
-:local jx 10;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
-:local jfValid "";
-:if ([:len [/system scheduler find name=$user]] > 0) do={ :set jfValid [/system scheduler get $user next-run] };
-# One line per login, so the next failure is visible in /log instead of guessed.
-:log info ("On-Login(" . $user . "): mac=[" . $iFileMac . "] dir=" . $HSFilePath . " file=[" . $jfSess . "] valid=[" . $jfValid . "]");
-:if ($jfValid != "") do={
-  :do { /file set $jfSess contents=($user . "#" . $jfValid) } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
-};
-# -------------------------------------------------------------------------
-if ($jfSched != "") do={
-  :local jfNext [/system scheduler get $jfSched next-run];
-  # ponytail: the whole clamp is skipped when there is no scheduler. That is
-  # deliberate - the firmware adds one for every voucher with time on it - but
-  # it means a voucher whose scheduler is gone keeps whatever limit-uptime it
-  # had. The line above logs the scheduler state, so if that shows up, this is
-  # where to look.
-  # -------------------------------------------------------------------------
-  # Remaining time = next-run MINUS now, and next-run is a full civil date-time
-  # ("2026-10-04 16:20:00"), not a duration. Comparing only the two time halves
-  # would throw away whole days and clamp a 2-day voucher to the few hours left
-  # today, every single time the customer reconnects. So both halves are turned
-  # into a plain day number first (1 Jan = day 0, leap years included) and the
-  # difference is done in seconds.
-  #
-  #   dayNum(y,m,d) = y*365 + leapDays(y-1) + dayOfYear(y,m,d)
-  #   leapDays(n)   = (n-n%4)/4 - (n-n%100)/100 + (n-n%400)/400
-  #     leap days from years BEFORE y - counting year y itself would double
-  #     count 29 Feb against the +1 that dayOfYear already adds, and the two
-  #     then cancel wrongly every 31 Dec / 1 Jan.
-  #     Subtracting the remainder before dividing keeps each term an exact
-  #     integer no matter how RouterOS rounds a plain division.
-  #   dayOfYear    = d + cumDays[m-1], +1 after February in a leap year
-  # -------------------------------------------------------------------------
-  :local jfNowDayNum -1;
-  :do {
-    :local jfNowDate [/system clock get date];
-    :local jfNY [:tonum [:pick $jfNowDate 0 4]];
-    :local jfNM [:tonum [:pick $jfNowDate 5 7]];
-    :local jfND [:tonum [:pick $jfNowDate 8 10]];
-    :local jfCum {0 31 59 90 120 151 181 212 243 273 304 334};
-    :local jfNDoy ($jfND + [:pick $jfCum ($jfNM - 1)]);
-    :if ((($jfNY % 4) = 0) and ((($jfNY % 100) != 0) or (($jfNY % 400) = 0)) and ($jfNM > 2)) do={ :set jfNDoy ($jfNDoy + 1) };
-    :local jfPY ($jfNY - 1);
-    :local jfNLeap ((($jfPY - $jfPY % 4) / 4) - (($jfPY - $jfPY % 100) / 100) + (($jfPY - $jfPY % 400) / 400));
-    :set jfNowDayNum ((($jfNY * 365) + $jfNLeap) + $jfNDoy);
-  } on-error={ :set jfNowDayNum -1 };
-  :local jfNextDayNum -1;
-  :local jfTimeSec -1;
-  :do {
-    :local sp [:find $jfNext " "];
-    :local jfDate [:pick $jfNext 0 $sp];
-    :local jfTimeStr [:pick $jfNext ($sp + 1) [:len $jfNext]];
-    :local jfNY [:tonum [:pick $jfDate 0 4]];
-    :local jfNM [:tonum [:pick $jfDate 5 7]];
-    :local jfND [:tonum [:pick $jfDate 8 10]];
-    :local jfCum {0 31 59 90 120 151 181 212 243 273 304 334};
-    :local jfNDoy ($jfND + [:pick $jfCum ($jfNM - 1)]);
-    :if ((($jfNY % 4) = 0) and ((($jfNY % 100) != 0) or (($jfNY % 400) = 0)) and ($jfNM > 2)) do={ :set jfNDoy ($jfNDoy + 1) };
-    :local jfPY ($jfNY - 1);
-    :local jfNLeap ((($jfPY - $jfPY % 4) / 4) - (($jfPY - $jfPY % 100) / 100) + (($jfPY - $jfPY % 400) / 400));
-    :set jfNextDayNum ((($jfNY * 365) + $jfNLeap) + $jfNDoy);
-    # ":tonum" is the only way out of "HH:MM:SS" - it answers seconds.
-    :set jfTimeSec [:tonum $jfTimeStr];
-  } on-error={ :set jfNextDayNum -1 };
-  :local jfLeft 0;
-  :local jfOk 0;
-  :local jfWhy ("unreadable next-run or clock date (" . $jfNext . ")");
-  :if (($jfNextDayNum >= 0) and ($jfNowDayNum >= 0)) do={
-    :set jfLeft ((($jfNextDayNum - $jfNowDayNum) * 86400) + ($jfTimeSec - [:tonum [/system clock get time]]));
-    :set jfOk 1;
-    # A voucher cannot plausibly run for more than a month; anything that big
-    # means a half-parsed date, and writing it would hand out free Wi-Fi.
-    :if ($jfLeft > 2678400) do={
-      :set jfOk 0;
-      :set jfLeft 0;
-      :set jfWhy ("implausible time left from next-run (" . $jfNext . ")");
-    };
-  };
-  :if ($jfOk = 0) do={
-    # Leave the session alone rather than guess: clamping to 1s here would log
-    # paying customers out at random.
-    :log warning ("On-Login(" . $user . "): " . $jfWhy . ", clamp skipped");
-  } else={
-    :if ($jfLeft > 0) do={
-      :do { /ip hotspot user set [find name="$user"] limit-uptime=[:totime $jfLeft] }
-        on-error={ :log warning ("On-Login(" . $user . "): limit-uptime clamp write failed") };
-    } else={
-      # next-run has not fired yet but no time is left. Expire the row rather
-      # than deleting it, so the same code can be topped up and reused; until
-      # then, an unclamped session would be free.
-      :do { /ip hotspot user set [find name="$user"] limit-uptime=[:totime "00:00:01"] } on-error={ };
-      :log warning ("On-Login(" . $user . "): already past next-run, clamped to 1s");
-    };
-  };
+  :local iValidUntil [/system scheduler get $user next-run];
+  :if ([/system scheduler find name=$user]!="") do={
+    /file print file="$HSFilePath/data/$iFileMac.txt" where name="dummyfile";
+    :local x 10;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
+    # CHANGE vs upstream: upstream writes "$HSFilePath/data/$iFileMac" with no
+    # .txt extension, while the line above creates <mac>.txt. The set then
+    # targets a file that does not exist, errors out, and leaves the .txt
+    # empty. The portal reads that file, so an empty one looks exactly like a
+    # missing one. Same extension on both sides.
+    /file set "$HSFilePath/data/$iFileMac.txt" contents="$user#$iValidUntil";
+    # ponytail: the log line is the only way to tell "file written" from
+    # "gate skipped" from "no scheduler". Delete once it has done its job.
+    :log info ("On-Login(" . $user . "): mac=[" . $iFileMac . "] dir=" . $HSFilePath . " time=[" . $iTimeMin . "] usr=[" . $iUsrTime . "] valid=[" . $iValidUntil . "]");
+  }
+# --- end of gate -----------------------------------------------------------
 };
 ```
 
@@ -538,23 +384,15 @@ Trials skip the timer here on purpose — they expire via `trial-uptime` (A1),
 and deleting a trial row would reset its MAC wait. The portal splits the
 session file on the last `#`, so member names containing `#` still work.
 
-**The session clamp (last block).** It runs on *every* login, not only the
-first, because the voucher minutes in the user's `comment` are written once and
-then cleared — so on every reconnect the block above takes the
-"empty comment, timer skipped" branch and does no timer work, while
-`limit-uptime` is only ever read, never written. Each reconnect would then get a
-fresh full `limit-uptime` from the firmware's original value: a free-WiFi hole
-that fits inside one absolute window. The clamp sets `limit-uptime` to whatever
-is genuinely left before `next-run`, and it stays outside the empty-comment
-branch on purpose. `next-run` is a full DATE *and* TIME ("2026-10-04 16:20:00"),
-so both sides are reduced to a plain day number (1 Jan = day 0, leap years
-included) and the subtraction is done in seconds; comparing only the two time
-halves would throw away whole days and clamp a 2-day voucher down to whatever is
-left *today*, on every reconnect. It skips the write entirely when `next-run`
-will not parse — clamping to 1s there would log paying customers out at random —
-and also when the result is over a month, which can only mean a half-parsed
-date. Genuinely past `next-run` is the one case that clamps to 1s: the row stays
-so the same code can be topped up.
+**The session clamp is gone.** JuanFiV2 used to carry an extra block that reset
+`limit-uptime` to whatever was genuinely left before `next-run` on every login.
+It is not in the original script and it is not here any more. Without it,
+`limit-uptime` is only ever read by this script, never written, so a reconnect
+takes the "empty comment, timer skipped" branch and inherits a fresh full
+`limit-uptime` from the firmware while the scheduler's `next-run` keeps ticking
+as the real balance. On this box `idle-timeout=none`, so there is no reconnect
+window to exploit — but if you ever set one, that is the hole, and the clamp
+has to come back.
 
 Ran an older build? Delete the leftovers: scripts `day-report`, `month-report`,
 `todayincome`, `monthlyincome`, `tg-creds` and schedulers `Reset Daily
