@@ -153,18 +153,14 @@
 :do { /file print file=$jfSess where name="dummyfile" } on-error={};
 :local jx 2;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
 :local jfValid "";
-:if ($jfSched != "") do={ :set jfValid [/system scheduler get $jfSched next-run] } else={
-  # No scheduler: the only deadline left is limit-uptime, which is a duration.
-  # Turn it into a civil date-time the portal can parse the same way.
-  :local jfLU [:tonum [/ip hotspot user get [find name="$user"] limit-uptime]];
-  :local jfT (/system clock get time);
-  :local jfD (/system clock get date);
-  :if ($jfLU > 0) do={
-    :set jfT ($jfT . ($jfLU . "s"));
-    :if ([:totime ([:timedate $jfT])] < (/system clock get time)) do={ :set jfD ([:totime $jfD] + 1d) };
-    :set jfValid ([:todate $jfD] . " " . [:timedate $jfT]);
-  };
-};
+# Scheduler next-run is the deadline, and it is a full civil date-time
+# ("2026-10-04 16:20:00"). Without a scheduler there is no date to publish:
+# limit-uptime is a duration and RouterOS has no datetime value to add it to
+# ([:todate]/[:timedate] are one-way casts, and :totime throws the date away),
+# so a trial or manually-added user simply gets no session file. The voucher
+# path always has a scheduler, so this costs nothing that matters.
+# settings.json ships showTrialLogin:false, so trials are off on this box too.
+:if ($jfSched != "") do={ :set jfValid [/system scheduler get $jfSched next-run] };
 :if ($jfValid != "") do={
   :do { /file set $jfSess contents=($user . "#" . $jfValid) } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
 } else={
