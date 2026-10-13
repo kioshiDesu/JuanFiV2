@@ -438,9 +438,7 @@ closing brace on the last line. Then OK. It is also saved as
   :local iValidUntil "";
   :if ([/system scheduler find name="$user"]!="") do={
     :set iValidUntil [/system scheduler get [find name="$user"] next-run];
-    /file print file="$HSFilePath/data/$iFileMac.txt" where name="dummyfile";
-    :local x 5;:while (($x>0) and ([/file find name="$HSFilePath/data/$iFileMac.txt"]="")) do={:set x ($x-1);:delay 1s};
-    /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil";
+    :do { /file set ("$HSFilePath/data/$iFileMac.txt") contents="$user#$iValidUntil" } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
   }
 };
 }
