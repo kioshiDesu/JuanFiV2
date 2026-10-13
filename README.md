@@ -445,21 +445,40 @@ closing brace on the last line. Then OK. It is also saved as
 # inside the empty-comment branch above.
 # ---------------------------------------------------------------------------
 :local jfSched [/system scheduler find name="$user"];
-:if ($jfSched != "") do={
+# -------------------------------------------------------------------------
+# Publish the session file, OUTSIDE the scheduler gate. Two reasons it cannot
+# live inside: the gate skips it for any voucher with no scheduler (so a box
+# where the voucher branch never ran gets no data/ at all), and the voucher
+# branch above only runs while the comment is set, which it blanks on first
+# login. The portal reads this file from every other device, so it has to be
+# written on every login, whichever branch applies.
+# /file print is the only mkdir on RouterOS: it creates the file AND the
+# data/ directory when this is the first login on a fresh flash.
+:local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
+:do { /file print file=$jfSess where name="dummyfile" } on-error={};
+:local jx 2;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
+:local jfValid "";
+:if ($jfSched != "") do={ :set jfValid [/system scheduler get $jfSched next-run] } else={
+  # No scheduler: the only deadline left is limit-uptime, which is a duration.
+  # Turn it into a civil date-time the portal can parse the same way.
+  :local jfLU [:tonum [/ip hotspot user get [find name="$user"] limit-uptime]];
+  :local jfT (/system clock get time);
+  :local jfD (/system clock get date);
+  :if ($jfLU > 0) do={
+    :set jfT ($jfT . ($jfLU . "s"));
+    :if ([:totime ([:timedate $jfT])] < (/system clock get time)) do={ :set jfD ([:totime $jfD] + 1d) };
+    :set jfValid ([:todate $jfD] . " " . [:timedate $jfT]);
+  };
+};
+:if ($jfValid != "") do={
+  :do { /file set $jfSess contents=($user . "#" . $jfValid) } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
+} else={
+  :do { /file remove $jfSess } on-error={};
+  :log warning ("On-Login(" . $user . "): no expiry, session file removed");
+};
+# -------------------------------------------------------------------------
+if ($jfSched != "") do={
   :local jfNext [/system scheduler get $jfSched next-run];
-  # -------------------------------------------------------------------------
-  # Publish the session file. This lives here, not in the voucher branch above,
-  # because that branch only runs while the voucher comment is still set and
-  # blanks it on the first login - so the file was written exactly once per
-  # voucher and never again. A stale file breaks the portal on every other
-  # device, and after an extend (which moves next-run) it hands out an expiry
-  # that has already passed.
-  # /file print is the only mkdir on RouterOS: it creates the file AND the
-  # data/ directory when this is the first login on a fresh flash.
-  :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
-  :do { /file print file=$jfSess where name="dummyfile" } on-error={};
-  :local jx 2;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
-  :do { /file set $jfSess contents=($user . "#" . $jfNext) } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
   # -------------------------------------------------------------------------
   # Remaining time = next-run MINUS now, and next-run is a full civil date-time
   # ("2026-10-04 16:20:00"), not a duration. Comparing only the two time halves
