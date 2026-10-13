@@ -324,20 +324,16 @@ closing brace on the last line. Then OK. It is also saved as
 :local iTimeMin [/ip hotspot user get $user limit-uptime];
 :local iUserReg [/system scheduler find name=$user];
 
-# The session-file name. Upstream derives this INSIDE the gate below, which
-# only runs on a voucher's first login. The resume block at the bottom needs
-# it too, and a resume is exactly the case the gate skips.
-:local iFileMac;
-:local mac $"mac-address";
-:for i from=0 to=([:len $mac] - 1) do={
-  :local chr [:pick $mac $i]
-  :if ($chr = ":") do={ :set $chr "" }
-  :set iFileMac ($iFileMac . $chr)
-}
-
 # --- # Check User Data -----------------------------------------------------
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
   /ip hotspot user set $user comment="";
+  :local iFileMac;
+  :local mac $"mac-address";
+  :for i from=0 to=([:len $mac] - 1) do={
+    :local chr [:pick $mac $i]
+    :if ($chr = ":") do={ :set $chr "" }
+    :set iFileMac ($iFileMac . $chr)
+  }
 # --- # Extend User ---------------------------------------------------------
   :if (($iUserReg!="") and ($iExtCode=1)) do={
     :local iTimeInt [/system scheduler get $user interval];
@@ -382,51 +378,6 @@ closing brace on the last line. Then OK. It is also saved as
   }
 # --- end of gate -----------------------------------------------------------
 };
-
-# --- resume: put the pause mark back -----------------------------------------
-# OnLogout.txt moves data/<mac>.txt aside to p<mac>.txt on a pause, so the
-# portal's resumeSession() gets a 404 instead of auto-connecting from another
-# browser. Reaching here IS the customer reconnecting on purpose, so put the
-# file back. Runs outside the gate on purpose: a resume has an empty comment,
-# which is the one thing that always skips the gate.
-#
-# No hardcoded path and no /file move, for the same reasons as OnLogout: the
-# storage prefix is not reliably part of a file name, and /file move is the one
-# command here not already proven on this box.
-#
-# The scheduler is never touched. Pausing does not stop expiry - the voucher
-# still runs out on its original next-run, exactly as before this block.
-:local jfMSuf ("p" . $iFileMac . ".txt");
-:local jfErr "";
-:local jfHit "";
-:onerror jfErr in={ :set jfHit [:pick [/file find where name~(".*" . $jfMSuf . "$")] 0] } do={ :set jfHit "" };
-:local jfMark "";
-:local jfBody "";
-:if ($jfHit != "") do={
-  :local jfErr "";
-  :onerror jfErr in={ :set jfMark [/file get $jfHit name] } do={ :set jfMark "" };
-  :local jfErr "";
-  :onerror jfErr in={ :set jfBody [/file get $jfHit contents] } do={ :set jfBody "" };
-};
-# Same directory, p- dropped.
-:local jfSess "";
-:if ($jfMark != "") do={ :set jfSess ([:pick $jfMark 0 ([:len $jfMark] - [:len $jfMSuf])] . $iFileMac . ".txt") };
-
-:if (($jfHit != "") and ($jfBody != "")) do={
-  :local jfErr "";
-  :onerror jfErr in={
-    :local jfOld "";
-    :onerror jfErr in={ :set jfOld [:pick [/file find where name=($jfSess)] 0] } do={ :set jfOld "" };
-    :if ($jfOld != "") do={ /file remove $jfOld };
-    /file print file=$jfSess where name="dummyfile";
-    /file set $jfSess contents=$jfBody;
-    /file remove $jfHit;
-  } do={ :log warning ("On-Login(" . $user . "): pause mark clear failed err=[" . $jfErr . "] mark=[" . $jfMark . "] sess=[" . $jfSess . "]") };
-  :local jfMade "";
-  :local jfErr "";
-  :onerror jfErr in={ :set jfMade [:pick [/file find where name=($jfSess)] 0] } do={ :set jfMade "" };
-  :if ($jfMade != "") do={ :log info ("On-Login(" . $user . "): resumed, pause mark cleared") };
-}
 ```
 
 Trials skip the timer here on purpose — they expire via `trial-uptime` (A1),
@@ -465,13 +416,9 @@ whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
 # and has no script field. Every voucher the firmware creates is
 # /ip hotspot user add with no profile=, so they all land on `default`.
 #
-# Paste everything from the first line below to the closing brace. Same box
-# as OnLogin.txt, different field.
-#
-# CHANGE vs upstream: upstream is one line that only sets interval=5s and
-# never re-anchors, so it does nothing. Two blocks below, both real.
+# Paste everything from the line below to the closing brace on the last
+# line. Same box as OnLogin.txt, different field.
 
-# --- session timeout: end the voucher now -----------------------------------
 :if ($cause="session timeout") do={
   # interval alone does NOT move an already-computed next-run, so the 5s
   # never took effect. Re-anchor start-date/start-time to now so next-run
@@ -479,98 +426,10 @@ whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
   :local jfNow [/system clock get time];
   :do { /system scheduler set [find name="$user"] interval=5s start-date=[/system clock get date] start-time=($jfNow + 5s) } on-error={ :log warning ("On-Logout(" . $user . "): scheduler timeout set failed") };
 }
-
-# --- pause: hide the session file so no other browser auto-resumes ----------
-# The portal's resumeSession() reads data/<mac>.txt in ANY browser and, if the
-# expiry is still in the future, fills the voucher and auto-clicks CONNECT.
-# The only guard there is a localStorage flag, which does not travel to a
-# different browser or a different device. So pause on the phone, reconnect on
-# the laptop, and the laptop logs itself straight back in.
-#
-# Recreating the file under a p- name makes that GET 404 until the customer
-# deliberately reconnects. OnLogin.txt puts it back on login, so the pause
-# holds across browsers but not forever.
-#
-# Deliberately has no destructive power: the scheduler is untouched, so a
-# false positive here (a WiFi blip that also reports "user request") costs the
-# customer one CONNECT tap and nothing else. That is why this gates on $cause
-# without trying to tell a pause apart from a typed /logout.
-
-# No hardcoded path anywhere in this block. RouterOS stores flash under a
-# storage prefix that is not reliably part of the name, so
-# [/file find name="flash/hotspot/data/x.txt"] can miss a file that plainly
-# exists. Find by suffix instead, then ask /file get for the real name.
-:local jfPM "";:local jfMC $"mac-address";
-:for i from=0 to=([:len $jfMC] - 1) do={
-  :local jfC [:pick $jfMC $i]
-  :if ($jfC != ":") do={ :set jfPM ($jfPM . $jfC) }
-};
-:local jfSuf ($jfPM . ".txt");
-:local jfErr "";
-:local jfHit "";
-:onerror jfErr in={ :set jfHit [:pick [/file find where name~(".*" . $jfSuf . "$")] 0] } do={ :set jfHit "" };
-:local jfReal "";
-:if ($jfHit != "") do={
-  :local jfErr "";
-  :onerror jfErr in={ :set jfReal [/file get $jfHit name] } do={ :set jfReal "" };
-};
-# Same directory, p- prefixed name, taken off the real name rather than rebuilt.
-:local jfTo "";
-:if ($jfReal != "") do={ :set jfTo ([:pick $jfReal 0 ([:len $jfReal] - [:len $jfSuf])] . "p" . $jfSuf) };
-
-:local jfBody "";
-:if ($jfHit != "") do={
-  :local jfErr "";
-  :onerror jfErr in={ :set jfBody [/file get $jfHit contents] } do={ :set jfBody "" };
-};
-
-:local jfMsg [:tostr [:len $jfHit]];
-:log info ("On-Logout-DEBUG(" . $user . ") cause=[" . $cause . "] mac=[" . $jfMC . "] pm=[" . $jfPM . "] real=[" . $jfReal . "] to=[" . $jfTo . "] hit=" . $jfMsg);
-
-:if (($cause="user request") and ($jfHit != "") and ($jfBody != "")) do={
-  # No /file move. It is the one command here not already proven to work
-  # on this box, and it failed there. Recreate at the new name instead:
-  # /file print makes it, /file set fills it, then drop the old one.
-  #
-  # :onerror rather than :do ... on-error because it hands back the real
-  # reason in $jfErr instead of a fixed string.
-  :local jfErr "";
-  :onerror jfErr in={
-    :local jfNew "";
-    :onerror jfErr in={ :set jfNew [:pick [/file find where name=($jfTo)] 0] } do={ :set jfNew "" };
-    :if ($jfNew != "") do={ /file remove $jfNew };
-    /file print file=$jfTo where name="dummyfile";
-    /file set $jfTo contents=$jfBody;
-    /file remove $jfHit;
-  } do={ :log warning ("On-Logout(" . $user . "): pause mark failed err=[" . $jfErr . "] to=[" . $jfTo . "]") };
-  :local jfMade "";
-  :local jfErr "";
-  :onerror jfErr in={ :set jfMade [:pick [/file find where name=($jfTo)] 0] } do={ :set jfMade "" };
-  :if ($jfMade != "") do={ :log info ("On-Logout(" . $user . "): paused, session file marked") };
-}
 ```
 
 Only `session timeout` shortens the timer; other logout causes leave it at
 full interval, which preserves the customer's remaining minutes.
-
-**Pause across browsers.** The `user request` block is the pause. On-Logout
-renames `data/<mac>.txt` to `data/p<mac>.txt`; On-Login renames it back. That
-matters because `resumeSession()` in `core.js` will read `data/<mac>.txt` in
-**any** browser and auto-click CONNECT when the expiry is still in the future.
-Its only guard is a localStorage flag, which does not travel — so without the
-rename, pausing on the phone and reconnecting on the laptop logs the customer
-straight back in. With it, the other browser gets a 404 and shows the login
-page until they deliberately tap CONNECT, at which point On-Login puts the file
-back.
-
-The scheduler is never touched, so pausing does **not** stop expiry: the
-voucher still runs out on its original `next-run`, exactly as before. Session
-uptime stops on its own, because RouterOS drops the active session on logout.
-
-It also cannot do damage if it fires when it should not. A WiFi blip that
-reports `user request` too would leave a pause mark nobody set, and all that
-costs is one extra CONNECT tap — no time is lost, because nothing about the
-scheduler or the balance changed.
 
 
 ### D. Portal files
