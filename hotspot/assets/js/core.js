@@ -1094,7 +1094,12 @@ function boot() {
 	try { dbgLog("boot page=" + (typeof PAGE !== 'undefined' ? PAGE : "?") + " vendo=" + (typeof vendorIpAddress !== 'undefined' ? vendorIpAddress : "?") + " mac=" + (typeof mac !== 'undefined' ? mac : "?")); } catch (e) { }
 	// Records the value in __adoptedPre so loadSiteId can correct it later.
 	try { adoptScopedVoucher(false); } catch (e) {}
-	if (getReLoginFlag() == '1') {
+	// A pause outranks a stale reLogin. reLogin is unscoped, never expires, and
+	// is written by the coin-extend path right before document.logout.submit();
+	// interrupt that hand-off and it survives, so every later boot takes the
+	// fast path below and doLogin()s straight back in. Skipping the fast path
+	// lets detectState() resolve "paused" and checkStalePause() take over.
+	if (getReLoginFlag() == '1' && getPausedFlag() != "1") {
 		removeReLoginFlag();
 		// NO prefill here: the venue scope is still unknown, so a read now
 		// lands in the "ERROR SITE ID" bucket and loadSiteId's correction
@@ -1127,6 +1132,9 @@ function boot() {
 		try { loadRates(); } catch (e) {}
 		return;
 	}
+	// Dropped the fast path above because a pause is in effect. Forget the
+	// flag here or the next boot takes it again and lands on the status view.
+	try { if (getReLoginFlag() == '1') { removeReLoginFlag(); } } catch (e) {}
 	try { if (!window.__siteIdLoaded) { loadSiteId(); } } catch (e) {}
 	try { adoptScopedVoucher(false); } catch (e) {}
 	// Failsafe: never trap the customer behind the loader (dead vendo,
