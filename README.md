@@ -478,7 +478,7 @@ closing brace on the last line. Then OK. It is also saved as
   :if ($iUserReg="") do={
     :local iTimeInt $iUsrTime;
     :if ($iTimeMin>$iUsrTime) do={ :set iTimeInt ($iTimeMin+$iUsrTime) };
-    :do { /system scheduler add name="$user" interval=$iTimeInt start-date=$iDateBeg start-time=$iTimeBeg disable=no policy=ftp,read,write,test on-event=("/ip hotspot active remove [find name=\"$user\"];\r\n"."/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n"."/system scheduler remove [find name=\"$user\"];\r\n")
+    :do { /system scheduler add name="$user" interval=$iTimeInt start-date=$iDateBeg start-time=$iTimeBeg disable=no policy=ftp,read,write,test on-event=("/ip hotspot active remove [find name=\"$user\"];\r\n"."/ip hotspot user set [find name=\"$user\"] limit-uptime=[:totime \"00:00:00\"] comment=\"\";\r\n".":do {/file remove \"$HSFilePath/data/$iFileMac.txt\"} on-error={};\r\n"."/system scheduler remove [find name=\"$user\"];\r\n")
     } on-error={ :log error ("(" . $user . ") /system scheduler add => ERROR ADD!") };
     :local x 5;:while (($x>0) and ([/system scheduler find name="$user"]="")) do={:set x ($x-1);:delay 1s};
   };
@@ -503,6 +503,12 @@ closing brace on the last line. Then OK. It is also saved as
 # written on every login, whichever branch applies.
 # /file print is the only mkdir on RouterOS: it creates the file AND the
 # data/ directory when this is the first login on a fresh flash.
+# Save Data File. Original JuanFi creates data/ with /tool fetch first, then the
+# /file print below makes the file itself. Both kept: fetch is the only thing
+# that makes the directory, print is the only thing that makes the file.
+:if ([/file find name=($HSFilePath . "/data/")]="") do={
+  :do {/tool fetch dst-path=($HSFilePath . "/data/.") url="https://127.0.0.1/"} on-error={};
+}
 :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
 :do { /file print file=$jfSess where name="dummyfile" } on-error={};
 :local jx 2;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
