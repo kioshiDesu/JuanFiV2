@@ -56,7 +56,16 @@
 # Trial users ("T-" prefix) have no scheduler entry, so the clamp block is
 # skipped for them by construction; their time is native trial-uptime (A1).
 
-:local PROF "juanfi";
+# Find the server profile that actually serves our portal files instead of
+# trusting a name - boxes name it anything (hsprof1, default, juanfi...).
+:local PROF "";
+:foreach p in=[/ip hotspot profile find] do={
+  :if ($PROF = "") do={
+    :local ph "";:do { :set ph [/ip hotspot profile get $p html-directory] } on-error={};
+    :if (($ph != "") and ([/file find name=($ph . "/portal.html")] != "")) do={ :set PROF [/ip hotspot profile get $p name] };
+  };
+};
+:if ($PROF = "") do={ :set PROF "juanfi" };
 :local HSFilePath "";
 :do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
 :if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={

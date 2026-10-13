@@ -99,7 +99,16 @@ the `login-by=` line to turn the free trial off.
 Source:
 
 ```
-:local PROF "juanfi";
+# Which hotspot SERVER profile is ours? Boxes name it anything, so find the one
+# whose html-directory actually holds portal.html rather than trusting "juanfi".
+:local PROF "";
+:foreach p in=[/ip hotspot profile find] do={
+  :if ($PROF = "") do={
+    :local ph "";:do { :set ph [/ip hotspot profile get $p html-directory] } on-error={};
+    :if (($ph != "") and ([/file find name=($ph . "/portal.html")] != "")) do={ :set PROF [/ip hotspot profile get $p name] };
+  };
+};
+:if ($PROF = "") do={ :set PROF "juanfi" };
 :local NTP1 "216.239.35.8";
 :local NTP2 "216.239.35.4";
 :local HSFilePath "";
@@ -403,7 +412,16 @@ closing brace on the last line. Then OK. It is also saved as
 # Trial users ("T-" prefix) have no scheduler entry, so the clamp block is
 # skipped for them by construction; their time is native trial-uptime (A1).
 
-:local PROF "juanfi";
+# Find the server profile that actually serves our portal files instead of
+# trusting a name - boxes name it anything (hsprof1, default, juanfi...).
+:local PROF "";
+:foreach p in=[/ip hotspot profile find] do={
+  :if ($PROF = "") do={
+    :local ph "";:do { :set ph [/ip hotspot profile get $p html-directory] } on-error={};
+    :if (($ph != "") and ([/file find name=($ph . "/portal.html")] != "")) do={ :set PROF [/ip hotspot profile get $p name] };
+  };
+};
+:if ($PROF = "") do={ :set PROF "juanfi" };
 :local HSFilePath "";
 :do { :set HSFilePath [/ip hotspot profile get [find name=$PROF] html-directory] } on-error={ :set HSFilePath "" };
 :if (($HSFilePath = "") or ([/file find name=($HSFilePath . "/portal.html")] = "")) do={
