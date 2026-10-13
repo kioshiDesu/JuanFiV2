@@ -66,13 +66,12 @@ Before you start: in the `juanfi-setup` source, edit `PROF` (the hotspot
 profile name, `juanfi` by default), `NTP1`/`NTP2` and `Asia/Manila` to match
 your router.
 
-#### A1. `juanfi-setup` — profile, clock, NTP, FastTrack, site ID, netstatus file
+#### A1. `juanfi-setup` — profile, clock, NTP, FastTrack, site ID
 
 Policy: `read`, `write`, `test`, `policy`, `ftp`
 
 Sets the hotspot and user profiles, syncs the clock, adds the FastTrack accept
-rule, publishes this router's own site id into `data/site-id.txt`, and creates
-`data/netstatus.txt` as `up` so the netwatch entry in A2 has a file to write.
+rule, and publishes this router's own site id into `data/site-id.txt`.
 
 That site id is what splits voucher history per venue — the customer's phone
 stores `voucherHistory_<site id>`, so two venues only share a list if they
@@ -166,81 +165,9 @@ Source:
   :while (($y>0) and ([/file find name=$siteFile] = "")) do={ :set y ($y-1); :delay 1s };
   :do { /file set $siteFile contents=$sn } on-error={ :log warning "setup: site-id not written" };
 };
-:local netFile ($dataDir . "/netstatus.txt");
-:if ([/file find name=$netFile] = "") do={
-  :do { /file print file=$netFile where name="dummyfile" } on-error={};
-  :local z 5;
-  :while (($z>0) and ([/file find name=$netFile] = "")) do={ :set z ($z-1); :delay 1s };
-  :do { /file set $netFile contents="up" } on-error={ :log warning "setup: netstatus.txt not created" };
-};
 ```
 
-#### A2. Netwatch — internet up/down file (optional)
-
-**Tools → Netwatch → +**
-
-| Field | Value |
-| --- | --- |
-| Name | `juanfi-netwatch` |
-| Host | `8.8.8.8` |
-| Type | `simple` |
-| Interval | `00:00:10` |
-| Timeout | `1s` |
-| Down Script | `/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="down"` |
-| Up Script | `/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="up"` |
-| Policy | `read`, `write`, `test` |
-
-The two scripts are single lines — that is all §A2 is:
-
-Down Script:
-
-```
-/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="down"
-```
-
-Up Script:
-
-```
-/file set [:pick [/file find name~"*data/netstatus.txt"] 0] contents="up"
-```
-
-That is the whole thing — no script, no scheduler. Netwatch pings `8.8.8.8`
-every 10 seconds and flips the one file the portal already reads. Netwatch only
-fires a script when the state actually *changes*, so the file is written on
-every transition and never in between — flash wear stays flat.
-
-Two bits of that line look odd on purpose, both about storage prefixes:
-
-- `name~"*data/netstatus.txt"` — the leading `*` is what makes this work on a
-  hex, hAP-ax, or anything else that stores files under `flash/`. The file is
-  really `flash/hotspot/data/netstatus.txt`, and `*` in a RouterOS glob matches
-  `/` as well, so the same string finds it on `hotspot/` and on `flash/hotspot/`
-  without asking the router where the portal lives.
-- `[:pick [/file find …] 0]` — `find` returns **every** match, and `/file set`
-  wants exactly one id. If the file ends up in two places at once (a copy in
-  `flash/` and another in the RAM overlay), the bare `find` version fails with
-  "too many values" and the banner silently stops updating forever. `:pick 0`
-  takes the first match and guarantees one id, so a duplicate costs you
-  determinism but never the feature.
-
-Policy must include `write`, or `/file set` is refused and the banner never
-updates. If the file is missing entirely, both scripts fail silently — re-run
-A1, which recreates it.
-
-The portal shows a banner while that file reads `down`; the wording comes from
-`offlineText` in `settings.json`, and `showInternetStatus: false` hides the
-check entirely.
-
-Two things this cannot see, both true of any ping:
-
-- ICMP blocked, internet fine — an ISP that filters ping makes this report
-  `down` forever. Point **Host** at something that answers if that happens
-  (a DNS resolver, or your own gateway for "WAN up").
-- WAN link up, internet gone — a router with a live cable to a dead uplink
-  still answers locally, so this reports `down` correctly, but a captive
-  portal redirect upstream will read as `up`.
-
-#### A3. `juanfi-sweep` — daily orphan sweep (04:20)
+#### A2. `juanfi-sweep` — daily orphan sweep (04:20)
 
 Policy: `read`, `write`, `test`
 
@@ -324,7 +251,7 @@ Run it once by hand, then read the **Log** menu: it should show
 `juanfi-sweep: grace=3d stamped=N removed=M`. On a fresh install `stamped`
 matches your live voucher count and `removed` should be `0`.
 
-#### A4. Optional: re-run setup daily
+#### A3. Optional: re-run setup daily
 
 A RouterOS upgrade, or anyone tidying the hotspot profile in Winbox, can undo
 what A1 applied. This puts it back on every reboot.
@@ -638,9 +565,8 @@ Ran an older build? Delete the leftovers: scripts `day-report`, `month-report`,
 Income`, `Reset Monthly Income`, `tg-creds-boot`. Nothing reads them.
 
 Came from the version that used a scheduler instead of netwatch? Delete script
-`juanfi-netstatus` and scheduler `juanfi-netstatus-1m`. The portal no longer
-shows an internet up/down banner, so §A2's netwatch and A1's `netstatus.txt`
-are optional now — keep them if you want the file, skip them if not.
+`juanfi-netstatus` and scheduler `juanfi-netstatus-1m`. The portal has no
+internet up/down banner, so nothing reads `netstatus.txt` any more.
 
 
 ### C. On-Logout (same user profile)
@@ -701,8 +627,6 @@ full interval, which preserves the customer's remaining minutes.
   "showMemberSection": true,
   "showTrialLogin": false,
   "trialNoExtend": true,
-  "showInternetStatus": true,
-  "offlineText": "No internet connection as of the moment, please try again later",
   "macAsVoucherCode": false,
   "showConvertVoucher": true
 }
