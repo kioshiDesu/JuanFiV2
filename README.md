@@ -328,7 +328,14 @@ what A1 applied. This puts it back on every reboot.
 
 ### B. On-Login
 
-Hotspot → Server Profiles → your profile → **Login** tab → **On Login**.
+Hotspot → **User Profiles** → `default` → **Login** tab → **On Login**.
+
+`on-login` and `on-logout` are properties of the hotspot **user profile**, not
+the server profile. The server profile's Login tab holds the `login-by`
+checkboxes and `trial-uptime` — there is no script field there. Every voucher
+created by the firmware lands on the `default` user profile
+(`/ip hotspot user add` with no `profile=`), so `default` is the one that
+fires.
 
 Maximize the window first, the field is small. Run A1 first, so
 `data/site-id.txt` exists before anyone logs in.
@@ -338,7 +345,7 @@ closing brace on the last line. Then OK. It is also saved as
 [`OnLogin.txt`](OnLogin.txt) if you would rather open the file.
 
 ```
-# JuanFi - hotspot server profile, Login tab.
+# JuanFi - hotspot USER PROFILE (default), Login tab -> On Login.
 #
 # Corrected copy for JuanFi-test: adds the session clamp, keeps the user row
 # on expiry, and clears stale comment/limit-uptime instead of deleting data.
@@ -592,10 +599,10 @@ shows an internet up/down banner, so §A2's netwatch and A1's `netstatus.txt`
 are optional now — keep them if you want the file, skip them if not.
 
 
-### C. On-Logout (same profile)
+### C. On-Logout (same user profile)
 
-Same **Login** tab → **On Logout** box. Paste this whole block, then OK. Also
-saved as [`OnLogout.txt`](OnLogout.txt).
+Same **User Profiles → default → Login** tab → **On Logout** box. Paste this
+whole block, then OK. Also saved as [`OnLogout.txt`](OnLogout.txt).
 
 ```
 :if ($cause="session timeout") do={

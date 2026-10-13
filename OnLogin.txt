@@ -1,4 +1,4 @@
-# JuanFi - hotspot server profile, Login tab.
+# JuanFi - hotspot USER PROFILE (default), Login tab -> On Login.
 #
 # Corrected copy for JuanFi-test: adds the session clamp, keeps the user row
 # on expiry, and clears stale comment/limit-uptime instead of deleting data.
