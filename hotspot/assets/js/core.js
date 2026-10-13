@@ -1240,7 +1240,24 @@ function detectState() {
 			// session.) Validity of the pause itself is checked async by
 			// checkStalePause() once the paused view is up.
 			if (getPausedFlag() == "1") {
-				try { window.__resolvedState = "paused"; dbgLog("detect: paused"); } catch (e) { }
+				// A resume the router rejected ends the pause. resume() leaves
+				// __resumePending AND isPaused set while it waits for the router's
+				// verdict. If the router came back with an error, the voucher is gone:
+				// staying on the paused view means the customer taps RESUME forever
+				// against a code that no longer exists, and boot() returns before
+				// resumeSession() ever reads loginError. Resolve "login" so the
+				// classifier runs and says why.
+				var rejected = false;
+				try {
+					rejected = (getSessionValue("__resumePending") == "1")
+							&& (String(typeof loginError !== "undefined" && loginError != null ? loginError : "") != "");
+				} catch (e) {}
+				if (rejected) {
+					try { removePausedFlag(); window.__resolvedState = "login"; dbgLog("detect: pause ended, resume rejected"); } catch (e) {}
+					d.resolve("login");
+					return;
+				}
+				try { window.__resolvedState = "paused"; dbgLog("detect: paused"); } catch (e) {}
 				d.resolve("paused");
 				return;
 			}
