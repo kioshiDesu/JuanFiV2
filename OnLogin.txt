@@ -55,6 +55,14 @@
   :if ($cand != "") do={ :set HSFilePath $cand };
 };
 :if ($HSFilePath = "") do={ :set HSFilePath "hotspot" };
+# Colon-free MAC, used for the data/ session file below. Hoisted out of the
+# voucher branch because the file write moved to the always-runs clamp block.
+:local iFileMac "";
+:local mac $"mac-address";
+:for i from=0 to=([:len $mac] - 1) do={
+  :local chr [:pick $mac $i]
+  :if ($chr != ":") do={ :set iFileMac ($iFileMac . $chr) }
+}
 :local rawNote [/ip hotspot user get [find name="$user"] comment];
 :local isTrial ([:pick $user 0 2] = "T-");
 # Trial sessions expire natively via trial-uptime (A1) — never
@@ -70,12 +78,6 @@
 
 :if (($iTimeMin>0) and ($iUsrTime>=0) and (($iUserReg="") or ($iExtCode=1))) do={
   /ip hotspot user set [find name="$user"] comment="";
-  :local iFileMac "";
-  :local mac $"mac-address";
-  :for i from=0 to=([:len $mac] - 1) do={
-    :local chr [:pick $mac $i]
-    :if ($chr != ":") do={ :set iFileMac ($iFileMac . $chr) }
-  }
   :if (($iUserReg!="") and ($iExtCode=1)) do={
     :local iTimeInt [/system scheduler get [find name="$user"] interval];
     :set iTimeInt ($iTimeInt+$iUsrTime);
@@ -95,17 +97,6 @@
     :do {/tool fetch dst-path=("$HSFilePath/data/.") url="http://127.0.0.1/portal.html"} on-error={ };
     :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/portal.html"} on-error={ };
   }
-  :local iValidUntil "";
-  :if ([/system scheduler find name="$user"]!="") do={
-    :set iValidUntil [/system scheduler get [find name="$user"] next-run];
-    # /file print is the only mkdir on RouterOS: it creates the file AND the
-    # data/ directory when this is the first login on a fresh flash. Without
-    # it nothing under data/ is ever written, and the portal falls back to
-    # browser-local state on every other device.
-    :do { /file print file=($HSFilePath . "/data/" . $iFileMac . ".txt") where name="dummyfile" } on-error={};
-    :local x 2;:while (($x>0) and ([/file find name=($HSFilePath . "/data/" . $iFileMac . ".txt")]="")) do={:set x ($x-1);:delay 1s};
-    :do { /file set ($HSFilePath . "/data/" . $iFileMac . ".txt") contents="$user#$iValidUntil" } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
-  }
 };
 }
 
@@ -116,6 +107,19 @@
 :local jfSched [/system scheduler find name="$user"];
 :if ($jfSched != "") do={
   :local jfNext [/system scheduler get $jfSched next-run];
+  # -------------------------------------------------------------------------
+  # Publish the session file. This lives here, not in the voucher branch above,
+  # because that branch only runs while the voucher comment is still set and
+  # blanks it on the first login - so the file was written exactly once per
+  # voucher and never again. A stale file breaks the portal on every other
+  # device, and after an extend (which moves next-run) it hands out an expiry
+  # that has already passed.
+  # /file print is the only mkdir on RouterOS: it creates the file AND the
+  # data/ directory when this is the first login on a fresh flash.
+  :local jfSess ($HSFilePath . "/data/" . $iFileMac . ".txt");
+  :do { /file print file=$jfSess where name="dummyfile" } on-error={};
+  :local jx 2;:while (($jx>0) and ([/file find name=$jfSess]="")) do={:set jx ($jx-1);:delay 1s};
+  :do { /file set $jfSess contents=($user . "#" . $jfNext) } on-error={ :log warning ("On-Login(" . $user . "): session file write failed") };
   # -------------------------------------------------------------------------
   # Remaining time = next-run MINUS now, and next-run is a full civil date-time
   # ("2026-10-04 16:20:00"), not a duration. Comparing only the two time halves
