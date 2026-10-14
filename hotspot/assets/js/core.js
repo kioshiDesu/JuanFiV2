@@ -1734,15 +1734,15 @@ function applyFlags() {
 			}
 		} catch (e) {}
 		try { $("#trialBtn").off("click.trial").on("click.trial", function () { if (window.trialAllowed && window.trialUrl) { try { window.location.href = window.trialUrl; } catch (e) {} } else { try { $.toast({ title: "Trial unavailable", content: "Free trial is not enabled on this router", type: "error", delay: 5000 }); } catch (e) {} } return false; }); } catch (e) {}
-		// Footer. The year is real - it was a literal in the HTML that went
-		// stale every January. siteTag and portalVer are operator diagnostics:
-		// a venue code and a build number tell a customer nothing and read as
-		// a broken build, so they only appear with ?dbg=1, the same flag
-		// detectState() already honours.
+		// Footer. The year was a literal in the HTML that went stale every
+		// January. portalVer is a build number - meaningless to a customer, so
+		// it needs ?dbg=1, the flag detectState() honours for ?state=. siteTag
+		// deliberately stays visible: a blank site id IS the broken-build
+		// symptom, and it has to be readable at a glance with no query param.
 		var jfDbg = /[?&]dbg=1/.test(location.search || "");
 		try { $("#footYear").text(new Date().getFullYear()); } catch (e) {}
-		try { if (jfDbg) { $("#portalVer").text(SOUND_V.replace(/^\?v=/, "v")); } else { $("#siteTag,#portalVer").hide(); } } catch (e) {}
-		try { if (jfDbg) { renderSiteTag(); } } catch (e) {}
+		try { if (jfDbg) { $("#portalVer").text(SOUND_V.replace(/^\?v=/, "v")); } else { $("#portalVer").hide(); } } catch (e) {}
+		try { renderSiteTag(); } catch (e) {}
 		try { renderFooterSocial(); } catch (e) {}
 	} catch(e) {}
 }
