@@ -2181,7 +2181,25 @@ function checkStalePause() {
 		}
 		d.resolve(stale);
 	})
-	.fail(function () { try { dbgLog("stale-pause check failed, keeping paused view"); } catch (e) {} d.resolve(false); });
+	.fail(function (jqXHR) {
+		// A 404 is the router answering, not the network failing. The scheduler's
+		// on-event deletes data/<mac>.txt when the voucher ends, so a customer
+		// whose code ran out while paused was left watching a countdown to a
+		// session that no longer existed, with no error and no way out but
+		// guessing to tap RESUME. status 0 is a real network failure, which is
+		// not evidence the session ended, so the pause stays there.
+		var gone = false;
+		try { gone = (jqXHR && jqXHR.status === 404); } catch (e) {}
+		if (gone) {
+			try { dbgLog("stale pause: session file 404, clearing"); } catch (e) {}
+			clearStalePause("This session is no longer valid.");
+			try { render("login"); } catch (e) {}
+			d.resolve(true);
+			return;
+		}
+		try { dbgLog("stale-pause check failed, keeping paused view"); } catch (e) {}
+		d.resolve(false);
+	});
 	return d.promise();
 }
 
