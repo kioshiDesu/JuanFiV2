@@ -1540,12 +1540,12 @@ function startCountdown() {
 		if (!warned5 && total > 300 && time <= 300) {
 			warned5 = true;
 			window.__warned5 = true;
-			$.toast({ title: 'Running low', content: '5 minutes remaining — tap EXTEND TIME to add more', type: 'warning', delay: 5000 });
+			$.toast({ title: 'Running low', content: '5 minutes remaining — tap EXTEND to add more', type: 'warning', delay: 5000 });
 		}
 		if (!warned1 && total > 60 && time <= 60) {
 			warned1 = true;
 			window.__warned1 = true;
-			$.toast({ title: 'Almost out', content: '1 minute remaining! Tap EXTEND TIME now or you will be logged out', type: 'warning', delay: 8000 });
+			$.toast({ title: 'Almost out', content: '1 minute remaining! Tap EXTEND now or you will be logged out', type: 'warning', delay: 8000 });
 			try {
 				sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null);
 			} catch (e) { }
