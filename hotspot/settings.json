@@ -13,7 +13,8 @@
       "vendoName": "vlan10",
       "vendoIp": "10.0.10.254",
       "hotspotAddress": "10.0.10.1",
-      "interfaceName": "vlan10"
+      "interfaceName": "vlan10",
+      "brandHeaderHtml": "NETBRO <em>SUBD</em>"
     }
   ],
   "vendorIpAddress": "",
