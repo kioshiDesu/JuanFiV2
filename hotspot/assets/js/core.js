@@ -1655,6 +1655,7 @@ function applyFlags() {
 			$("#vendoSelected").off("change.vendo").on("change.vendo", function () {
 				vendorIpAddress = $("#vendoSelected").val();
 				setStorageValue(scopedKey('selectedVendo'), vendorIpAddress);
+				try { paintBrand(); } catch (e) {}
 				try { loadRates(); } catch (e) {}
 			});
 			$("#vendoSelected").trigger("change");
@@ -1679,6 +1680,7 @@ function applyFlags() {
 				$("#vendoSelected").off("change.vendo").on("change.vendo", function () {
 					vendorIpAddress = $("#vendoSelected").val();
 					setStorageValue(scopedKey('selectedVendo'), vendorIpAddress);
+					try { paintBrand(); } catch (e) {}
 					try { loadRates(); } catch (e) {}
 				});
 				$("#vendoSelectDiv").attr("style", "display: block");
@@ -1688,6 +1690,33 @@ function applyFlags() {
 
 	// value: allow <em> only, strip everything else so a per-site edit
 	// can't inject script/img handlers via .html().
+	// Per-venue brand. A multiVendoAddresses entry may carry its own
+	// brandHeaderHtml so each VLAN gets its own name. The global stays the
+	// fallback, so a settings.json that predates this key keeps working and a
+	// vendo with no key of its own just shows the shared brand.
+	function brandForVendo() {
+		try {
+			if (typeof multiVendoAddresses !== 'undefined' && multiVendoAddresses && multiVendoAddresses.length) {
+				for (var bvi = 0; bvi < multiVendoAddresses.length; bvi++) {
+					if (multiVendoAddresses[bvi].vendoIp === vendorIpAddress) {
+						var vb = multiVendoAddresses[bvi].brandHeaderHtml;
+						if (typeof vb === "string" && vb) { return vb; }
+					}
+				}
+			}
+		} catch (e) {}
+		return (typeof brandHeaderHtml !== 'undefined' && brandHeaderHtml) ? brandHeaderHtml : "";
+	}
+
+	function paintBrand() {
+		var html = brandForVendo();
+		if (!html) { return; }
+		$("#brandHeader").html(brandSafe(html));
+		try { fitBrand(); } catch (e) {}
+		var plain = html.replace(/<[^>]*>/g, "");
+		$("#bootBrand").text(plain);
+		document.title = plain + " Portal";
+	}
 	function brandSafe(html) {
 		var tmp = document.createElement("div");
 		tmp.innerHTML = String(html == null ? "" : html);
@@ -1702,13 +1731,7 @@ function applyFlags() {
 		return out;
 	}
 	try {
-		if (typeof brandHeaderHtml !== 'undefined' && brandHeaderHtml) {
-		$("#brandHeader").html(brandSafe(brandHeaderHtml));
-		try { fitBrand(); } catch (e) {}
-		var plain = brandHeaderHtml.replace(/<[^>]*>/g, "");
-			$("#bootBrand").text(plain);
-			document.title = plain + " Portal";
-		}
+		try { paintBrand(); } catch (e) {}
 		try { if (typeof currencySym !== 'undefined' && currencySym) $(".coin-peso").text(currencySym); } catch (e) {}
 		try { if (typeof currencySym !== 'undefined' && currencySym) $("#coinCur").text(currencySym); } catch (e) {}
 		try { if (typeof showMemberSection !== 'undefined' && !showMemberSection) $("#memberSection").hide(); } catch (e) {}

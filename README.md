@@ -450,7 +450,8 @@ full interval, which preserves the customer's remaining minutes.
   "multiVendoOption": 0,
   "multiVendoAddresses": [
     { "vendoName": "Vendo 1", "vendoIp": "10.0.0.254",
-      "hotspotAddress": "10.0.0.1", "interfaceName": "vlan1" }
+      "hotspotAddress": "10.0.0.1", "interfaceName": "vlan1",
+      "brandHeaderHtml": "PUROK <em>ONE</em>" }
   ],
   "vendorIpAddress": "10.0.0.254",
   "portalDebug": false,
@@ -469,6 +470,16 @@ full interval, which preserves the customer's remaining minutes.
    carries the same defaults built in plus a sync JSON fetch, so the
    portal survives a missing file. Per-site values go on the router copy
    only — never commit them.
+
+   **Per-venue brand.** Put a `brandHeaderHtml` on any
+   `multiVendoAddresses` entry and that VLAN gets its own name on the
+   splash, the header, and the browser tab; the top-level
+   `brandHeaderHtml` stays the fallback for every entry without one, so
+   an older settings.json needs no change and a new venue needs one
+   field. The picker repaints when the customer switches venue, so the
+   manual (`multiVendoOption: 0`) mode follows the selection. Only text
+   and `<em>` survive — `brandSafe()` strips everything else before it
+   reaches `.html()`, same as the global value.
 
    `macAsVoucherCode: true` sends each client's own MAC (colons
    stripped) as the voucher code. The box only mints a random code when
