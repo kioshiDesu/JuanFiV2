@@ -91,3 +91,34 @@
   }
 # --- end of gate -----------------------------------------------------------
 };
+
+# --- # Session File for vouchers made outside the portal -------------------
+# CHANGE: a voucher created in Winbox has no comment array and no scheduler,
+# so the gate above never opens and data/<mac>.txt is never written. That file
+# is the only thing resumeSession() reads to decide whether to auto-reconnect,
+# so without it the portal asks for the code on every single visit. The clock
+# already runs from limit-uptime, so fall back to now + limit-uptime.
+# Only fires when there is no scheduler AND no file yet, so every coin path is
+# untouched. A top-up on a Winbox voucher opens the gate above instead, which
+# creates the scheduler and writes the file itself.
+:if (($iTimeMin>0) and ($iUserReg="")) do={
+  :local mac $"mac-address";
+  :local macNoCol "";
+  :for i from=0 to=([:len $mac] - 1) do={
+    :local chr [:pick $mac $i]
+    :if ($chr = ":") do={ :set $chr "" }
+    :set macNoCol ($macNoCol . $chr)
+  }
+  :local jfSess ($HSFilePath . "/data/" . $macNoCol . ".txt");
+  :if ([:len [/file find name=$jfSess]]=0) do={
+    :if ([/file find name="$HSFilePath/data"]="") do={
+      :do {/tool fetch dst-path=("$HSFilePath/data/.") url="https://127.0.0.1/"} on-error={ };
+    }
+    /file print file="$jfSess" where name="dummyfile";
+    :local x 10;:while (($x>0) and ([/file find name="$jfSess"]="")) do={:set x ($x-1);:delay 1s};
+    :local jfEnd [/system clock get time];
+    :set jfEnd ($jfEnd + [:totime $iTimeMin]);
+    /file set "$jfSess" contents=("$user#$jfEnd");
+    :log info ("On-Login(" . $user . "): no-scheduler session file [" . $jfSess . "] valid=[" . $jfEnd . "]");
+  }
+}
