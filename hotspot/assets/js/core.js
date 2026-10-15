@@ -1327,7 +1327,12 @@ function render(state) {
 	try { paintVoucherHistory(); } catch (e) {}
 	try { dbgLog("render: " + state); } catch (e) { }
 	// Login succeeded (status/paused views): arm the next auto-login.
-	try { if (state != "login") { clearAutoLoginTried(); removeSessionValue("__loginRetry"); } } catch (e) {}
+	// __loginRetry and __resumePending are both resume bookkeeping. A SUCCESSFUL
+	// resume lands on the status branch and never reaches resumeSession() line
+	// 2268, so without this they survived the whole tab - and a stale
+	// __resumePending is the precondition detectState() uses to decide "the
+	// router just refused a resume".
+	try { if (state != "login") { clearAutoLoginTried(); removeSessionValue("__loginRetry"); removeSessionValue("__resumePending"); } } catch (e) {}
 	if (state == "login") {
 		return;
 	}
