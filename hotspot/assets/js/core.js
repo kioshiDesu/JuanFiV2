@@ -1338,6 +1338,7 @@ function render(state) {
 	}
 	if (state == "status") {
 		$("#statusVoucher").text(voucher);
+		try { $("#statusVoucher").attr("title", voucher ? "Tap to copy " + voucher : ""); } catch (e) {}
 		try { if (typeof trialNoExtend !== "undefined" && trialNoExtend && voucher && voucher.indexOf("T-") === 0) { $("#statusVoucher").text("FREE TRIAL"); $("#extendBtn").hide(); } } catch (e) {}
 		try {
 			if (typeof window.bytesIn !== "undefined" && window.bytesIn) { $("#upUsed").text(window.bytesIn); } else { $("#upUsed").text("—"); }
@@ -1699,6 +1700,61 @@ function applyFlags() {
 	// brandHeaderHtml so each VLAN gets its own name. The global stays the
 	// fallback, so a settings.json that predates this key keeps working and a
 	// vendo with no key of its own just shows the shared brand.
+	// Tap the voucher on the status page to copy it. With macAsVoucherCode the
+	// code is a 12-char MAC, which nobody can retype from memory, and the
+	// logout page has offered copy since it shipped - this is the same thing
+	// on the page the customer is actually on. No button: the code itself is
+	// the target, so the affordance has to live in the value.
+	if (window.__statusCopyBound !== true) {
+		window.__statusCopyBound = true;
+		try {
+			var sv = document.getElementById("statusVoucher");
+			if (sv) {
+				sv.addEventListener("click", copyVoucherFromStatus);
+				sv.addEventListener("keydown", function (ev) {
+					if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") { ev.preventDefault(); copyVoucherFromStatus(); }
+				});
+			}
+		} catch (e) {}
+	}
+
+	function copyVoucherFromStatus() {
+		var code = "";
+		try { code = String($("#statusVoucher").text() || "").trim(); } catch (e) {}
+		// FREE TRIAL is a label, not a code.
+		if (!code || code === "FREE TRIAL") { return; }
+		var ok = function (good) {
+			try {
+				$.toast({
+					title: good ? "Copied" : "Copy failed",
+					content: good ? ("Voucher " + code + " copied") : "Long-press the code above to copy it.",
+					type: good ? "success" : "error",
+					delay: 2500
+				});
+			} catch (e) {}
+		};
+		try {
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(code).then(function () { ok(true); }, function () { ok(false); });
+				return;
+			}
+		} catch (e) {}
+		// Captive portals can land on http, where the async clipboard API is
+		// unavailable. execCommand is the only thing left and it still works.
+		try {
+			var ta = document.createElement("textarea");
+			ta.value = code;
+			ta.setAttribute("readonly", "");
+			ta.style.position = "fixed";
+			ta.style.opacity = "0";
+			document.body.appendChild(ta);
+			ta.select();
+			ta.setSelectionRange(0, code.length);
+			ok(document.execCommand("copy"));
+			document.body.removeChild(ta);
+		} catch (e) { ok(false); }
+	}
+
 	function brandForVendo() {
 		try {
 			// isMultiVendo is the single switch, same as for the vendo picker.

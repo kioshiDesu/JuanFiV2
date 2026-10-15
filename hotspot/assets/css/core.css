@@ -1104,3 +1104,17 @@ body.coin-focus #coinPanel .hero .sub { margin-top: 0; }
     vertical-align: -0.14em;
     margin-right: 6px;
 }
+
+/* ---- tap-to-copy on the status voucher ---- */
+/* No button: the code IS the target. Underline + dashed offset is the only
+   cue, so it has to be enough without adding chrome to the row. */
+.metaval-copy {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-block;
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-underline-offset: 4px;
+}
+.metaval-copy:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 3px; }
+.metaval-copy:active { opacity: .6; }
