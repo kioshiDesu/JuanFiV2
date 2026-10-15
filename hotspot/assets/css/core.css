@@ -779,7 +779,7 @@ body.coin-focus #ratesSection {
 }
 /* Lifted above the veil, the rate list needs its own paint: with no
    background the 65% black shows through its gaps and the section reads as a
-   hole punched in the page. #3d4044 is the body colour (JuanFiV2.css), and
+   hole punched in the page. #3d4044 is the body colour (portal.css), and
    the radius/padding match the other cards so it does not jump when the coin
    panel opens. */
 body.coin-focus #ratesSection {

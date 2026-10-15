@@ -499,7 +499,7 @@ full interval, which preserves the customer's remaining minutes.
    Turn it off to hide the row.
 
 Bump the `?v=N` query on every first-party asset (`core.css`,
-`JuanFiV2.css`, `boot.js`, `core.js` in `portal.html` +
+`portal.css`, `boot.js`, `core.js` in `portal.html` +
 router shells) on every portal change so phones don't serve stale JS.
 Vendored libs stay pinned at `?v=26`. The footer `vN` tag should match.
 
