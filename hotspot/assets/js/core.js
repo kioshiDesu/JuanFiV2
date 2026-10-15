@@ -60,26 +60,45 @@ var showConvertVoucher = true;
 // a supported case (the fallbacks above), malformed JSON is an operator error
 // and must not be silent - see the note at the parse below.
 var __settingsLoadError = "";
+
+// settings.json used to be fetched with a SYNCHRONOUS XHR at module scope,
+// which blocked the main thread before anything painted. It is now an
+// ordinary async step in the boot chain: loadSettings() fetches,
+// applySettings() parses, reportSettingsError() surfaces a bad file. Nothing
+// reads these globals before boot() reaches the settings step - the only
+// consumer is applyFlags(), which runs straight after it.
+var __settingsText = "";
+function loadSettings() {
+	var d = $.Deferred();
+	function tryOne(url, next) {
+		try {
+			$.ajax({
+				type: "GET",
+				url: url + "?t=" + new Date().getTime(),
+				dataType: "text",
+				timeout: ROUTER_TIMEOUT,
+				cache: false
+			})
+			.done(function (text) { __settingsText = text; d.resolve(text); })
+			.fail(function () { if (next) { next(); } else { d.resolve(""); } });
+		} catch (e) { if (next) { next(); } else { d.resolve(""); } }
+	}
+	// Same two attempts the sync version made: absolute path first, so it
+	// works whatever the router html-directory is, then relative.
+	tryOne("/settings.json", function () { tryOne("settings.json", null); });
+	return d.promise();
+}
+
+function applySettings(text) {
 	try {
-		var __setReq = new XMLHttpRequest();
-		__setReq.open("GET", "/settings.json?t=" + new Date().getTime(), false);
-		try { __setReq.send(null); } catch (e) { __setReq = null; }
-		if ((!__setReq || __setReq.status !== 200)) {
-			try {
-				__setReq = new XMLHttpRequest();
-				__setReq.open("GET", "settings.json?t=" + new Date().getTime(), false);
-				__setReq.send(null);
-			} catch (e2) { __setReq = null; }
-		}
-		if (__setReq && __setReq.status === 200) {
 		var __setJson = null;
 		try {
-			__setJson = JSON.parse(__setReq.responseText || "{}");
+			__setJson = JSON.parse(text || "{}");
 		} catch (e3) {
 			// Served but unparseable - in practice a missing comma or brace from
 			// hand-editing. Swallowing this made a broken settings.json look
 			// exactly like the portal ignoring it, and the only visible symptom
-			// was the fallback brand in the header. Recorded and surfaced below.
+			// was the fallback brand in the header. Recorded and surfaced above.
 			__settingsLoadError = String((e3 && e3.message) || e3);
 		}
 		if (__setJson) {
@@ -99,27 +118,25 @@ var __settingsLoadError = "";
 		if (typeof __setJson.macAsVoucherCode === "boolean") { macAsVoucherCode = __setJson.macAsVoucherCode; }
 		if (typeof __setJson.showConvertVoucher === "boolean") { showConvertVoucher = __setJson.showConvertVoucher; }
 		}
-	}
-} catch (e) {}
+	} catch (e) {}
+}
 
-// Deferred: $.toast is defined further down this file, so the warning has to
-// wait for the whole script to have evaluated.
-if (__settingsLoadError) {
+function reportSettingsError() {
+	if (!__settingsLoadError) { return; }
 	try { if (window.console && console.warn) { console.warn("JuanFi: settings.json is not valid JSON, all settings fell back to defaults. " + __settingsLoadError); } } catch (e4) {}
 	try { dbgLog("settings.json invalid: " + __settingsLoadError, "err"); } catch (e5) {}
+	// No $(function) wrapper: by the time this runs the whole script has
+	// evaluated and boot() is past the settings step, so the DOM is up.
 	try {
-		$(function () {
-			try {
-				$.toast({
-					title: "Settings not applied",
-					content: "settings.json could not be read, so this portal is using built-in defaults.",
-					type: "error",
-					delay: 9000
-				});
-			} catch (e6) {}
+		$.toast({
+			title: "Settings not applied",
+			content: "settings.json could not be read, so this portal is using built-in defaults.",
+			type: "error",
+			delay: 9000
 		});
-	} catch (e7) {}
+	} catch (e6) {}
 }
+
 
 var ROUTER_TIMEOUT = 3000;
 var VENDO_TIMEOUT = 5000;
@@ -1088,6 +1105,21 @@ function boot() {
 			voucher = "";
 		}
 	} catch (e) { }
+	// settings.json is fetched async now. Everything below reads it, so the
+	// rest of boot is a function that runs once the settings land.
+	//
+	// ponytail: no failsafe here. loadSettings() resolves on both failure paths
+	// and $.ajax has a timeout, so it cannot hang; the 9s failsafe further down
+	// covers a frozen script either way.
+	try {
+		timedStep("Loading settings", loadSettings(), true).always(function () {
+			try { applySettings(__settingsText); } catch (e) {}
+			try { reportSettingsError(); } catch (e) {}
+			try { bootRest(); } catch (e2) { try { hideBoot(); } catch (e3) {} }
+		});
+	} catch (e) { try { hideBoot(); } catch (e2) {} }
+}
+function bootRest() {
 	$("#footYear").text(new Date().getFullYear());
 	applyFlags();
 	try { sfxPreload(); } catch (e) {}
