@@ -4,22 +4,86 @@
   "GUIDE": "multiVendoOption: 0=manual picker, 1=auto by hotspot address, 2=auto by interface name. If 1/2 finds no match, the manual picker is shown.",
   "multiVendoAddresses": [
     {
-      "vendoName": "main",
-      "vendoIp": "10.0.0.254",
-      "hotspotAddress": "10.0.0.1",
-      "interfaceName": "bridge1 HS"
-    },
-    {
-      "vendoName": "vlan10",
+      "vendoName": "NETBRO",
       "vendoIp": "10.0.10.254",
       "hotspotAddress": "10.0.10.1",
-      "interfaceName": "vlan10",
-      "brandHeaderHtml": "NETBRO <em>SUBD</em>"
+      "interfaceName": "vlan10-pisowifi",
+      "brandHeaderHtml": "VLAN<em>10</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.11.254",
+      "hotspotAddress": "10.0.11.1",
+      "interfaceName": "vlan11-pisowifi",
+      "brandHeaderHtml": "VLAN<em>11</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.12.254",
+      "hotspotAddress": "10.0.12.1",
+      "interfaceName": "vlan12-pisowifi",
+      "brandHeaderHtml": "VLAN<em>12</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.13.254",
+      "hotspotAddress": "10.0.13.1",
+      "interfaceName": "vlan13-pisowifi",
+      "brandHeaderHtml": "VLAN<em>13</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.14.254",
+      "hotspotAddress": "10.0.14.1",
+      "interfaceName": "vlan14-pisowifi",
+      "brandHeaderHtml": "VLAN<em>14</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.15.254",
+      "hotspotAddress": "10.0.15.1",
+      "interfaceName": "vlan15-pisowifi",
+      "brandHeaderHtml": "VLAN<em>15</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.16.254",
+      "hotspotAddress": "10.0.16.1",
+      "interfaceName": "vlan16-pisowifi",
+      "brandHeaderHtml": "VLAN<em>16</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.17.254",
+      "hotspotAddress": "10.0.17.1",
+      "interfaceName": "vlan17-pisowifi",
+      "brandHeaderHtml": "VLAN<em>17</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.18.254",
+      "hotspotAddress": "10.0.18.1",
+      "interfaceName": "vlan18-pisowifi",
+      "brandHeaderHtml": "VLAN<em>18</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.19.254",
+      "hotspotAddress": "10.0.19.1",
+      "interfaceName": "vlan19-pisowifi",
+      "brandHeaderHtml": "VLAN<em>19</em>"
+    },
+    {
+      "vendoName": "NETBRO",
+      "vendoIp": "10.0.20.254",
+      "hotspotAddress": "10.0.20.1",
+      "interfaceName": "vlan20-pisowifi",
+      "brandHeaderHtml": "VLAN<em>20</em>"
     }
   ],
   "vendorIpAddress": "",
   "portalDebug": false,
-  "brandHeaderHtml": "BROBRO <em>PISOWIFI</em>",
+  "brandHeaderHtml": "NETBRO <em>PISOWIFI</em>",
   "footerSocialUrl": "https://www.facebook.com/profile.php?id=61595026080323",
   "footerSocialLabel": "NETBRO INTERNET SERVICES",
   "footerSocialIcon": "facebook",
