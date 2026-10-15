@@ -2001,9 +2001,10 @@ function paintCoinLiveNote() {
 	try { cur = (typeof currencySym !== "undefined" && currencySym) ? currencySym : ""; } catch (e) {}
 	var coins = 0;
 	try { coins = parseInt(totalCoinReceived, 10) || 0; } catch (e) {}
-	el.textContent = coins > 0
-		? cur + coins + " inserted — leaving this page now loses it."
-		: "Leaving this page now cancels the coin insert.";
+	// ponytail: only warn once coins are actually at risk. Before the first
+	// coin lands there is nothing to lose, so the note stays hidden.
+	if (coins <= 0) { el.style.display = "none"; return; }
+	el.textContent = cur + coins + " inserted — leaving this page now loses it.";
 	el.style.display = "";
 }
 
