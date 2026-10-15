@@ -2131,7 +2131,10 @@ function cancelCoinForfeit() {
 	// Re-enable anything the insert paths left disabled, then skip the
 	// router call entirely when there is no code to cancel.
 	try { $("#saveVoucherButton").attr('disabled', false); } catch (e) {}
-	try { $("#cncl").html("Cancel"); $("#cncl").attr('disabled', false); } catch (e) {}
+	// ponytail: do NOT set the label here. .html() replaces every child,
+	// so touching it wiped the <svg class="bico"> and left bare "Cancel".
+	// The label is static markup and never changes; only the state does.
+	try { $("#cncl").attr('disabled', false); } catch (e) {}
 	if (!cancelVc) {
 		try { dbgLog("cancel: no active code, skipping cancelTopUp"); } catch (e) {}
 		totalCoinReceived = 0;
@@ -2756,7 +2759,6 @@ function callTopupAPI(retryCount, gen) {
 	if (typeof gen === 'undefined') { gen = topUpGen; }
 	// Stale generation (cancelled/superseded while in flight): never retry.
 	if (gen !== topUpGen) { return; }
-	$('#cncl').html("Cancel");
 	var isExtend = $("#saveVoucherButton").attr('data-save-type') == "extend";
 	try { dbgLog("topUp start retry=" + retryCount + " extend=" + (isExtend ? "1" : "0")); } catch (e) { }
 
