@@ -1701,7 +1701,10 @@ function applyFlags() {
 	// vendo with no key of its own just shows the shared brand.
 	function brandForVendo() {
 		try {
-			if (typeof multiVendoAddresses !== 'undefined' && multiVendoAddresses && multiVendoAddresses.length) {
+			// isMultiVendo is the single switch, same as for the vendo picker.
+			// With it off, multiVendoAddresses is a leftover list and a stale
+			// brandHeaderHtml on one of its entries must not win over the global.
+			if (isMultiVendo && typeof multiVendoAddresses !== 'undefined' && multiVendoAddresses && multiVendoAddresses.length) {
 				for (var bvi = 0; bvi < multiVendoAddresses.length; bvi++) {
 					if (multiVendoAddresses[bvi].vendoIp === vendorIpAddress) {
 						var vb = multiVendoAddresses[bvi].brandHeaderHtml;
