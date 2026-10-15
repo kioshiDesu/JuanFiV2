@@ -469,7 +469,7 @@ body.coin-live { overscroll-behavior-y: contain; }
 .pausenote b {
     color: #fff;
 }
-#juanfi-toasts {
+#voucher-toasts {
     position: fixed;
     top: max(12px, env(safe-area-inset-top));
     right: max(12px, env(safe-area-inset-right));

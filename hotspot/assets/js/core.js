@@ -34,7 +34,7 @@ var multiVendoAddresses = [
 ];
 var vendorIpAddress = "10.0.0.254";
 var portalDebug = false;
-var brandHeaderHtml = "JUANFI<em>V2</em>";
+var brandHeaderHtml = "Voucher<em>Hotspot</em>";
 // Footer link to the operator's page. The URL defaults to empty, which keeps
 // the pill hidden until settings.json names one - a router that was never
 // configured shows no dead link. Only http(s) is honoured; see
@@ -123,7 +123,7 @@ function applySettings(text) {
 
 function reportSettingsError() {
 	if (!__settingsLoadError) { return; }
-	try { if (window.console && console.warn) { console.warn("JuanFi: settings.json is not valid JSON, all settings fell back to defaults. " + __settingsLoadError); } } catch (e4) {}
+	try { if (window.console && console.warn) { console.warn("portal: settings.json is not valid JSON, all settings fell back to defaults. " + __settingsLoadError); } } catch (e4) {}
 	try { dbgLog("settings.json invalid: " + __settingsLoadError, "err"); } catch (e5) {}
 	// No $(function) wrapper: by the time this runs the whole script has
 	// evaluated and boot() is past the settings step, so the DOM is up.
@@ -373,10 +373,10 @@ function sfxStopLoop() {
 	var COLORS = { success: "#067647", error: "#d92d20", info: "#175cd3", warning: "#b7791f" };
 	$.toast = function (o) {
 		o = o || {};
-		var box = document.getElementById("juanfi-toasts");
+		var box = document.getElementById("voucher-toasts");
 		if (!box) {
 			box = document.createElement("div");
-			box.id = "juanfi-toasts";
+			box.id = "voucher-toasts";
 			box.setAttribute("role", "status");
 			box.setAttribute("aria-live", "polite");
 			document.body.appendChild(box);
