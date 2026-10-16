@@ -3065,7 +3065,9 @@ function checkCoin() {
 				closeCoinModal();
 				if (totalCoinReceived == 0) {
 					try { dbgLog("checkCoin: slot cleared, no coins", "dbg-err"); } catch (e) { }
-					notifyCoinSlotError("coinslot.cancelled");
+					// ponytail: nothing was inserted and the panel just closed, so
+					// there is no customer action to take. That used to raise a
+					// "Coinslot was cancelled" toast AND fill the #coinErr box.
 				} else {
 					try { dbgLog("checkCoin: slot cleared with coins=" + totalCoinReceived + ", auto-login", "dbg-ok"); } catch (e) { }
 					$.toast({ title: 'Success', content: 'Coin slot cancelled!, but was able to succesfully process the coin ' + totalCoinReceived + ", will do auto login shortly", type: 'info', delay: 5000 });
