@@ -3045,7 +3045,12 @@ function checkCoin() {
 						saveVoucherBtnAction();
 					} else {
 						try { dbgLog("checkCoin: wait expired, no coins", "dbg-err"); } catch (e) { }
-						notifyCoinSlotError('coins.wait.expired');
+						// ponytail: the insert window closed with an empty slot. That
+						// is the same state coinslot.busy reports one poll later, so
+						// close the panel like that branch does instead of raising a
+						// second error toast for one event. closeCoinModal() also
+						// clears the poll interval, which this branch used to leak.
+						closeCoinModal();
 					}
 				} else {
 					$('#totalCoin').text(data.totalCoin);
