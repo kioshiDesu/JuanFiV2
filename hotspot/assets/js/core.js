@@ -373,6 +373,12 @@ function sfxStopLoop() {
 	var COLORS = { success: "#067647", error: "#d92d20", info: "#175cd3", warning: "#b7791f" };
 	$.toast = function (o) {
 		o = o || {};
+		// Error toasts speak. Here rather than per call site so a new error
+		// path cannot forget, and only here so notifyCoinSlotError does not
+		// need its own copy.
+		if (o.type === "error") {
+			try { sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null); } catch (e) {}
+		}
 		var box = document.getElementById("voucher-toasts");
 		if (!box) {
 			box = document.createElement("div");
@@ -3045,11 +3051,10 @@ function checkCoin() {
 						saveVoucherBtnAction();
 					} else {
 						try { dbgLog("checkCoin: wait expired, no coins", "dbg-err"); } catch (e) { }
-						// ponytail: the insert window closed with an empty slot. That
-						// is the same state coinslot.busy reports one poll later, so
-						// close the panel like that branch does instead of raising a
-						// second error toast for one event. closeCoinModal() also
-						// clears the poll interval, which this branch used to leak.
+						// ponytail: one message for one event. The coinslot.busy
+						// branch a poll later stays silent, and closeCoinModal()
+						// ends the panel before that poll ever happens.
+						notifyCoinSlotError('coins.wait.expired');
 						closeCoinModal();
 					}
 				} else {
@@ -3236,9 +3241,7 @@ function resume() {
 
 function notifyCoinSlotError(errorCode) {
 	try { dbgLog("portal error: " + (errorCodeMap[errorCode] || ("Request failed (" + errorCode + ")")), "dbg-err"); } catch (e) { }
-	try {
-		sfxPlayFile("error", snd("assets/sounds/error.mp3"), false, null);
-	} catch (e) { }
+	// The error sound now rides along in the $.toast wrapper below.
 	var coinMsg = errorCodeMap[errorCode] || ('Request failed (' + errorCode + '), please try again');
 	try {
 		$("#coinErr").text(coinMsg).show();
