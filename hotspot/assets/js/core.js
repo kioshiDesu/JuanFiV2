@@ -2196,10 +2196,18 @@ function humanDuration(mins) {
 	mins = parseInt(mins || 0, 10);
 	if (mins <= 0) { return "—"; }
 	if (mins < 60) { return mins + (mins == 1 ? " min" : " mins"); }
-	var h = Math.floor(mins / 60);
-	if (h < 24) { return h + (h == 1 ? " hour" : " hours"); }
-	var d = Math.floor(h / 24);
-	return d + (d == 1 ? " day" : " days");
+	// Was: var h = Math.floor(mins / 60); if (h < 24) return h + " hour(s)";
+	// That floored and threw the remainder away, so a 90-minute rate sold as
+	// "1 hour" and a 25-hour rate sold as "1 day". Carry the remainder down
+	// through days, hours and minutes the same way paintRemainA11y() does.
+	var d = Math.floor(mins / 1440);
+	var h = Math.floor(mins % 1440 / 60);
+	var m = mins % 60;
+	var parts = [];
+	if (d) { parts.push(d + (d == 1 ? " day" : " days")); }
+	if (h) { parts.push(h + (h == 1 ? " hour" : " hours")); }
+	if (m) { parts.push(m + (m == 1 ? " min" : " mins")); }
+	return parts.join(" ");
 }
 
 function loadRates() {
