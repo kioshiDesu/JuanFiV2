@@ -416,26 +416,30 @@ function sfxStopLoop() {
 // ---------- storage ----------
 
 function setStorageValue(key, value) {
-	if (typeof localStorage !== 'undefined' && localStorage != null) {
-		localStorage.setItem(key, value);
-	} else {
-		setCookie(key, value, 364);
-	}
+	try {
+		if (typeof localStorage !== 'undefined' && localStorage != null) {
+			localStorage.setItem(key, value);
+			return;
+		}
+	} catch (e) { }
+	setCookie(key, value, 364);
 }
 
 function getStorageValue(key) {
-	if (typeof localStorage !== 'undefined' && localStorage != null) {
-		return localStorage.getItem(key);
-	}
+	try {
+		if (typeof localStorage !== 'undefined' && localStorage != null) {
+			var value = localStorage.getItem(key);
+			if (value != null) { return value; }
+		}
+	} catch (e) { }
 	return getCookie(key);
 }
 
 function removeStorageValue(key) {
-	if (typeof localStorage !== 'undefined' && localStorage != null) {
-		localStorage.removeItem(key);
-	} else {
-		eraseCookie(key);
-	}
+	try {
+		if (typeof localStorage !== 'undefined' && localStorage != null) { localStorage.removeItem(key); }
+	} catch (e) { }
+	eraseCookie(key);
 }
 
 function setCookie(name, value, days) {
@@ -777,6 +781,39 @@ document.getElementById('view-bank').addEventListener('keydown', function (ev) {
 	if (ev.shiftKey && document.activeElement === first) { last.focus(); ev.preventDefault(); }
 	else if (!ev.shiftKey && document.activeElement === last) { first.focus(); ev.preventDefault(); }
 });
+} catch (e) {} }
+// Modal keyboard behavior is registered at load so history and voucher bank
+// support Escape even when the coin panel has never been opened.
+if (!window.__coinEscBound) { window.__coinEscBound = true; try {
+	document.addEventListener("keydown", function (ev) {
+		if ((ev.key === "Escape" || ev.keyCode === 27) && window.__bankOpen) {
+			try { closeBankView(); } catch (e) {}
+			return;
+		}
+		if ((ev.key === "Escape" || ev.keyCode === 27) && window.__histOpen) {
+			try { closeHistoryView(); } catch (e) {}
+			return;
+		}
+		if ((ev.key === "Escape" || ev.keyCode === 27) && window.__coinOpen) {
+			try { cancelCoin(); } catch (e) {}
+		}
+	});
+} catch (e) {} }
+if (!window.__coinTrapBound) { window.__coinTrapBound = true; try {
+	document.getElementById("coinPanel").addEventListener("keydown", function (ev) {
+		if (ev.key !== "Tab" || !window.__coinOpen) { return; }
+		var f = Array.prototype.filter.call(this.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'), function (el) {
+			return !el.disabled && el.offsetParent !== null;
+		});
+		if (!f.length) { ev.preventDefault(); return; }
+		var first = f[0], last = f[f.length - 1];
+		var title = document.getElementById("coinPanelTitle");
+		if (ev.shiftKey && (document.activeElement === first || document.activeElement === title)) {
+			last.focus(); ev.preventDefault();
+		} else if (!ev.shiftKey && document.activeElement === last) {
+			first.focus(); ev.preventDefault();
+		}
+	});
 } catch (e) {} }
 // Warn before back/refresh/CNA reclaim forfeits inserted coins.
 window.addEventListener("beforeunload", function (e) {
@@ -2040,24 +2077,6 @@ function showCoinPanel() {
 		var t = document.getElementById("coinPanelTitle");
 		if (t && t.focus) { t.focus({ preventScroll: true }); }
 	} catch (e) {}
-	if (!window.__coinEscBound) {
-		window.__coinEscBound = true;
-		try {
-			document.addEventListener("keydown", function (ev) {
-			if ((ev.key === "Escape" || ev.keyCode === 27) && window.__bankOpen) {
-				try { closeBankView(); } catch (e) {}
-				return;
-			}
-			if ((ev.key === "Escape" || ev.keyCode === 27) && window.__histOpen) {
-				try { closeHistoryView(); } catch (e) {}
-				return;
-			}
-				if ((ev.key === "Escape" || ev.keyCode === 27) && window.__coinOpen) {
-					try { cancelCoin(); } catch (e) {}
-				}
-			});
-		} catch (e) {}
-	}
 	window.__coinOpen = true;
 	paintCoinStage();
 	// Pull-to-refresh is a browser gesture: beforeunload cannot be relied on
